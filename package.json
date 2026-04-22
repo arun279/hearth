@@ -27,7 +27,9 @@
   },
   "pnpm": {
     "overrides": {
-      "drizzle-zod>zod": "^4.1.11"
+      "drizzle-zod>zod": "^4.1.11",
+      "@esbuild-kit/core-utils>esbuild": "^0.25.0",
+      "@esbuild-kit/esm-loader>esbuild": "^0.25.0"
     }
   },
   "devDependencies": {
