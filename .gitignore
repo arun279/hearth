@@ -1,0 +1,52 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+.turbo/
+
+# TanStack Router generated routes drift guard — committed, not ignored:
+# apps/web/src/routeTree.gen.ts is intentionally tracked
+
+# Testing
+coverage/
+*.lcov
+
+# Drizzle
+.drizzle/
+
+# Wrangler + Cloudflare
+.wrangler/
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+
+# Sentry
+.sentryclirc
+
+# Editor / OS
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# CI scratch
+.ci/

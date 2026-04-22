@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens mirror the prototype (playground/hearth-design/study). Tailwind v4
+ * uses CSS-based config via @theme — no tailwind.config.js needed.
+ */
+@theme {
+  --color-ink: #1a1814;
+  --color-background: #fafaf7;
+  --color-foreground: #1a1814;
+  --color-muted: #ebe8df;
+  --color-muted-foreground: #665c4f;
+  --color-border: #d9d2c1;
+  --color-accent: #b8754f;
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-serif: ui-serif, Georgia, serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-background: #1a1814;
+    --color-foreground: #f0ebdd;
+    --color-muted: #2b2821;
+    --color-muted-foreground: #9a9080;
+    --color-border: #3d382f;
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "name": "hearth",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.28.2",
+  "engines": {
+    "node": ">=22.12.0",
+    "pnpm": ">=10.18.0"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "check": "pnpm biome check . && pnpm typecheck && pnpm check:types:boundaries && pnpm check:arch && pnpm check:knip && pnpm check:conventions && pnpm check:env-example && pnpm test",
+    "check:types:boundaries": "pnpm --filter @hearth/domain --filter @hearth/core --filter @hearth/ports typecheck",
+    "check:conventions": "node scripts/check-conventions.mjs",
+    "check:env-example": "node scripts/check-env-example.mjs",
+    "test": "turbo run test",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "check:arch": "depcruise --config .dependency-cruiser.cjs packages apps",
+    "check:knip": "knip",
+    "dev": "turbo run dev --parallel",
+    "db:generate": "pnpm --filter @hearth/db db:generate",
+    "db:migrate:dev": "pnpm --filter @hearth/db db:migrate:dev",
+    "db:check-auth": "pnpm --filter @hearth/db db:check-auth",
+    "prepare": "lefthook install"
+  },
+  "pnpm": {
+    "overrides": {
+      "drizzle-zod>zod": "^4.1.11"
+    }
+  },
+  "devDependencies": {
+    "@biomejs/biome": "catalog:",
+    "dependency-cruiser": "^16.10.1",
+    "knip": "^6.0.0",
+    "lefthook": "^2.1.6",
+    "turbo": "^2.9.5",
+    "typescript": "catalog:"
+  }
+}

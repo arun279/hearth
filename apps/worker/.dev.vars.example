@@ -1,0 +1,17 @@
+# Copy to .dev.vars (gitignored) and fill in real values for local development.
+# See ../../../docs/stack-claude.md "Deployment bootstrap" for canonical shape.
+
+GOOGLE_OAUTH_CLIENT_ID="paste-from-google-cloud-console"
+GOOGLE_OAUTH_CLIENT_SECRET="paste-from-google-cloud-console"
+
+BETTER_AUTH_SECRET="generate-via-openssl-rand-base64-32"
+# Local overrides — in prod these come from wrangler.jsonc [vars]
+BETTER_AUTH_URL="http://localhost:8787"
+BETTER_AUTH_TRUSTED_ORIGINS="http://localhost:5173,http://localhost:8787"
+
+KILLSWITCH_TOKEN="generate-via-openssl-rand-hex-32"
+HEARTH_BOOTSTRAP_OPERATOR_EMAIL="your-google-signin-email@example.com"
+
+# Optional — uncomment when you have real values. Empty strings fail URL validation.
+# SENTRY_DSN="https://...@sentry.io/..."
+# DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/..."

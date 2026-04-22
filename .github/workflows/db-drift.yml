@@ -1,0 +1,42 @@
+name: DB drift
+
+on:
+  pull_request:
+    paths:
+      - "packages/db/**"
+
+permissions: {}
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Generate migrations dry-run
+        run: pnpm --filter @hearth/db db:generate
+
+      - name: Fail if migrations folder has uncommitted changes
+        run: |
+          if [ -n "$(git status --porcelain packages/db/migrations)" ]; then
+            echo "::error::drizzle-kit generated a new migration that is not committed."
+            git status packages/db/migrations
+            git diff packages/db/migrations
+            exit 1
+          fi
+
+      - name: Better Auth schema drift check
+        run: pnpm --filter @hearth/db db:check-auth

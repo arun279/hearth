@@ -1,0 +1,45 @@
+pre-commit:
+  parallel: true
+  commands:
+    biome:
+      glob: "*.{ts,tsx,js,jsx,mjs,cjs,json,jsonc,css}"
+      run: pnpm biome check --staged --no-errors-on-unmatched --write {staged_files}
+      stage_fixed: true
+    typecheck:
+      glob: "*.{ts,tsx}"
+      # Full turbo typecheck — cache makes incremental runs near-instant.
+      # `--filter "...[HEAD]"` would be more targeted but breaks on the
+      # first commit where HEAD doesn't exist yet.
+      run: pnpm typecheck
+    # TODO(scaffolding): wire a secrets scanner here once we've picked one.
+    # `pnpm dlx trufflehog@latest` pulls a bogus npm package (the real Go
+    # trufflehog isn't on npm). CI's .github/workflows/security.yml already
+    # runs trufflesecurity/trufflehog (the real Go tool) on every PR, so we
+    # have CI-side coverage. Gitleaks via a pinned binary is the likely
+    # replacement for the pre-commit side.
+    env-example:
+      glob: "**/.dev.vars.example"
+      run: pnpm check:env-example
+
+pre-push:
+  parallel: true
+  commands:
+    biome:
+      # Belt-and-suspenders: if pre-commit's staged-file run was skipped
+      # (LEFTHOOK=0) or missed anything via glob edge cases, this re-runs
+      # biome on the full repo before the code leaves the machine.
+      run: pnpm biome check .
+    test:
+      # Full turbo test run — cache makes incremental runs fast. Using
+      # `--filter "...[HEAD]"` would be more targeted but breaks when HEAD
+      # isn't the branch tip (e.g., detached HEAD, rebase in progress).
+      run: pnpm test
+    arch:
+      run: pnpm check:arch
+    knip:
+      run: pnpm check:knip
+    conventions:
+      run: pnpm check:conventions
+    policy-purity:
+      glob: "packages/domain/src/(policy|visibility)/**/*.ts"
+      run: pnpm --filter @hearth/domain test -- --run policy-purity

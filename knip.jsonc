@@ -1,0 +1,40 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": ["turbo.json", "scripts/*.mjs"]
+    },
+    "apps/web": {
+      "entry": ["index.html"]
+    },
+    "apps/worker": {
+      "entry": ["wrangler.jsonc"]
+    },
+    "packages/db": {
+      // `wrangler` + `diff` are invoked by the db scripts but declared as deps
+      // in the packages that actually use them (apps/worker for wrangler, OS-level for diff).
+      "ignoreBinaries": ["wrangler", "diff"]
+    }
+  },
+  // TODO(scaffolding): remove entries from this list as each dep gets its first real import.
+  // These are v1-expected dependencies declared in package.json but not yet wired in the
+  // skeleton — knip would flag them as phantom deps without this allowlist. When a feature
+  // actually imports the dep, remove its entry here.
+  "ignoreDependencies": [
+    "lucide-react",
+    "react-dom",
+    "tailwindcss",
+    "@cloudflare/vitest-pool-workers",
+    "@types/react-dom",
+    "@hono-rate-limiter/cloudflare",
+    "@sentry/cloudflare",
+    "@hookform/resolvers",
+    "react-error-boundary",
+    "react-hook-form",
+    "sonner",
+    "@tanstack/react-query-devtools",
+    "@tanstack/router-devtools",
+    "@hearth/api",
+    "@hearth/domain"
+  ]
+}

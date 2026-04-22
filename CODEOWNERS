@@ -1,0 +1,17 @@
+# CODEOWNERS — paths here require explicit review from the owner on every PR.
+# Covers architectural invariants (domain, ports, db schema) and the deploy /
+# CI / security surface.
+
+/packages/domain/                       @arun279
+/packages/ports/                        @arun279
+/packages/db/src/schema.ts              @arun279
+/packages/db/src/auth-tables.ts         @arun279
+/packages/db/src/schema/                @arun279
+/packages/db/src/relations.ts           @arun279
+
+/.github/workflows/                     @arun279
+/apps/worker/wrangler.jsonc             @arun279
+/renovate.json                          @arun279
+/.dependency-cruiser.cjs                @arun279
+/biome.jsonc                            @arun279
+/lefthook.yml                           @arun279

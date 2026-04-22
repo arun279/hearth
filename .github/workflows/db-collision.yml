@@ -1,0 +1,35 @@
+name: DB migration collision check
+
+on:
+  pull_request:
+    paths:
+      - "packages/db/migrations/**"
+
+permissions: {}
+
+jobs:
+  collision:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect prefix collisions across branches
+        run: |
+          set -euo pipefail
+          ours=$(git ls-files packages/db/migrations | grep -E '^packages/db/migrations/[0-9]{4}_' || true)
+          if [ -z "$ours" ]; then
+            echo "No migrations on this branch yet."
+            exit 0
+          fi
+          prefixes=$(echo "$ours" | sed -E 's|packages/db/migrations/([0-9]{4})_.*|\1|' | sort)
+          dupes=$(echo "$prefixes" | uniq -d)
+          if [ -n "$dupes" ]; then
+            echo "::error::Duplicate migration prefixes detected:"
+            echo "$dupes"
+            exit 1
+          fi
+          echo "No duplicate migration prefixes."

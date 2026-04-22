@@ -1,0 +1,51 @@
+# renovate: datasource=github-releases depName=actions/checkout versioning=loose
+# NOTE: action references here are tag-pinned. Renovate (with pinDigests: true
+# in renovate.json) will rewrite these to full SHAs on first dependency PR.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm biome check .
+
+      - run: pnpm typecheck
+
+      - run: pnpm check:types:boundaries
+
+      - run: pnpm test
+
+      - run: pnpm check:arch
+
+      - run: pnpm check:knip
+
+      - run: pnpm check:conventions
+
+      - run: pnpm check:env-example

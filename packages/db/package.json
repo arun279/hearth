@@ -1,0 +1,31 @@
+{
+  "name": "@hearth/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema.ts",
+    "./auth-tables": "./src/auth-tables.ts",
+    "./relations": "./src/relations.ts"
+  },
+  "imports": {
+    "#*": "./src/*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate:dev": "wrangler d1 migrations apply hearth --local",
+    "db:check-auth": "mkdir -p .ci && npx @better-auth/cli@latest generate --output .ci/better-auth.expected.ts && diff -u .ci/better-auth.expected.ts src/auth-tables.ts"
+  },
+  "dependencies": {
+    "drizzle-orm": "catalog:"
+  },
+  "devDependencies": {
+    "@hearth/tsconfig": "workspace:*",
+    "drizzle-kit": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

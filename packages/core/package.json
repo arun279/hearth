@@ -1,0 +1,26 @@
+{
+  "name": "@hearth/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./use-cases/*": "./src/use-cases/*.ts"
+  },
+  "imports": {
+    "#*": "./src/*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@hearth/domain": "workspace:*",
+    "@hearth/ports": "workspace:*"
+  },
+  "devDependencies": {
+    "@hearth/tsconfig": "workspace:*",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

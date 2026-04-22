@@ -1,0 +1,112 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.4.12/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "ignoreUnknown": true,
+    "includes": [
+      "**/*.ts",
+      "**/*.tsx",
+      "**/*.js",
+      "**/*.jsx",
+      "**/*.mjs",
+      "**/*.cjs",
+      "**/*.json",
+      "**/*.jsonc",
+      "!**/dist",
+      "!**/.turbo",
+      "!**/.wrangler",
+      "!**/node_modules",
+      "!**/routeTree.gen.ts",
+      "!**/migrations",
+      "!**/*.css"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double",
+      "semicolons": "always",
+      "trailingCommas": "all"
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "suspicious": {
+        "noConsole": { "level": "error", "options": { "allow": ["error", "warn"] } },
+        "noFocusedTests": "error"
+      },
+      "nursery": {
+        "noFloatingPromises": "error",
+        "useSortedClasses": {
+          "level": "warn",
+          "options": {
+            "attributes": ["className", "class"],
+            "functions": ["clsx", "cva", "tw", "cn"]
+          }
+        }
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["packages/api/src/routes/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "drizzle-orm": "Route handlers must go through ports, not Drizzle directly.",
+                  "@cloudflare/workers-types": "Route handlers must not import Cloudflare types; use ports.",
+                  "@hearth/db": "Route handlers must go through ports, not packages/db."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["scripts/**/*.mjs", "scripts/**/*.cjs", "scripts/**/*.js"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["packages/domain/src/policy/**/*.ts", "packages/domain/src/visibility/**/*.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedGlobals": {
+              "level": "error",
+              "options": {
+                "deniedGlobals": {
+                  "Date": "policy modules must be pure — accept a Clock port instead",
+                  "crypto": "policy modules must be pure — inject an IdGenerator port",
+                  "performance": "policy modules must be pure",
+                  "process": "policy modules must be pure"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

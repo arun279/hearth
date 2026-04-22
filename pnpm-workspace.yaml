@@ -1,0 +1,28 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+  - "packages/adapters/*"
+
+# Supply-chain hardening
+onlyBuiltDependencies: []
+dangerouslyAllowAllBuilds: false
+verifyDepsBeforeRun: "error"
+minimumReleaseAge: 1440
+
+# Single-source-of-truth versions for cross-package pins
+catalog:
+  react: 19.2.5
+  react-dom: 19.2.5
+  "@types/react": ^19.2.0
+  "@types/react-dom": ^19.2.0
+  zod: ^4.1.11
+  hono: ^4.12.14
+  drizzle-orm: 0.45.2
+  drizzle-kit: 0.31.10
+  better-auth: ^1.6.4
+  vitest: 4.1.0
+  "@cloudflare/vitest-pool-workers": ^0.14.7
+  typescript: ^5.7.2
+  "@biomejs/biome": ^2.4.12
+  "@cloudflare/workers-types": ^4.20251021.0
+  "@paralleldrive/cuid2": ^3.3.0

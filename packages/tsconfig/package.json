@@ -1,0 +1,14 @@
+{
+  "name": "@hearth/tsconfig",
+  "version": "0.0.0",
+  "private": true,
+  "files": [
+    "base.json",
+    "web.json",
+    "worker.json"
+  ],
+  "dependencies": {
+    "@cloudflare/workers-types": "catalog:",
+    "vite": "^8.0.0"
+  }
+}

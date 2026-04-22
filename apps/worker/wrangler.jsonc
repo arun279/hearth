@@ -1,0 +1,57 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "hearth",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-04-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "workers_dev": true,
+  "preview_urls": true,
+
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "../web/dist"
+  },
+
+  "vars": {
+    "BETTER_AUTH_URL": "https://hearth.wiki",
+    "BETTER_AUTH_TRUSTED_ORIGINS": "https://hearth.wiki,http://localhost:5173,http://localhost:8787"
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "hearth",
+      "database_id": "e6843cc1-c185-468a-84bc-cd991b81a091",
+      "migrations_dir": "../../packages/db/migrations"
+    }
+  ],
+
+  "r2_buckets": [
+    {
+      "binding": "STORAGE",
+      "bucket_name": "hearth-storage"
+    }
+  ],
+
+  "ratelimits": [
+    {
+      "name": "WRITE_LIMITER",
+      "namespace_id": "1",
+      "simple": { "limit": 60, "period": 60 }
+    },
+    {
+      "name": "AUTH_LIMITER",
+      "namespace_id": "2",
+      "simple": { "limit": 10, "period": 60 }
+    }
+  ],
+
+  "analytics_engine_datasets": [{ "binding": "ANALYTICS", "dataset": "hearth_telemetry" }],
+
+  "triggers": {
+    "crons": ["0 * * * *"]
+  },
+
+  "observability": { "enabled": true }
+}

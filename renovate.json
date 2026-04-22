@@ -1,0 +1,42 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", ":dependencyDashboard", "schedule:weekends"],
+  "rangeStrategy": "bump",
+  "semanticCommits": "enabled",
+  "dependencyDashboard": true,
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "schedule": "at any time"
+  },
+  "packageRules": [
+    {
+      "description": "Block critical pins — exact versions require manual approval",
+      "matchPackageNames": ["drizzle-orm", "drizzle-kit", "vitest", "react", "react-dom"],
+      "rangeStrategy": "pin",
+      "dependencyDashboardApproval": true
+    },
+    {
+      "description": "Group Better Auth; auto-merge after 3 days",
+      "matchPackageNames": ["better-auth"],
+      "groupName": "better-auth",
+      "automerge": true,
+      "automergeType": "pr",
+      "minimumReleaseAge": "3 days"
+    },
+    {
+      "description": "Group TanStack family",
+      "matchPackagePrefixes": ["@tanstack/"],
+      "groupName": "tanstack"
+    },
+    {
+      "description": "Pin GitHub Actions by SHA",
+      "matchManagers": ["github-actions"],
+      "pinDigests": true
+    },
+    {
+      "description": "Delay production deps to filter same-week supply-chain attacks",
+      "matchDepTypes": ["dependencies"],
+      "minimumReleaseAge": "3 days"
+    }
+  ]
+}

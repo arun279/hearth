@@ -1,0 +1,30 @@
+{
+  "name": "@hearth/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "mkdir -p ../web/dist && wrangler dev",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "deploy:upload": "wrangler versions upload",
+    "deploy:release": "wrangler versions deploy --yes"
+  },
+  "dependencies": {
+    "@hearth/adapter-cloudflare": "workspace:*",
+    "@hearth/api": "workspace:*",
+    "@hearth/auth": "workspace:*",
+    "@hearth/config": "workspace:*",
+    "@hono-rate-limiter/cloudflare": "^0.2.2",
+    "@sentry/cloudflare": "^10.47.0",
+    "hono": "catalog:"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "catalog:",
+    "@cloudflare/workers-types": "catalog:",
+    "@hearth/tsconfig": "workspace:*",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "wrangler": "^4.44.0"
+  }
+}
