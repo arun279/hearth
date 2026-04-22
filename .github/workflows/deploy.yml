@@ -21,6 +21,11 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history so `sentry-cli releases set-commits --auto` can resolve
+          # the previous release's SHA for commit association. Shallow clones
+          # error with "Could not find the SHA of the previous release".
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
         with:
