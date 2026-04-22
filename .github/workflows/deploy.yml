@@ -45,6 +45,7 @@ jobs:
           command: d1 migrations apply hearth --remote
 
       - name: Upload Worker version
+        id: upload
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -52,13 +53,26 @@ jobs:
           workingDirectory: apps/worker
           command: versions upload --message "ci:${{ github.sha }}"
 
+      - name: Extract uploaded Worker Version ID
+        id: version
+        env:
+          UPLOAD_OUTPUT: ${{ steps.upload.outputs.command-output }}
+        run: |
+          VERSION_ID=$(printf '%s\n' "$UPLOAD_OUTPUT" | grep -oE 'Worker Version ID: [a-f0-9-]+' | head -1 | awk '{print $NF}')
+          if [ -z "$VERSION_ID" ]; then
+            echo "::error::Could not find 'Worker Version ID: <uuid>' in the upload step's output."
+            exit 1
+          fi
+          echo "id=$VERSION_ID" >> "$GITHUB_OUTPUT"
+          echo "Extracted Worker Version ID: $VERSION_ID"
+
       - name: Deploy version (flip traffic atomically)
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: apps/worker
-          command: versions deploy --yes
+          command: versions deploy ${{ steps.version.outputs.id }}@100% --yes
 
       - name: Upload Sentry source maps (SPA)
         uses: getsentry/action-release@v3
