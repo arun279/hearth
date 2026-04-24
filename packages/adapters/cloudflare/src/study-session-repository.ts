@@ -5,7 +5,7 @@ import { stubRepository } from "./stub.ts";
 // TODO(scaffolding): implement StudySessionRepository methods (sessions +
 // attendance). Replace before the first session-scheduling feature ships.
 export function createStudySessionRepository(
-  _deps: Pick<CloudflareAdapterDeps, "db">,
+  _deps: Pick<CloudflareAdapterDeps, "db" | "gate">,
 ): StudySessionRepository {
   return stubRepository<StudySessionRepository>("StudySessionRepository");
 }

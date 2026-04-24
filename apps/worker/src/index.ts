@@ -4,6 +4,8 @@ import {
   createDrizzleAdapter,
   createIdGenerator,
   createInstanceAccessPolicyRepository,
+  createInstanceSettingsRepository,
+  createKillswitchGate,
   createLearningActivityRepository,
   createLearningTrackRepository,
   createLibraryItemRepository,
@@ -14,10 +16,18 @@ import {
   createSystemFlagRepository,
   createUserRepository,
 } from "@hearth/adapter-cloudflare";
-import { type AppBindings, createApiRouter } from "@hearth/api";
+import {
+  type AppBindings,
+  authRateLimit,
+  createApiRouter,
+  killswitchMiddleware,
+  writeRateLimit,
+} from "@hearth/api";
 import { createAuth } from "@hearth/auth";
 import { parseEnv } from "@hearth/config";
+import * as Sentry from "@sentry/cloudflare";
 import { Hono } from "hono";
+import { logger } from "hono/logger";
 
 export type WorkerEnv = {
   DB: D1Database;
@@ -45,8 +55,14 @@ app.use("*", async (c, next) => {
   const { db, authDatabase } = createDrizzleAdapter(c.env.DB);
   const storage = c.env.STORAGE;
 
-  const policy = createInstanceAccessPolicyRepository({ db });
-  const users = createUserRepository({ db });
+  // Flags repo first: the killswitch gate reads through it, so it has to be
+  // constructible before the gate.
+  const flags = createSystemFlagRepository({ db });
+  const gate = createKillswitchGate(flags);
+
+  const policy = createInstanceAccessPolicyRepository({ db, gate });
+  const settings = createInstanceSettingsRepository({ db, gate });
+  const users = createUserRepository({ db, gate });
 
   const auth = createAuth({
     database: authDatabase,
@@ -62,19 +78,32 @@ app.use("*", async (c, next) => {
     },
   });
 
-  c.set("userId", null);
-  c.set("auth", auth);
+  // Resolve the authenticated session from the Better Auth cookie up-front so
+  // every downstream layer — route handlers, rate-limit keying, get-me-context
+  // use case — can trust `c.var.userId`. A missing/invalid cookie or a
+  // thrown error collapses to null; routes that require auth enforce it
+  // themselves.
+  const session = await auth.api.getSession({ headers: c.req.raw.headers }).catch(() => null);
+  const userId = session?.user?.id ?? null;
+
+  c.set("userId", userId);
+  c.set("auth", { handler: (req: Request) => auth.handler(req) });
+  c.set("gate", gate);
+  c.set("adminToken", env.KILLSWITCH_TOKEN);
+  c.set("writeLimiter", c.env.WRITE_LIMITER);
+  c.set("authLimiter", c.env.AUTH_LIMITER);
   c.set("ports", {
     policy,
+    settings,
     users,
-    groups: createStudyGroupRepository({ db }),
-    tracks: createLearningTrackRepository({ db }),
-    libraryItems: createLibraryItemRepository({ db, storage }),
-    activities: createLearningActivityRepository({ db }),
-    records: createActivityRecordRepository({ db }),
-    sessions: createStudySessionRepository({ db }),
-    storage: createObjectStorage(storage),
-    flags: createSystemFlagRepository({ db }),
+    groups: createStudyGroupRepository({ db, gate }),
+    tracks: createLearningTrackRepository({ db, gate }),
+    libraryItems: createLibraryItemRepository({ db, storage, gate }),
+    activities: createLearningActivityRepository({ db, gate }),
+    records: createActivityRecordRepository({ db, gate }),
+    sessions: createStudySessionRepository({ db, gate }),
+    storage: createObjectStorage(storage, gate),
+    flags,
     clock: createClock(),
     ids: createIdGenerator(),
   });
@@ -82,10 +111,20 @@ app.use("*", async (c, next) => {
   await next();
 });
 
-app.on(["GET", "POST"], "/api/auth/*", (c) => c.var.auth.handler(c.req.raw));
-
+// /healthz is an unauthenticated liveness probe. Install BEFORE the killswitch
+// middleware so it stays reachable in disabled mode (uptime checks must keep
+// working even when the instance is shut off for everyone else).
 app.get("/healthz", (c) => c.text("ok"));
 
+app.use("*", killswitchMiddleware());
+app.use("*", logger());
+
+// Rate-limit auth endpoints per-IP and /api/v1 writes per-session via
+// Cloudflare's edge counter (no D1/KV/DO writes — see docs/free-tier-guardrails.md).
+app.use("/api/auth/*", authRateLimit());
+app.on(["GET", "POST"], "/api/auth/*", (c) => c.var.auth.handler(c.req.raw));
+
+app.use("/api/v1/*", writeRateLimit());
 app.route("/api/v1", createApiRouter());
 
 /**
@@ -97,16 +136,30 @@ app.route("/api/v1", createApiRouter());
  */
 const scheduler = createScheduler();
 
-const worker: ExportedHandler<WorkerEnv> = {
+const handler: ExportedHandler<WorkerEnv> = {
   fetch: app.fetch,
   scheduled: async (event, env, ctx) => {
     // Register cron tasks on first invocation. Keeping this in the handler
     // scope avoids top-level mutation; Workers isolates are short-lived.
     await scheduler.dispatch(event.cron, new Date(event.scheduledTime));
-    // `env` + `ctx` reserved for future cron handlers that need bindings.
+    // env + ctx are reserved for cron handlers that will need bindings when
+    // the usage poller and backup-export cron land in later milestones.
     void env;
     void ctx;
   },
 };
 
-export default worker;
+/**
+ * Sentry wraps the entire Worker. When SENTRY_DSN is unset (local dev or
+ * instances that opt out of Sentry) the client is constructed disabled —
+ * no network calls, no overhead. `release` is populated by the CI deploy
+ * workflow via Wrangler's version metadata when available.
+ */
+export default Sentry.withSentry(
+  (env: WorkerEnv) => ({
+    dsn: env.SENTRY_DSN,
+    tracesSampleRate: 0.1,
+    sendDefaultPii: false,
+  }),
+  handler,
+);

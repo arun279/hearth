@@ -20,3 +20,45 @@ export function createDrizzleAdapter(d1: D1Database) {
   });
   return { db, authDatabase };
 }
+
+/**
+ * D1's drizzle integration does not expose `.transaction()` in the version
+ * we pin — multi-statement atomicity is achieved through `db.batch([...])`.
+ * Write paths that need atomicity construct the statement array themselves
+ * and hand it to batch(). This helper exists as a single named call site so
+ * future swaps to a driver that does expose transactions (Turso, Postgres)
+ * change one file rather than every write site.
+ */
+export async function withTx<T>(
+  db: HearthDrizzle,
+  fn: (tx: HearthDrizzle) => Promise<T>,
+): Promise<T> {
+  return fn(db);
+}
+
+const TRANSIENT_MESSAGE_PATTERN = /storage operation exceeded timeout|network connection lost/i;
+
+function isTransient(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return TRANSIENT_MESSAGE_PATTERN.test(msg);
+}
+
+/**
+ * Retry a D1 operation up to 3 times with jittered exponential backoff when
+ * the error matches a known transient pattern. Non-transient errors are
+ * rethrown immediately so a logic error does not get masked behind retries.
+ */
+export async function retryTransient<T>(fn: () => Promise<T>): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (!isTransient(err) || attempt === 2) throw err;
+      const delay = 50 * 2 ** attempt + Math.random() * 25;
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+  throw lastErr;
+}

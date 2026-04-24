@@ -109,9 +109,9 @@ importers:
       '@tanstack/router-devtools':
         specifier: ^1.166.10
         version: 1.166.13(@tanstack/react-router@1.168.23(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(@tanstack/router-core@1.168.15)(csstype@3.2.3)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
-      lucide-react:
-        specifier: ^0.540.0
-        version: 0.540.0(react@19.2.5)
+      hono:
+        specifier: 'catalog:'
+        version: 4.12.14
       react:
         specifier: 'catalog:'
         version: 19.2.5
@@ -127,6 +127,9 @@ importers:
       sonner:
         specifier: ^2.0.0
         version: 2.0.7(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      zod:
+        specifier: 'catalog:'
+        version: 4.3.6
     devDependencies:
       '@hearth/tsconfig':
         specifier: workspace:*
@@ -183,9 +186,6 @@ importers:
         specifier: 'catalog:'
         version: 4.12.14
     devDependencies:
-      '@cloudflare/vitest-pool-workers':
-        specifier: 'catalog:'
-        version: 0.14.8(@cloudflare/workers-types@4.20260421.1)(@vitest/runner@4.1.0)(@vitest/snapshot@4.1.0)(vitest@4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.17)(vite@8.0.9(@types/node@22.19.17)(esbuild@0.27.7)(jiti@2.6.1)(tsx@4.21.0)(yaml@2.8.3)))
       '@cloudflare/workers-types':
         specifier: 'catalog:'
         version: 4.20260421.1
@@ -223,6 +223,9 @@ importers:
         specifier: 'catalog:'
         version: 0.45.2(@cloudflare/workers-types@4.20260421.1)(@opentelemetry/api@1.9.1)(kysely@0.28.16)
     devDependencies:
+      '@cloudflare/vitest-pool-workers':
+        specifier: 'catalog:'
+        version: 0.14.8(@cloudflare/workers-types@4.20260421.1)(@vitest/runner@4.1.0)(@vitest/snapshot@4.1.0)(vitest@4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.17)(vite@8.0.9(@types/node@22.19.17)(esbuild@0.27.7)(jiti@2.6.1)(tsx@4.21.0)(yaml@2.8.3)))
       '@cloudflare/workers-types':
         specifier: 'catalog:'
         version: 4.20260421.1
@@ -238,12 +241,21 @@ importers:
 
   packages/api:
     dependencies:
+      '@hearth/core':
+        specifier: workspace:*
+        version: link:../core
+      '@hearth/domain':
+        specifier: workspace:*
+        version: link:../domain
       '@hearth/ports':
         specifier: workspace:*
         version: link:../ports
       hono:
         specifier: 'catalog:'
         version: 4.12.14
+      zod:
+        specifier: 'catalog:'
+        version: 4.3.6
     devDependencies:
       '@hearth/tsconfig':
         specifier: workspace:*

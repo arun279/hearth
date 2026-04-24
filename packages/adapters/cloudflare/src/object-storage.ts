@@ -1,8 +1,10 @@
 import type { ObjectHead, ObjectStorage } from "@hearth/ports";
+import type { KillswitchGate } from "./killswitch.ts";
 
-export function createObjectStorage(bucket: R2Bucket): ObjectStorage {
+export function createObjectStorage(bucket: R2Bucket, gate: KillswitchGate): ObjectStorage {
   return {
     async putUpload(key, stream, metadata) {
+      await gate.assertWritable();
       await bucket.put(key, stream, {
         httpMetadata: metadata ? { contentType: metadata.contentType } : undefined,
         customMetadata: metadata?.originalFilename
@@ -26,6 +28,7 @@ export function createObjectStorage(bucket: R2Bucket): ObjectStorage {
       };
     },
     async delete(key) {
+      await gate.assertWritable();
       await bucket.delete(key);
     },
     async usedBytes(prefix) {

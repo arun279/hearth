@@ -7,7 +7,7 @@ import { stubRepository } from "./stub.ts";
 // any method throws but construction succeeds — the composition root can
 // assemble ports without crashing healthz.
 export function createStudyGroupRepository(
-  _deps: Pick<CloudflareAdapterDeps, "db">,
+  _deps: Pick<CloudflareAdapterDeps, "db" | "gate">,
 ): StudyGroupRepository {
   return stubRepository<StudyGroupRepository>("StudyGroupRepository");
 }
