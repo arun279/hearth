@@ -1,0 +1,17 @@
+{
+  // Test-only Wrangler config consumed by vitest-pool-workers. Intentionally
+  // minimal: only the D1 + R2 bindings the adapter suites exercise. No rate
+  // limiters, no cron triggers, no Sentry, no assets — Miniflare spins up
+  // only what's declared here, so this file stays quiet.
+  "name": "hearth-adapter-tests",
+  "compatibility_date": "2026-04-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "hearth-test",
+      "database_id": "00000000-0000-0000-0000-000000000000"
+    }
+  ],
+  "r2_buckets": [{ "binding": "STORAGE", "bucket_name": "hearth-test-storage" }]
+}

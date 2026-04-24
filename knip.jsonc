@@ -11,9 +11,14 @@
       "entry": ["wrangler.jsonc"]
     },
     "packages/db": {
-      // `wrangler` + `diff` are invoked by the db scripts but declared as deps
-      // in the packages that actually use them (apps/worker for wrangler, OS-level for diff).
-      "ignoreBinaries": ["wrangler", "diff"]
+      // `diff` is a system binary invoked by db:check-auth.
+      "ignoreBinaries": ["diff"]
+    },
+    "packages/adapters/cloudflare": {
+      // `cloudflare:test` is a virtual module provided by
+      // @cloudflare/vitest-pool-workers at runtime — it is not an npm
+      // package, so knip flags it as "unlisted". Suppress here.
+      "ignoreDependencies": ["cloudflare"]
     }
   },
   // TODO(scaffolding): remove entries from this list as each dep gets its first real import.
@@ -21,20 +26,13 @@
   // skeleton — knip would flag them as phantom deps without this allowlist. When a feature
   // actually imports the dep, remove its entry here.
   "ignoreDependencies": [
-    "lucide-react",
     "react-dom",
     "tailwindcss",
-    "@cloudflare/vitest-pool-workers",
     "@types/react-dom",
     "@hono-rate-limiter/cloudflare",
-    "@sentry/cloudflare",
     "@hookform/resolvers",
-    "react-error-boundary",
     "react-hook-form",
-    "sonner",
     "@tanstack/react-query-devtools",
-    "@tanstack/router-devtools",
-    "@hearth/api",
-    "@hearth/domain"
+    "@tanstack/router-devtools"
   ]
 }
