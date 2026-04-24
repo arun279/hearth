@@ -12,11 +12,14 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run"
   },
   "dependencies": {
+    "@hearth/core": "workspace:*",
+    "@hearth/domain": "workspace:*",
     "@hearth/ports": "workspace:*",
-    "hono": "catalog:"
+    "hono": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@hearth/tsconfig": "workspace:*",

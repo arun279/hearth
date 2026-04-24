@@ -5,7 +5,7 @@ import { stubRepository } from "./stub.ts";
 // TODO(scaffolding): implement LearningTrackRepository methods. Replace before
 // the first track-creating feature ships.
 export function createLearningTrackRepository(
-  _deps: Pick<CloudflareAdapterDeps, "db">,
+  _deps: Pick<CloudflareAdapterDeps, "db" | "gate">,
 ): LearningTrackRepository {
   return stubRepository<LearningTrackRepository>("LearningTrackRepository");
 }

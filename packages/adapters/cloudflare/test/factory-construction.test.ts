@@ -4,6 +4,8 @@ import {
   createClock,
   createIdGenerator,
   createInstanceAccessPolicyRepository,
+  createInstanceSettingsRepository,
+  createKillswitchGate,
   createLearningActivityRepository,
   createLearningTrackRepository,
   createLibraryItemRepository,
@@ -29,18 +31,24 @@ import {
 describe("adapter factory construction", () => {
   const db = {} as unknown as Parameters<typeof createUserRepository>[0]["db"];
   const storage = {} as unknown as Parameters<typeof createObjectStorage>[0];
+  const flags = createSystemFlagRepository({ db });
+  const gate = createKillswitchGate(flags);
 
   it.each([
-    ["createInstanceAccessPolicyRepository", () => createInstanceAccessPolicyRepository({ db })],
-    ["createUserRepository", () => createUserRepository({ db })],
-    ["createStudyGroupRepository", () => createStudyGroupRepository({ db })],
-    ["createLearningTrackRepository", () => createLearningTrackRepository({ db })],
-    ["createLibraryItemRepository", () => createLibraryItemRepository({ db, storage })],
-    ["createLearningActivityRepository", () => createLearningActivityRepository({ db })],
-    ["createActivityRecordRepository", () => createActivityRecordRepository({ db })],
-    ["createStudySessionRepository", () => createStudySessionRepository({ db })],
+    [
+      "createInstanceAccessPolicyRepository",
+      () => createInstanceAccessPolicyRepository({ db, gate }),
+    ],
+    ["createInstanceSettingsRepository", () => createInstanceSettingsRepository({ db, gate })],
+    ["createUserRepository", () => createUserRepository({ db, gate })],
+    ["createStudyGroupRepository", () => createStudyGroupRepository({ db, gate })],
+    ["createLearningTrackRepository", () => createLearningTrackRepository({ db, gate })],
+    ["createLibraryItemRepository", () => createLibraryItemRepository({ db, storage, gate })],
+    ["createLearningActivityRepository", () => createLearningActivityRepository({ db, gate })],
+    ["createActivityRecordRepository", () => createActivityRecordRepository({ db, gate })],
+    ["createStudySessionRepository", () => createStudySessionRepository({ db, gate })],
     ["createSystemFlagRepository", () => createSystemFlagRepository({ db })],
-    ["createObjectStorage", () => createObjectStorage(storage)],
+    ["createObjectStorage", () => createObjectStorage(storage, gate)],
     ["createClock", () => createClock()],
     ["createIdGenerator", () => createIdGenerator()],
     ["createScheduler", () => createScheduler()],

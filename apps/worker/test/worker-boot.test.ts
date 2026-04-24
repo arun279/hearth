@@ -2,23 +2,18 @@ import { describe, expect, it } from "vitest";
 import worker, { type WorkerEnv } from "../src/index.ts";
 
 /**
- * End-to-end smoke test for the Worker's boot path. Covers:
+ * Boot-path smoke test. Covers:
  *  - env parsing (Zod schema accepts the fake values below)
  *  - middleware composition (every repository factory constructs without throwing)
- *  - route mount paths (/healthz unversioned, /api/v1/* versioned)
- *  - basic response shapes
+ *  - /healthz is reachable without touching D1 (critical — uptime probes must
+ *    still work in `disabled` killswitch mode, and the killswitch middleware
+ *    short-circuits before the route even runs)
  *
- * We stub the Cloudflare bindings (`D1Database`, `R2Bucket`, etc.) as empty
- * objects — the stub repositories in packages/adapters/cloudflare/src/stub.ts
- * return Proxies that only throw on method access, so the routes exercised
- * here never touch the real DB. A full integration test with Miniflare is a
- * future addition once @cloudflare/vitest-pool-workers' new API stabilizes.
- *
- * If this file starts failing, the Worker is broken at the most basic
- * request-pipeline level. Common causes:
- *  - a repository factory started throwing at construction time
- *  - an env var was added to the schema without a matching fake below
- *  - a route path was renamed without updating the tests
+ * Route-level coverage for /api/v1/me/context and the admin endpoints lives in
+ * `packages/api/test/*.test.ts`, where ports are mocked cleanly. The boot test
+ * deliberately does NOT hit D1-backed routes with a fake `{} as D1Database` —
+ * that would require a real Miniflare environment, which we provision via
+ * @cloudflare/vitest-pool-workers in the adapter integration suite.
  */
 
 const FAKE_ENV: WorkerEnv = {
@@ -53,22 +48,5 @@ describe("worker boot", () => {
     const res = await fetchRoute("/healthz");
     expect(res.status).toBe(200);
     expect(await res.text()).toBe("ok");
-  });
-
-  it("/api/v1/me/context returns the empty stub shape", async () => {
-    const res = await fetchRoute("/api/v1/me/context");
-    expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toEqual({
-      user: null,
-      memberships: [],
-      enrollments: [],
-      isOperator: false,
-    });
-  });
-
-  it("/api/v1/me/up-next returns an items array", async () => {
-    const res = await fetchRoute("/api/v1/me/up-next");
-    expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toEqual({ items: [] });
   });
 });

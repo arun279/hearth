@@ -4,7 +4,9 @@ import type { UserRepository } from "@hearth/ports";
 import { eq } from "drizzle-orm";
 import type { CloudflareAdapterDeps } from "./deps.ts";
 
-export function createUserRepository(deps: Pick<CloudflareAdapterDeps, "db">): UserRepository {
+export function createUserRepository(
+  deps: Pick<CloudflareAdapterDeps, "db" | "gate">,
+): UserRepository {
   const toUser = (r: typeof users.$inferSelect): User => ({
     id: r.id as UserId,
     email: r.email,
@@ -31,6 +33,7 @@ export function createUserRepository(deps: Pick<CloudflareAdapterDeps, "db">): U
       return rows[0] ? toUser(rows[0]) : null;
     },
     async deactivate(id, by) {
+      await deps.gate.assertWritable();
       const now = new Date();
       await deps.db
         .update(users)
@@ -38,6 +41,7 @@ export function createUserRepository(deps: Pick<CloudflareAdapterDeps, "db">): U
         .where(eq(users.id, id));
     },
     async reactivate(id) {
+      await deps.gate.assertWritable();
       await deps.db
         .update(users)
         .set({ deactivatedAt: null, deactivatedBy: null, updatedAt: new Date() })
@@ -45,12 +49,13 @@ export function createUserRepository(deps: Pick<CloudflareAdapterDeps, "db">): U
     },
     // TODO(scaffolding): user deletion walks every aggregate (memberships,
     // enrollments, activity records, library items uploaded, sessions created)
-    // to apply the chosen AttributionPreference. Implement when a user-deletion
-    // path is exercised; currently callers must not invoke this method.
+    // to apply the chosen AttributionPreference. Implement when the user-
+    // lifecycle aggregate lands; callers must not invoke this method before.
     async deleteIdentity(_id, _attribution, _by) {
       throw new Error("Not implemented: user deletion requires cross-aggregate coordination");
     },
     async setAttributionPreference(id, pref) {
+      await deps.gate.assertWritable();
       await deps.db
         .update(users)
         .set({ attributionPreference: pref, updatedAt: new Date() })

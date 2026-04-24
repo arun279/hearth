@@ -10,7 +10,11 @@
 
   "assets": {
     "binding": "ASSETS",
-    "directory": "../web/dist"
+    "directory": "../web/dist",
+    // SPA fallback — deep-link refreshes (e.g. /g/:groupId) serve index.html
+    // instead of 404'ing. Valid values per CF docs: "single-page-application"
+    // | "404-page" | "none".
+    "not_found_handling": "single-page-application"
   },
 
   "vars": {

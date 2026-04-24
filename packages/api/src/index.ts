@@ -1,26 +1,36 @@
 import { Hono } from "hono";
 import type { AppBindings } from "./bindings.ts";
 import { adminRoutes } from "./routes/admin.ts";
-import { groupRoutes } from "./routes/groups.ts";
-import { libraryRoutes } from "./routes/library.ts";
 import { meRoutes } from "./routes/me.ts";
-import { trackRoutes } from "./routes/tracks.ts";
 
 /**
- * Builds the Hono app. apps/worker is the composition root — it adds
- * Better Auth at `/api/auth/*` and mounts this router at `/api/v1/*`.
+ * Builds the Hono app under `/api/v1/*`. apps/worker is the composition root —
+ * it wires Better Auth at `/api/auth/*` and mounts this router.
+ *
+ * Route groups land as their aggregates ship (groups, tracks, library, etc.).
+ * Keeping this router lean until then avoids dead endpoints the SPA could
+ * accidentally call.
  */
 export function createApiRouter() {
-  const app = new Hono<AppBindings>()
-    .route("/me", meRoutes)
-    .route("/admin", adminRoutes)
-    .route("/g", groupRoutes)
-    .route("/tracks", trackRoutes)
-    .route("/library", libraryRoutes);
-
+  const app = new Hono<AppBindings>().route("/me", meRoutes).route("/admin", adminRoutes);
   return app;
 }
 
 export type ApiRouter = ReturnType<typeof createApiRouter>;
 
-export type { AppBindings } from "./bindings.ts";
+export type { AppBindings, AuthHandle } from "./bindings.ts";
+export { killswitchMiddleware } from "./middleware/killswitch.ts";
+export {
+  authRateLimit,
+  type RateLimiterBinding,
+  writeRateLimit,
+} from "./middleware/rate-limit.ts";
+export {
+  mapUnknown,
+  type Problem,
+  problemForKillswitch,
+  problemFromDomainError,
+  problemFromZodError,
+  problemResponse,
+  unknownErrorProblem,
+} from "./problem.ts";

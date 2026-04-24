@@ -1,0 +1,40 @@
+import type { GroupMembership } from "./group.ts";
+import type { UserId } from "./ids.ts";
+import type { TrackEnrollment } from "./track.ts";
+
+/**
+ * Minimal user projection returned to the SPA. Deliberately omits lifecycle
+ * fields so deactivated-state leaks cannot happen from this endpoint.
+ */
+export type MeContextUser = {
+  readonly id: UserId;
+  readonly email: string;
+  readonly name: string | null;
+  readonly image: string | null;
+};
+
+export type MeContextInstance = {
+  readonly name: string;
+  /**
+   * True iff zero active instance operators exist. The SPA surfaces a
+   * bootstrap hint on the sign-in landing when this is true so the first
+   * configured operator knows what to expect.
+   */
+  readonly needsBootstrap: boolean;
+};
+
+/**
+ * Versioned envelope so future field additions remain backwards-compatible
+ * with clients that were bundled against an earlier shape. Anything inside
+ * `data` can be extended additively; a structural break would bump `v`.
+ */
+export type MeContext = {
+  readonly v: 1;
+  readonly data: {
+    readonly user: MeContextUser | null;
+    readonly instance: MeContextInstance;
+    readonly isOperator: boolean;
+    readonly memberships: readonly GroupMembership[];
+    readonly enrollments: readonly TrackEnrollment[];
+  };
+};

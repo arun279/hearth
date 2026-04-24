@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "mkdir -p ../web/dist && wrangler dev",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run",
     "deploy:upload": "wrangler versions upload",
     "deploy:release": "wrangler versions deploy --yes"
   },
@@ -20,7 +20,6 @@
     "hono": "catalog:"
   },
   "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "catalog:",
     "@cloudflare/workers-types": "catalog:",
     "@hearth/tsconfig": "workspace:*",
     "typescript": "catalog:",

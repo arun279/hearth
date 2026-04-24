@@ -2,7 +2,8 @@ import type { UserId } from "@hearth/domain";
 import type { InstanceAccessPolicyRepository, UserRepository } from "@hearth/ports";
 import { type BetterAuthOptions, betterAuth } from "better-auth";
 import { APIError } from "better-auth/api";
-import { admissionCheck } from "./admission.ts";
+import { admissionCheck, canonicalizeEmail } from "./admission.ts";
+import { authOptions } from "./auth-options.ts";
 import { createSessionGuard } from "./session-guard.ts";
 import type { AuthEnvironment } from "./types.ts";
 
@@ -16,23 +17,27 @@ export type AuthFactoryDeps = {
 /**
  * Build a Better Auth instance wired to Hearth's admission + session policies.
  *
- * Hook wiring:
- *   - `databaseHooks.user.create.before` calls `admissionCheck()` — rejects
- *     any email not on the Approved Email list. Canonicalizes email here (the
- *     single point for trim + lowercase).
- *   - `databaseHooks.user.create.after` calls `bootstrapIfNeeded()` — seeds
- *     the first operator on first sign-in with the bootstrap email. Idempotent.
- *     Runs post-commit because the bootstrap FK targets the user row that
- *     only becomes visible after the insert commits.
- *   - `databaseHooks.session.create.before` runs `sessionGuard()` — defense
- *     in depth against admission changes after sign-up (deactivated/deleted
- *     users, revoked approved emails).
+ * Hook wiring (order matters — see the bootstrap-bypass justification in
+ * admission.ts and session-guard.ts):
+ *   - `user.create.before` → admissionCheck. Rejects non-approved emails,
+ *     with a bootstrap-bypass for the first operator. Canonicalizes email.
+ *   - `session.create.before` → sessionGuard. Defense in depth. Carries the
+ *     same bootstrap-bypass because this hook fires BEFORE the deferred
+ *     `user.create.after` runs.
+ *   - `user.create.after` → bootstrapIfNeeded. Runs post-commit and
+ *     idempotently seeds approved_emails + instance_operators for the
+ *     first-operator flow.
+ *
+ * Schema-affecting options (session config + user.additionalFields) live
+ * in auth-options.ts so `scripts/check-auth.config.ts` can share them with
+ * the Better Auth CLI generator — one source of truth, zero drift risk.
  */
 export function createAuth(deps: AuthFactoryDeps) {
   const { database, policy, users, env } = deps;
-  const sessionGuard = createSessionGuard(policy, users);
+  const sessionGuard = createSessionGuard(policy, users, env.bootstrapOperatorEmail);
 
   return betterAuth({
+    ...authOptions,
     baseURL: env.baseURL,
     trustedOrigins: [...env.trustedOrigins],
     secret: env.secret,
@@ -43,38 +48,19 @@ export function createAuth(deps: AuthFactoryDeps) {
         clientSecret: env.googleClientSecret,
       },
     },
-    session: {
-      expiresIn: 60 * 60 * 24 * 30,
-      updateAge: 60 * 60 * 24,
-      cookieCache: { enabled: true, maxAge: 60 * 5 },
-    },
-    user: {
-      additionalFields: {
-        deactivatedAt: { type: "date", required: false, input: false },
-        deactivatedBy: { type: "string", required: false, input: false },
-        deletedAt: { type: "date", required: false, input: false },
-        deletedBy: { type: "string", required: false, input: false },
-        attributionPreference: {
-          type: "string",
-          required: false,
-          defaultValue: "preserve_name",
-          input: false,
-        },
-        visibilityPreferenceJson: { type: "string", required: false, input: false },
-      },
-    },
     databaseHooks: {
       user: {
         create: {
           before: async (user) => {
             try {
-              await admissionCheck(policy, user.email);
+              await admissionCheck(policy, user.email, env.bootstrapOperatorEmail);
             } catch {
               throw new APIError("FORBIDDEN", {
                 message: "This email is not approved for this Hearth Instance.",
+                code: "email_not_approved",
               });
             }
-            return { data: { ...user, email: user.email.trim().toLowerCase() } };
+            return { data: { ...user, email: canonicalizeEmail(user.email) } };
           },
           after: async (user) => {
             await policy.bootstrapIfNeeded({

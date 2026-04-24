@@ -1,0 +1,3 @@
+@import "@hearth/ui/styles.css";
+
+@source "./**/*.{ts,tsx}";

@@ -21,19 +21,23 @@ These rules are enforced by `pnpm check:arch` (dependency-cruiser) in CI. Files 
 
 All of these must pass locally before merge. Most run automatically via `lefthook` hooks when you commit/push; CI re-runs them as a safety net.
 
-1. `pnpm biome check .`
-2. `pnpm typecheck`
-3. `pnpm check:arch`
-4. `pnpm check:knip`
-5. `pnpm check:types:boundaries`
-6. `pnpm check:conventions`
-7. `pnpm check:env-example`
-8. `pnpm check:table-inventory`
-9. `pnpm test`
+1. `pnpm install --resolution-only`
+2. `pnpm biome check .`
+3. `pnpm typecheck`
+4. `pnpm check:arch`
+5. `pnpm check:knip`
+6. `pnpm check:types:boundaries`
+7. `pnpm check:conventions`
+8. `pnpm check:env-example`
+9. `pnpm db:check-auth`
+10. `pnpm test`
+11. `pnpm test:integration`
+12. `pnpm audit --audit-level=high`
+
+`pnpm check` runs all of the above in one pass.
 
 Additional:
 - If you touched `packages/db/src/**`, run `pnpm db:generate` and commit the new migration.
-- If you touched `packages/db/src/auth-tables.ts`, `pnpm db:check-auth` passes.
 - If you added or changed a route in `packages/api`, the `hc` client types round-trip into `apps/web`.
 - If you added a dependency, pin it appropriately (critical pins are gated in `renovate.json`).
 
@@ -51,11 +55,13 @@ Additional:
 - `drizzle.config.ts` must point at the barrel `./src/schema.ts`, not a glob (glob + barrel causes drizzle-kit duplicate-table failures).
 - Cross-package imports use `workspace:*` + `package.json#exports` pointing at `./src/*.ts`. No `tsconfig.paths`, no `composite: true`.
 - Internal planning docs are deliberately kept outside this repo. Do not add cross-references (relative paths pointing out of the repo, or mentions of maintainer-only doc filenames) in any committed file. `pnpm check:conventions` enforces this.
+- Before bumping a pinned tool (TypeScript, wrangler, better-auth, drizzle, `@cloudflare/vitest-pool-workers`, etc.) or proposing a stack change, consult `docs/tripwires.md` — it catalogues reassess-when-X triggers tied to each pin. If an entry is relevant, follow its "Action" step rather than treating the bump as routine.
 
 ## When each check runs
 
 | Check | IDE on save | Pre-commit (lefthook) | Pre-push (lefthook) | CI (GitHub Actions) |
 |---|---|---|---|---|
+| `pnpm install --resolution-only` | — | — | ✓ | (part of `pnpm install --frozen-lockfile`) |
 | Biome lint + format | ✓ | staged files only | — | all files |
 | `pnpm typecheck` | ✓ (via tsc server) | changed packages only | — | all packages |
 | `pnpm check:types:boundaries` | — | — | — | ✓ |
@@ -63,8 +69,11 @@ Additional:
 | `pnpm check:knip` | — | — | ✓ | ✓ |
 | `pnpm check:conventions` | — | — | ✓ | ✓ |
 | `pnpm check:env-example` | — | when `.dev.vars.example` changes | — | ✓ |
+| `pnpm db:check-auth` | — | — | ✓ | ✓ |
 | `pnpm test` | — | — | changed packages only | all packages |
+| `pnpm test:integration` | — | — | ✓ | ✓ |
 | Policy-purity test | — | — | when policy/visibility changes | (part of `pnpm test`) |
+| `pnpm audit --audit-level=high` | — | — | ✓ | daily + per-PR |
 | TruffleHog secrets scan | — | staged files only | — | daily + per-PR |
 
 `pnpm check` runs the superset locally; use it before opening a PR.
@@ -75,8 +84,8 @@ These exist because the scaffold is skeletal. **Remove each when its trigger fir
 
 | Exception | Location | Trigger to remove |
 |---|---|---|
-| `vitest run --passWithNoTests` in `test` scripts | every package except `@hearth/domain` + `@hearth/db` | the package gets its first test |
-| `knip.ignoreDependencies` for v1-expected-but-unused deps (`lucide-react`, `sonner`, `react-hook-form`, `@hookform/resolvers`, `react-error-boundary`, `@tanstack/*-devtools`, `@sentry/cloudflare`, `@hono-rate-limiter/cloudflare`, `@cloudflare/vitest-pool-workers`, `tailwindcss`, `react-dom`, `@types/react-dom`, `@hearth/api`, `@hearth/domain`) | `knip.json` | the first real import of each dep — remove that dep's entry |
-| Skeleton stubs throwing `"Not implemented"` in repository adapters | `packages/adapters/cloudflare/src/*-repository.ts` | the first use case calling that method |
+| `vitest run --passWithNoTests` in `test` scripts | `@hearth/web` (all other packages now run real tests) | the package gets its first test |
+| `knip.ignoreDependencies` for v1-expected-but-unused deps (`react-dom`, `tailwindcss`, `@cloudflare/vitest-pool-workers`, `@types/react-dom`, `@hono-rate-limiter/cloudflare`, `@sentry/cloudflare`, `@hookform/resolvers`, `react-hook-form`, `@tanstack/react-query-devtools`, `@tanstack/router-devtools`) | `knip.jsonc` | the first real import of each dep — remove that dep's entry |
+| Skeleton stubs throwing `"Not implemented"` in repository adapters | `packages/adapters/cloudflare/src/*-repository.ts` (study-group, learning-track, library-item, learning-activity, activity-record, study-session; plus `user.deleteIdentity`, R2 `getDownloadUrl`) | the first use case calling that method |
 
 New exceptions should be added to this table and the maintainer should be told before merging.

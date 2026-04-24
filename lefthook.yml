@@ -43,3 +43,11 @@ pre-push:
     policy-purity:
       glob: "packages/domain/src/(policy|visibility)/**/*.ts"
       run: pnpm --filter @hearth/domain test -- --run policy-purity
+    db-check-auth:
+      run: pnpm db:check-auth
+    test-integration:
+      run: pnpm test:integration
+    audit:
+      run: pnpm audit --audit-level=high
+    resolution:
+      run: pnpm install --resolution-only

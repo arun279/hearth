@@ -50,3 +50,7 @@ yarn-error.log*
 
 # CI scratch
 .ci/
+
+# Claude Code runtime + local overrides
+.claude/settings.local.json
+.claude/*.lock

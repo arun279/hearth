@@ -4,10 +4,15 @@ packages:
   - "packages/adapters/*"
 
 # Supply-chain hardening
-onlyBuiltDependencies: []
+allowBuilds:
+  "@prisma/client": true
+  better-sqlite3: true
 dangerouslyAllowAllBuilds: false
 verifyDepsBeforeRun: "error"
 minimumReleaseAge: 1440
+blockExoticSubdeps: true
+trustPolicy: no-downgrade
+trustPolicyIgnoreAfter: 525600
 
 # Single-source-of-truth versions for cross-package pins
 catalog:

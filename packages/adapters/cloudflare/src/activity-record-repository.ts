@@ -5,7 +5,7 @@ import { stubRepository } from "./stub.ts";
 // TODO(scaffolding): implement ActivityRecordRepository methods. Replace
 // before the first activity-participation feature ships.
 export function createActivityRecordRepository(
-  _deps: Pick<CloudflareAdapterDeps, "db">,
+  _deps: Pick<CloudflareAdapterDeps, "db" | "gate">,
 ): ActivityRecordRepository {
   return stubRepository<ActivityRecordRepository>("ActivityRecordRepository");
 }

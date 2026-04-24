@@ -14,10 +14,10 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run",
     "db:generate": "drizzle-kit generate",
-    "db:migrate:dev": "wrangler d1 migrations apply hearth --local",
-    "db:check-auth": "mkdir -p .ci && npx @better-auth/cli@latest generate --output .ci/better-auth.expected.ts && diff -u .ci/better-auth.expected.ts src/auth-tables.ts"
+    "db:migrate:dev": "pnpm --filter @hearth/worker exec wrangler d1 migrations apply hearth --local",
+    "db:check-auth": "mkdir -p .ci && pnpm dlx --package=@better-auth/cli@1.4.21 better-auth generate --config ../../scripts/check-auth.config.ts --output .ci/better-auth.expected.ts --yes && node ../../scripts/diff-auth-schema.mjs .ci/better-auth.expected.ts src/auth-tables.ts"
   },
   "dependencies": {
     "drizzle-orm": "catalog:"
