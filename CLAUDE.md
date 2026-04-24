@@ -12,6 +12,12 @@ Run `pnpm check` (aggregate script) or at minimum the individual gates listed in
 - Never add TODO comments unless the user asks. Finish or delete; don't narrate.
 - Default to no comments in generated code. Only add a comment when the WHY is non-obvious.
 
+## Existing TODOs are not decoration
+
+- Existing `TODO(...)` comments flag work that still needs to be done. Do NOT remove a TODO, rename it, or rewrite the comment to lose its `TODO(` prefix unless you actually completed the work it describes (or the user confirmed the TODO is obsolete).
+- This applies even to "cosmetic" rewrites: a comment that loses `TODO(` disappears from `grep`/PR sweeps and from the `AGENTS.md § Scaffolding-temporary exceptions` table. That's a regression in tracking, not a cleanup.
+- When in doubt, ask. "Is this TODO still valid?" is cheaper than silently burying it.
+
 ## Research before writing
 
 - Before adding a dependency, check it's in the catalog (`pnpm-workspace.yaml`). If yes, use `"catalog:"` as the version.
@@ -20,8 +26,8 @@ Run `pnpm check` (aggregate script) or at minimum the individual gates listed in
 
 ## Skills worth using
 
-- Run `/code-review` before merging a non-trivial PR.
-- Run `/security-review` before merging a PR that touches auth, permissions, or data access.
+- Run `/code-review` before merging a PR to main.
+- Run `/simplify` before merging a PR to main.
 
 ## Never in committed code
 
