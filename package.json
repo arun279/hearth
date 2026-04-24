@@ -10,7 +10,7 @@
   "scripts": {
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
-    "check": "pnpm biome check . && pnpm typecheck && pnpm check:types:boundaries && pnpm check:arch && pnpm check:knip && pnpm check:conventions && pnpm check:env-example && pnpm test && pnpm test:integration",
+    "check": "pnpm biome check . && pnpm typecheck && pnpm check:types:boundaries && pnpm check:arch && pnpm check:knip && pnpm check:conventions && pnpm check:env-example && pnpm db:check-auth && pnpm test && pnpm test:integration",
     "check:types:boundaries": "pnpm --filter @hearth/domain --filter @hearth/core --filter @hearth/ports typecheck",
     "check:conventions": "node scripts/check-conventions.mjs",
     "check:env-example": "node scripts/check-env-example.mjs",

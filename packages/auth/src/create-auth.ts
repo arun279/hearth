@@ -3,6 +3,7 @@ import type { InstanceAccessPolicyRepository, UserRepository } from "@hearth/por
 import { type BetterAuthOptions, betterAuth } from "better-auth";
 import { APIError } from "better-auth/api";
 import { admissionCheck, canonicalizeEmail } from "./admission.ts";
+import { authOptions } from "./auth-options.ts";
 import { createSessionGuard } from "./session-guard.ts";
 import type { AuthEnvironment } from "./types.ts";
 
@@ -26,12 +27,17 @@ export type AuthFactoryDeps = {
  *   - `user.create.after` → bootstrapIfNeeded. Runs post-commit and
  *     idempotently seeds approved_emails + instance_operators for the
  *     first-operator flow.
+ *
+ * Schema-affecting options (session config + user.additionalFields) live
+ * in auth-options.ts so `scripts/check-auth.config.ts` can share them with
+ * the Better Auth CLI generator — one source of truth, zero drift risk.
  */
 export function createAuth(deps: AuthFactoryDeps) {
   const { database, policy, users, env } = deps;
   const sessionGuard = createSessionGuard(policy, users, env.bootstrapOperatorEmail);
 
   return betterAuth({
+    ...authOptions,
     baseURL: env.baseURL,
     trustedOrigins: [...env.trustedOrigins],
     secret: env.secret,
@@ -42,26 +48,6 @@ export function createAuth(deps: AuthFactoryDeps) {
         clientSecret: env.googleClientSecret,
       },
     },
-    session: {
-      expiresIn: 60 * 60 * 24 * 30,
-      updateAge: 60 * 60 * 24,
-      cookieCache: { enabled: true, maxAge: 60 * 5 },
-    },
-    user: {
-      additionalFields: {
-        deactivatedAt: { type: "date", required: false, input: false },
-        deactivatedBy: { type: "string", required: false, input: false },
-        deletedAt: { type: "date", required: false, input: false },
-        deletedBy: { type: "string", required: false, input: false },
-        attributionPreference: {
-          type: "string",
-          required: false,
-          defaultValue: "preserve_name",
-          input: false,
-        },
-        visibilityPreferenceJson: { type: "string", required: false, input: false },
-      },
-    },
     databaseHooks: {
       user: {
         create: {
@@ -69,10 +55,6 @@ export function createAuth(deps: AuthFactoryDeps) {
             try {
               await admissionCheck(policy, user.email, env.bootstrapOperatorEmail);
             } catch {
-              // Re-raise as APIError with the stable reason code so the SPA
-              // can pattern-match on `?rejection=email_not_approved` in the
-              // redirect query string. admissionCheck only throws this one
-              // reason; more granular codes would live here if it didn't.
               throw new APIError("FORBIDDEN", {
                 message: "This email is not approved for this Hearth Instance.",
                 code: "email_not_approved",

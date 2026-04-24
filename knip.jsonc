@@ -2,17 +2,13 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "workspaces": {
     ".": {
-      "entry": ["turbo.json", "scripts/*.mjs"]
+      "entry": ["turbo.json", "scripts/*.mjs", "scripts/*.ts"]
     },
     "apps/web": {
       "entry": ["index.html"]
     },
     "apps/worker": {
       "entry": ["wrangler.jsonc"]
-    },
-    "packages/db": {
-      // `diff` is a system binary invoked by db:check-auth.
-      "ignoreBinaries": ["diff"]
     },
     "packages/adapters/cloudflare": {
       // `cloudflare:test` is a virtual module provided by
@@ -21,11 +17,16 @@
       "ignoreDependencies": ["cloudflare"]
     }
   },
+  // `better-auth` is used by scripts/check-auth.config.ts via the
+  // hoisted node_modules; it's not a declared dep of the root package,
+  // so knip needs the exemption.
+  //
   // TODO(scaffolding): remove entries from this list as each dep gets its first real import.
   // These are v1-expected dependencies declared in package.json but not yet wired in the
   // skeleton — knip would flag them as phantom deps without this allowlist. When a feature
   // actually imports the dep, remove its entry here.
   "ignoreDependencies": [
+    "better-auth",
     "react-dom",
     "tailwindcss",
     "@types/react-dom",

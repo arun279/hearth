@@ -28,12 +28,14 @@ All of these must pass locally before merge. Most run automatically via `lefthoo
 5. `pnpm check:types:boundaries`
 6. `pnpm check:conventions`
 7. `pnpm check:env-example`
-8. `pnpm check:table-inventory`
+8. `pnpm db:check-auth`
 9. `pnpm test`
+10. `pnpm test:integration`
+
+`pnpm check` runs all of the above in one pass.
 
 Additional:
 - If you touched `packages/db/src/**`, run `pnpm db:generate` and commit the new migration.
-- If you touched `packages/db/src/auth-tables.ts`, `pnpm db:check-auth` passes.
 - If you added or changed a route in `packages/api`, the `hc` client types round-trip into `apps/web`.
 - If you added a dependency, pin it appropriately (critical pins are gated in `renovate.json`).
 
