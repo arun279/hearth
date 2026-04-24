@@ -21,16 +21,18 @@ These rules are enforced by `pnpm check:arch` (dependency-cruiser) in CI. Files 
 
 All of these must pass locally before merge. Most run automatically via `lefthook` hooks when you commit/push; CI re-runs them as a safety net.
 
-1. `pnpm biome check .`
-2. `pnpm typecheck`
-3. `pnpm check:arch`
-4. `pnpm check:knip`
-5. `pnpm check:types:boundaries`
-6. `pnpm check:conventions`
-7. `pnpm check:env-example`
-8. `pnpm db:check-auth`
-9. `pnpm test`
-10. `pnpm test:integration`
+1. `pnpm install --resolution-only`
+2. `pnpm biome check .`
+3. `pnpm typecheck`
+4. `pnpm check:arch`
+5. `pnpm check:knip`
+6. `pnpm check:types:boundaries`
+7. `pnpm check:conventions`
+8. `pnpm check:env-example`
+9. `pnpm db:check-auth`
+10. `pnpm test`
+11. `pnpm test:integration`
+12. `pnpm audit --audit-level=high`
 
 `pnpm check` runs all of the above in one pass.
 
@@ -59,6 +61,7 @@ Additional:
 
 | Check | IDE on save | Pre-commit (lefthook) | Pre-push (lefthook) | CI (GitHub Actions) |
 |---|---|---|---|---|
+| `pnpm install --resolution-only` | — | — | ✓ | (part of `pnpm install --frozen-lockfile`) |
 | Biome lint + format | ✓ | staged files only | — | all files |
 | `pnpm typecheck` | ✓ (via tsc server) | changed packages only | — | all packages |
 | `pnpm check:types:boundaries` | — | — | — | ✓ |
@@ -66,8 +69,11 @@ Additional:
 | `pnpm check:knip` | — | — | ✓ | ✓ |
 | `pnpm check:conventions` | — | — | ✓ | ✓ |
 | `pnpm check:env-example` | — | when `.dev.vars.example` changes | — | ✓ |
+| `pnpm db:check-auth` | — | — | ✓ | ✓ |
 | `pnpm test` | — | — | changed packages only | all packages |
+| `pnpm test:integration` | — | — | ✓ | ✓ |
 | Policy-purity test | — | — | when policy/visibility changes | (part of `pnpm test`) |
+| `pnpm audit --audit-level=high` | — | — | ✓ | daily + per-PR |
 | TruffleHog secrets scan | — | staged files only | — | daily + per-PR |
 
 `pnpm check` runs the superset locally; use it before opening a PR.

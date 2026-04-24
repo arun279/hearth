@@ -35,6 +35,7 @@ const stubDb = {} as DrizzleAdapterDb;
 
 export const auth = betterAuth({
   ...authOptions,
+  baseURL: "http://localhost",
   database: drizzleAdapter(stubDb, {
     provider: "sqlite",
     schema: authSchema,
