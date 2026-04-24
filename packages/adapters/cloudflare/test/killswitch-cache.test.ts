@@ -70,10 +70,13 @@ describe("killswitch gate cache", () => {
   });
 
   it("samples readAt AFTER fetch so TTL reflects observation time", async () => {
-    // Simulate a slow flag read — if readAt were sampled BEFORE the fetch,
-    // the TTL would count the fetch duration against itself and the cache
-    // would expire too early. By sampling AFTER, the TTL window is always
-    // the full 30 s starting from when we actually observed the flag.
+    // If readAt were sampled BEFORE the fetch, the TTL would count the
+    // fetch duration against itself and the cache could be stored already
+    // stale. Sampling AFTER means the 30 s TTL window always begins when
+    // we actually observed the flag.
+    let t = 1_000_000;
+    const now = () => t;
+
     let resolveFetch: (v: null) => void = () => {};
     const slowGet = vi.fn(
       () =>
@@ -86,23 +89,21 @@ describe("killswitch gate cache", () => {
       set: vi.fn(),
       list: vi.fn(async () => []),
     };
-    const gate = createKillswitchGate(flags);
+    const gate = createKillswitchGate(flags, now);
 
-    const getBefore = Date.now();
     const promise = gate.getMode();
-    await new Promise((r) => setTimeout(r, 15));
+    // Advance the injected clock past the 30 s TTL before the fetch
+    // resolves — this is the only regime where the two sampling
+    // strategies diverge. BEFORE-sampling would stamp readAt=1_000_000
+    // and see now-readAt=40_000 > 30_000 on the next read → expired,
+    // re-fetches. AFTER-sampling stamps readAt=1_040_000 → cache live.
+    t += 40_000;
     resolveFetch(null);
     await promise;
 
-    // Two immediate subsequent reads must stay in cache — proves the
-    // 15-ms fetch delay did NOT eat into the TTL (which it would have if
-    // readAt had been stamped before the fetch).
     await gate.getMode();
     await gate.getMode();
-    const getAfter = Date.now();
 
     expect(slowGet).toHaveBeenCalledTimes(1);
-    // Sanity: the test itself took at least 15 ms.
-    expect(getAfter - getBefore).toBeGreaterThanOrEqual(15);
   });
 });

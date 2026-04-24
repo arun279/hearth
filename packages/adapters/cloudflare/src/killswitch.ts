@@ -32,8 +32,14 @@ function isKillswitchMode(value: unknown): value is KillswitchMode {
  * I/O for timing-attack mitigation. To keep the TTL honest we sample the
  * clock AFTER the D1 read in `fetchMode()`, so `readAt` reflects when the
  * flag was actually fetched — not when the caller entered `getMode`.
+ *
+ * `now` is an injectable clock (defaults to `Date.now`) so tests can
+ * drive time deterministically without depending on wall-clock jitter.
  */
-export function createKillswitchGate(flags: SystemFlagRepository): KillswitchGate {
+export function createKillswitchGate(
+  flags: SystemFlagRepository,
+  now: () => number = () => Date.now(),
+): KillswitchGate {
   let cache: { mode: KillswitchMode; readAt: number } | null = null;
 
   const fetchMode = async (): Promise<KillswitchMode> => {
@@ -43,12 +49,12 @@ export function createKillswitchGate(flags: SystemFlagRepository): KillswitchGat
   };
 
   const getMode = async (): Promise<KillswitchMode> => {
-    if (cache !== null && Date.now() - cache.readAt < CACHE_TTL_MS) {
+    if (cache !== null && now() - cache.readAt < CACHE_TTL_MS) {
       return cache.mode;
     }
     const mode = await fetchMode();
-    // Post-I/O Date.now() — the D1 read above advanced the isolate's clock.
-    cache = { mode, readAt: Date.now() };
+    // Post-I/O clock sample — the D1 read above advanced the isolate's clock.
+    cache = { mode, readAt: now() };
     return mode;
   };
 
