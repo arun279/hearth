@@ -42,6 +42,11 @@ export function createAuth(deps: AuthFactoryDeps) {
     trustedOrigins: [...env.trustedOrigins],
     secret: env.secret,
     database,
+    // Cookie strategy for OAuth state, not DB — D1's async replica lag breaks
+    // the callback's read-after-write on the `verifications` table in prod.
+    // CSRF protection is equivalent per better-auth PR #8949 (oauthState bound
+    // inside the encrypted payload). See AGENTS.md for the general rule.
+    account: { storeStateStrategy: "cookie" },
     socialProviders: {
       google: {
         clientId: env.googleClientId,
