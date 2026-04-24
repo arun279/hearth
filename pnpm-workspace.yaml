@@ -12,6 +12,7 @@ verifyDepsBeforeRun: "error"
 minimumReleaseAge: 1440
 blockExoticSubdeps: true
 trustPolicy: no-downgrade
+trustPolicyIgnoreAfter: 525600
 
 # Single-source-of-truth versions for cross-package pins
 catalog:

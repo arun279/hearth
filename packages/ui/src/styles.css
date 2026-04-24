@@ -1,13 +1,6 @@
 @import "tailwindcss";
 
-/*
- * Monorepo scan paths. `@tailwindcss/vite` auto-detects siblings of this CSS
- * file (packages/ui/src/**) but does not reliably pick up every class used
- * in sibling workspace packages. Declaring sources explicitly forces the
- * scanner to emit every class referenced from apps/web and this package.
- */
 @source "./**/*.{ts,tsx}";
-@source "../../../apps/web/src/**/*.{ts,tsx}";
 
 /* Opt into class-based dark mode so the user can override OS preference. */
 @custom-variant dark (&:where(.dark, .dark *));

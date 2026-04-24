@@ -17,6 +17,8 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
  * @typedef {{
  *   name: string,
  *   regex: RegExp,
+ *   exceptRegex?: RegExp,
+ *   includePathPrefixes?: string[],
  *   excludePathSuffixes?: string[],
  *   reason: string,
  * }} Rule
@@ -106,6 +108,34 @@ const rules = [
     reason:
       "Maintainer milestone-plan filenames must not appear in committed code — reference the committed runbook or inline the reason.",
   },
+  {
+    // Carve-out lookaheads require `download` / `data-external-nav` to be
+    // followed by an HTML-attribute boundary so class names like
+    // `icon-download` don't falsely exempt a real violation.
+    name: "no-spa-anchor-to-api",
+    regex: /<a\s+[^>]*href="\/api\//,
+    exceptRegex: /\b(?:download|data-external-nav)(?=[\s=>])|\btarget=/,
+    includePathPrefixes: ["apps/web/src/", "packages/ui/src/"],
+    excludePathSuffixes: ["scripts/check-conventions.mjs"],
+    reason:
+      '`<a href>` is GET-only. Use hc<AppType> for /api/v1/* and authClient for /api/auth/*. For legitimate GET uses (file download, external nav), add `download`, `target="_blank"`, or `data-external-nav`.',
+  },
+];
+
+/**
+ * Files that MUST contain a specific pattern. Complement to the
+ * forbidden-pattern rules above — for load-bearing configuration where
+ * absence of a directive is the bug.
+ *
+ * @type {Array<{ path: string, regex: RegExp, reason: string }>}
+ */
+const REQUIRED_CONTENT = [
+  {
+    path: "packages/ui/src/styles.css",
+    regex: /@source\s+"\.\//,
+    reason:
+      'UI package CSS must contain a self-referential `@source "./..."` so consumers don\'t hard-code scan paths back into this package.',
+  },
 ];
 
 /**
@@ -158,6 +188,8 @@ let fail = false;
 for (const rule of rules) {
   const hits = [];
   for (const file of files) {
+    if (rule.includePathPrefixes && !rule.includePathPrefixes.some((p) => file.startsWith(p)))
+      continue;
     if (rule.excludePathSuffixes?.some((s) => file.endsWith(s) || file.includes(s))) continue;
     try {
       statSync(file);
@@ -167,7 +199,7 @@ for (const rule of rules) {
     const text = readFileSync(file, "utf8");
     const lines = text.split("\n");
     for (const [i, line] of lines.entries()) {
-      if (rule.regex.test(line)) {
+      if (rule.regex.test(line) && !rule.exceptRegex?.test(line)) {
         hits.push(`${file}:${i + 1}: ${line.trim()}`);
       }
     }
@@ -176,6 +208,25 @@ for (const rule of rules) {
     console.error(`\nConvention violation — rule "${rule.name}" (regex ${rule.regex}):`);
     for (const h of hits) console.error(`  ${h}`);
     console.error(`  Why: ${rule.reason}\n`);
+    fail = true;
+  }
+}
+
+for (const req of REQUIRED_CONTENT) {
+  let text;
+  try {
+    text = readFileSync(req.path, "utf8");
+  } catch {
+    console.error(`\nRequired-content violation — ${req.path} is missing.`);
+    console.error(`  Why: ${req.reason}\n`);
+    fail = true;
+    continue;
+  }
+  if (!req.regex.test(text)) {
+    console.error(
+      `\nRequired-content violation — ${req.path} does not contain required pattern ${req.regex}.`,
+    );
+    console.error(`  Why: ${req.reason}\n`);
     fail = true;
   }
 }
