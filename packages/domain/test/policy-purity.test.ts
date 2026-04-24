@@ -1,5 +1,5 @@
-import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
@@ -16,25 +16,41 @@ const __dirname = dirname(__filename);
  * Dep-cruiser's `policy-purity-no-node-globals` rule catches imports of
  * Node built-ins but cannot detect inline expressions like `Date.now()`.
  * This test does a source-text pass to close that gap.
+ *
+ * New policy and visibility files are picked up automatically — the glob
+ * below walks the source dirs, so there is no hand-maintained file list
+ * that can drift.
  */
 
-const CANDIDATES = [
-  "packages/domain/src/policy/can-archive-group.ts",
-  "packages/domain/src/policy/can-create-track.ts",
-  "packages/domain/src/policy/can-enroll-in-track.ts",
-  "packages/domain/src/policy/is-authority-over-track.ts",
-  "packages/domain/src/policy/index.ts",
-  "packages/domain/src/visibility/index.ts",
-];
+const PACKAGE_ROOT = resolve(__dirname, "..");
+const SCAN_DIRS = ["src/policy", "src/visibility"] as const;
 
-// Repo-root-relative paths — tests run from the workspace root
-// (via pnpm --filter @hearth/domain test) but resolve from package cwd.
-const REPO_ROOT = resolve(__dirname, "..", "..", "..");
+function* walk(dir: string): Generator<string> {
+  for (const entry of readdirSync(dir)) {
+    const full = resolve(dir, entry);
+    const stat = statSync(full);
+    if (stat.isDirectory()) {
+      yield* walk(full);
+    } else if (entry.endsWith(".ts") && !entry.endsWith(".d.ts")) {
+      yield full;
+    }
+  }
+}
+
+const candidates: readonly string[] = SCAN_DIRS.flatMap((dir) => {
+  const root = resolve(PACKAGE_ROOT, dir);
+  return Array.from(walk(root));
+});
 
 describe("policy purity", () => {
-  for (const rel of CANDIDATES) {
+  it("discovers at least one policy file", () => {
+    expect(candidates.length).toBeGreaterThan(0);
+  });
+
+  for (const absolute of candidates) {
+    const rel = relative(PACKAGE_ROOT, absolute);
     it(`${rel} has no banned runtime APIs`, () => {
-      const source = readFileSync(resolve(REPO_ROOT, rel), "utf8");
+      const source = readFileSync(absolute, "utf8");
 
       // Strip comments so the rule fires only on executable code.
       const stripped = source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
@@ -46,6 +62,8 @@ describe("policy purity", () => {
       expect(stripped, "no crypto.*").not.toMatch(/\bcrypto\./);
       expect(stripped, "no dynamic imports").not.toMatch(/import\s*\(/);
       expect(stripped, "no process.*").not.toMatch(/\bprocess\./);
+      expect(stripped, "no performance.*").not.toMatch(/\bperformance\./);
+      expect(stripped, "no global/globalThis").not.toMatch(/\bglobalThis\./);
     });
   }
 });
