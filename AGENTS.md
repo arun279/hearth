@@ -51,6 +51,7 @@ Additional:
 - `drizzle.config.ts` must point at the barrel `./src/schema.ts`, not a glob (glob + barrel causes drizzle-kit duplicate-table failures).
 - Cross-package imports use `workspace:*` + `package.json#exports` pointing at `./src/*.ts`. No `tsconfig.paths`, no `composite: true`.
 - Internal planning docs are deliberately kept outside this repo. Do not add cross-references (relative paths pointing out of the repo, or mentions of maintainer-only doc filenames) in any committed file. `pnpm check:conventions` enforces this.
+- Before bumping a pinned tool (TypeScript, wrangler, better-auth, drizzle, `@cloudflare/vitest-pool-workers`, etc.) or proposing a stack change, consult `docs/tripwires.md` — it catalogues reassess-when-X triggers tied to each pin. If an entry is relevant, follow its "Action" step rather than treating the bump as routine.
 
 ## When each check runs
 
@@ -75,8 +76,8 @@ These exist because the scaffold is skeletal. **Remove each when its trigger fir
 
 | Exception | Location | Trigger to remove |
 |---|---|---|
-| `vitest run --passWithNoTests` in `test` scripts | every package except `@hearth/domain` + `@hearth/db` | the package gets its first test |
-| `knip.ignoreDependencies` for v1-expected-but-unused deps (`lucide-react`, `sonner`, `react-hook-form`, `@hookform/resolvers`, `react-error-boundary`, `@tanstack/*-devtools`, `@sentry/cloudflare`, `@hono-rate-limiter/cloudflare`, `@cloudflare/vitest-pool-workers`, `tailwindcss`, `react-dom`, `@types/react-dom`, `@hearth/api`, `@hearth/domain`) | `knip.json` | the first real import of each dep — remove that dep's entry |
-| Skeleton stubs throwing `"Not implemented"` in repository adapters | `packages/adapters/cloudflare/src/*-repository.ts` | the first use case calling that method |
+| `vitest run --passWithNoTests` in `test` scripts | `@hearth/web` (all other packages now run real tests) | the package gets its first test |
+| `knip.ignoreDependencies` for v1-expected-but-unused deps (`react-dom`, `tailwindcss`, `@cloudflare/vitest-pool-workers`, `@types/react-dom`, `@hono-rate-limiter/cloudflare`, `@sentry/cloudflare`, `@hookform/resolvers`, `react-hook-form`, `@tanstack/react-query-devtools`, `@tanstack/router-devtools`) | `knip.jsonc` | the first real import of each dep — remove that dep's entry |
+| Skeleton stubs throwing `"Not implemented"` in repository adapters | `packages/adapters/cloudflare/src/*-repository.ts` (study-group, learning-track, library-item, learning-activity, activity-record, study-session; plus `user.deleteIdentity`, R2 `getDownloadUrl`) | the first use case calling that method |
 
 New exceptions should be added to this table and the maintainer should be told before merging.
