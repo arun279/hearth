@@ -14,7 +14,11 @@
     // SPA fallback — deep-link refreshes (e.g. /g/:groupId) serve index.html
     // instead of 404'ing. Valid values per CF docs: "single-page-application"
     // | "404-page" | "none".
-    "not_found_handling": "single-page-application"
+    "not_found_handling": "single-page-application",
+    // Without this, CF's navigation-prefers-asset-serving intercepts
+    // OAuth callbacks (Sec-Fetch-Mode: navigate) and serves SPA instead
+    // of invoking the Worker. See AGENTS.md for the full rule.
+    "run_worker_first": ["/api/*", "/healthz"]
   },
 
   "vars": {
