@@ -56,6 +56,7 @@ Additional:
 - Cross-package imports use `workspace:*` + `package.json#exports` pointing at `./src/*.ts`. No `tsconfig.paths`, no `composite: true`.
 - Internal planning docs are deliberately kept outside this repo. Do not add cross-references (relative paths pointing out of the repo, or mentions of maintainer-only doc filenames) in any committed file. `pnpm check:conventions` enforces this.
 - Before bumping a pinned tool (TypeScript, wrangler, better-auth, drizzle, `@cloudflare/vitest-pool-workers`, etc.) or proposing a stack change, consult `docs/tripwires.md` — it catalogues reassess-when-X triggers tied to each pin. If an entry is relevant, follow its "Action" step rather than treating the bump as routine.
+- Cloudflare D1 local (Miniflare-backed SQLite) is strongly consistent and synchronous. Remote D1 is async-replicated across regions and a read replica may be arbitrarily out of date relative to the primary. **Never rely on read-your-own-writes within a short window for flow-critical data.** Ephemeral auth state (OAuth state, CSRF nonces, one-shot verifications, session-token handshakes) belongs in cookies or KV, not D1. Local integration tests cannot reproduce this class of bug — only deployed-remote testing can. If a change involves a D1 write immediately followed by a read in a different request, call it out and pick a non-D1 store for the short-lived side.
 
 ## When each check runs
 
