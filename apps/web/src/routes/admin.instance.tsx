@@ -1,5 +1,5 @@
 import type { MeContext } from "@hearth/domain";
-import { AppShell, Callout, TabBar } from "@hearth/ui";
+import { AppShell, Callout, panelIdFor, TabBar, tabIdFor } from "@hearth/ui";
 import type { QueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { toast } from "sonner";
@@ -13,6 +13,8 @@ import { useMeContext } from "../hooks/use-me-context.ts";
 const searchSchema = z.object({
   tab: z.enum(["settings", "operators", "emails"]).optional(),
 });
+
+const TAB_PREFIX = "instance-admin";
 
 export const Route = createFileRoute("/admin/instance")({
   validateSearch: searchSchema,
@@ -86,6 +88,7 @@ function InstanceAdminPage() {
 
         <TabBar
           ariaLabel="Instance settings sections"
+          idPrefix={TAB_PREFIX}
           value={active}
           items={[
             { value: "settings", label: "Settings" },
@@ -97,7 +100,12 @@ function InstanceAdminPage() {
           }}
         />
 
-        <div role="tabpanel" className="pt-2">
+        <div
+          role="tabpanel"
+          id={panelIdFor(TAB_PREFIX)}
+          aria-labelledby={tabIdFor(TAB_PREFIX, active)}
+          className="pt-2"
+        >
           {active === "settings" ? <SettingsTab /> : null}
           {active === "operators" ? <OperatorsTab currentUserId={me.user?.id ?? ""} /> : null}
           {active === "emails" ? <ApprovedEmailsTab /> : null}

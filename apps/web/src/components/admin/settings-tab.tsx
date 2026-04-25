@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { useInstanceSettings, useRenameInstance } from "../../hooks/use-instance-admin.ts";
-import { ApiError, problemMessage } from "../../lib/problem.ts";
+import { asUserMessage } from "../../lib/problem.ts";
 
 const NAME_MIN = 1;
 const NAME_MAX = 80;
@@ -57,14 +57,9 @@ export function SettingsTab() {
       toast.success("Instance renamed.");
       form.reset({ name });
     } catch (err) {
-      const message =
-        err instanceof ApiError
-          ? problemMessage(err.problem)
-          : err instanceof Error
-            ? err.message
-            : "Rename failed.";
-      form.setError("name", { type: "server", message });
-      toast.error(message);
+      // Inline error only — no parallel toast. The user reads the field
+      // they just edited; a duplicate toast would just be noise.
+      form.setError("name", { type: "server", message: asUserMessage(err, "Rename failed.") });
     }
   });
 

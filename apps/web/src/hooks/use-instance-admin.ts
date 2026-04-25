@@ -1,4 +1,9 @@
-import type { ApprovedEmail, InstanceOperator, InstanceSettings } from "@hearth/domain";
+import type {
+  ApprovedEmail,
+  InstanceOperator,
+  InstanceOperatorWithIdentity,
+  InstanceSettings,
+} from "@hearth/domain";
 import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api-client.ts";
 import { assertOk } from "../lib/problem.ts";
@@ -18,7 +23,7 @@ type ApprovedEmailsPage = {
 };
 
 type OperatorsPage = {
-  readonly entries: readonly InstanceOperator[];
+  readonly entries: readonly InstanceOperatorWithIdentity[];
 };
 
 export function useInstanceSettings(enabled: boolean) {
@@ -50,7 +55,9 @@ export function useOperators(enabled: boolean) {
     queryKey: operatorsKey,
     enabled,
     queryFn: async (): Promise<OperatorsPage> => {
-      const res = await api.instance.operators.$get({ query: {} });
+      // includeRevoked=true so the UI can render an audit-trail section
+      // alongside the current operators. The tab splits on revokedAt.
+      const res = await api.instance.operators.$get({ query: { includeRevoked: "true" } });
       await assertOk(res);
       return (await res.json()) as OperatorsPage;
     },
@@ -99,9 +106,7 @@ export function useRemoveApprovedEmail() {
 export function useAssignOperator() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (
-      input: { email: string } | { userId: string },
-    ): Promise<InstanceOperator> => {
+    mutationFn: async (input: { email: string }): Promise<InstanceOperator> => {
       const res = await api.instance.operators.$post({ json: input });
       await assertOk(res);
       return (await res.json()) as InstanceOperator;

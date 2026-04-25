@@ -64,6 +64,46 @@ test.describe("M1 — Instance & operator basics", () => {
     await context.close();
   });
 
+  test("removing an approved email mid-session terminates the matching user's sessions (DoD: 401 on next call)", async ({
+    browser,
+  }) => {
+    const opA = await seedOperator(BOOTSTRAP_USER);
+    const memberB = await seedOperator({
+      userId: "u_e2e_member_b",
+      email: "memberb@e2e.example.com",
+      name: "Member B",
+    });
+    // B is a member, not an operator — strip the operator row but keep the
+    // session + approved email so B can hit session-gated endpoints.
+    demoteToMember(memberB.userId);
+
+    const ctxB = await browser.newContext();
+    await attachSession(ctxB, memberB.cookie);
+
+    // Pre-removal: B's session resolves and the route returns 200.
+    const before = await ctxB.request.get("/api/v1/instance/settings");
+    expect(before.status()).toBe(200);
+
+    // Operator A removes B's approved email — the adapter cascade hard-deletes
+    // every session for users sharing that email in the same db.batch.
+    const ctxA = await browser.newContext();
+    await attachSession(ctxA, opA.cookie);
+    const del = await ctxA.request.delete(
+      `/api/v1/instance/approved-emails/${encodeURIComponent(memberB.email)}`,
+    );
+    expect(del.status()).toBe(204);
+
+    // B's next call: Better Auth's getSession returns null for the now-missing
+    // session row → c.var.userId is null → sessionAuthMiddleware returns 401.
+    const after = await ctxB.request.get("/api/v1/instance/settings");
+    expect(after.status()).toBe(401);
+    const body = (await after.json()) as { code: string };
+    expect(body.code).toBe("unauthenticated");
+
+    await ctxA.close();
+    await ctxB.close();
+  });
+
   test("solo operator cannot revoke themselves (button disabled with tooltip)", async ({
     browser,
   }) => {
@@ -74,8 +114,9 @@ test.describe("M1 — Instance & operator basics", () => {
 
     await page.goto("/admin/instance?tab=operators");
     const revokeButton = page
+      .getByRole("list", { name: /Current instance operators/i })
       .getByRole("listitem")
-      .filter({ hasText: op.userId })
+      .first()
       .getByRole("button");
     await expect(revokeButton).toBeDisabled();
     // Both reasons are valid — self AND only operator. The UI prefers the
@@ -112,7 +153,7 @@ test.describe("M1 — Instance & operator basics", () => {
 
   test("operator A grants B then revokes B back to a single operator", async ({ browser }) => {
     const opA = await seedOperator(BOOTSTRAP_USER);
-    const opB = await seedOperator({
+    await seedOperator({
       userId: "u_e2e_op_second",
       email: "second@e2e.example.com",
       name: "Second Operator",
@@ -125,11 +166,10 @@ test.describe("M1 — Instance & operator basics", () => {
     // Both operators show up. Revoking B drops the count to 1 — the row
     // disappears from the current-operators list; A is now alone.
     await pageA.goto("/admin/instance?tab=operators");
-    await expect(
-      pageA.getByRole("list", { name: /Current instance operators/i }).getByText(opB.userId),
-    ).toBeVisible();
+    const currentList = pageA.getByRole("list", { name: /Current instance operators/i });
+    await expect(currentList.getByText(/Second Operator/i)).toBeVisible();
 
-    const rowB = pageA.getByRole("listitem").filter({ hasText: opB.userId });
+    const rowB = currentList.getByRole("listitem").filter({ hasText: /Second Operator/i });
     await rowB.getByRole("button").click();
     const confirm = pageA.getByRole("dialog", { name: /Revoke operator role/i });
     await expect(confirm).toBeVisible();

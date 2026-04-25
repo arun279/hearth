@@ -107,22 +107,32 @@ export function createInstanceAccessPolicyRepository(
     async addApprovedEmail(email, addedBy, note): Promise<AddApprovedEmailResult> {
       await deps.gate.assertWritable();
       const target = normalize(email);
+      const now = new Date();
+      // INSERT … ON CONFLICT DO NOTHING is atomic: SQLite returns rows from
+      // RETURNING only when the insert actually inserted, so a concurrent
+      // duplicate add cannot surface as a UNIQUE-constraint 500. Empty
+      // RETURNING means the conflict path; fetch the existing row.
+      const inserted = await deps.db
+        .insert(approvedEmails)
+        .values({ email: target, addedBy, addedAt: now, note: note ?? null })
+        .onConflictDoNothing()
+        .returning();
+      if (inserted[0]) {
+        return { approvedEmail: toApprovedEmail(inserted[0]), created: true };
+      }
       const existing = await deps.db
         .select()
         .from(approvedEmails)
         .where(eq(approvedEmails.email, target))
         .limit(1);
-      if (existing[0]) {
-        return { approvedEmail: toApprovedEmail(existing[0]), created: false };
+      const row = existing[0];
+      if (!row) {
+        // Pathological: ON CONFLICT fired but the row vanished (concurrent
+        // delete). Surface as a transient adapter error rather than lying
+        // about the post-state.
+        throw new Error("addApprovedEmail: conflict reported but row not found");
       }
-      const now = new Date();
-      await deps.db
-        .insert(approvedEmails)
-        .values({ email: target, addedBy, addedAt: now, note: note ?? null });
-      return {
-        approvedEmail: { email: target, addedBy, addedAt: now, note: note ?? null },
-        created: true,
-      };
+      return { approvedEmail: toApprovedEmail(row), created: false };
     },
 
     async removeApprovedEmail(email, _removedBy) {
@@ -174,11 +184,34 @@ export function createInstanceAccessPolicyRepository(
     },
 
     async listOperators() {
+      // LEFT JOIN against users so the operator UI can render names + emails
+      // instead of synthetic IDs. LEFT (not INNER) so a user whose identity
+      // was scrubbed via deleteIdentity still surfaces in the audit list
+      // with null identity fields.
       const rows = await deps.db
-        .select()
+        .select({
+          userId: instanceOperators.userId,
+          grantedAt: instanceOperators.grantedAt,
+          grantedBy: instanceOperators.grantedBy,
+          revokedAt: instanceOperators.revokedAt,
+          revokedBy: instanceOperators.revokedBy,
+          email: users.email,
+          name: users.name,
+          image: users.image,
+        })
         .from(instanceOperators)
+        .leftJoin(users, eq(instanceOperators.userId, users.id))
         .orderBy(desc(instanceOperators.grantedAt), asc(instanceOperators.userId));
-      return rows.map(toOperator);
+      return rows.map((r) => ({
+        userId: r.userId as UserId,
+        grantedAt: r.grantedAt,
+        grantedBy: r.grantedBy as UserId,
+        revokedAt: r.revokedAt,
+        revokedBy: r.revokedBy === null ? null : (r.revokedBy as UserId),
+        email: r.email,
+        name: r.name,
+        image: r.image,
+      }));
     },
 
     async addOperator(userId, grantedBy): Promise<AddOperatorResult> {

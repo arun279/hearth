@@ -10,7 +10,13 @@ export { IconButton, type IconButtonProps } from "./icon-button.tsx";
 export { Input, type InputProps } from "./input.tsx";
 export { Modal, type ModalProps } from "./modal.tsx";
 export { Skeleton, type SkeletonProps } from "./skeleton.tsx";
-export { TabBar, type TabBarProps, type TabItem } from "./tab-bar.tsx";
+export {
+  panelIdFor,
+  TabBar,
+  type TabBarProps,
+  type TabItem,
+  tabIdFor,
+} from "./tab-bar.tsx";
 export { Textarea, type TextareaProps } from "./textarea.tsx";
 export { type Theme, useTheme } from "./theme.ts";
 export { ThemeToggle } from "./theme-toggle.tsx";

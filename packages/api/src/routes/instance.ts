@@ -217,11 +217,17 @@ export const instanceRoutes = new Hono<AppBindings>()
     if (!parsed.success) return problemResponse(c, problemFromZodError(parsed.error));
 
     try {
+      // Operator gate runs BEFORE the email→user lookup so a non-operator
+      // probing existence sees the same 403 not_instance_operator regardless
+      // of whether the email maps to a user. The use-case re-checks the
+      // policy as a defense-in-depth invariant.
+      await assertActiveOperator(
+        c.var.ports.policy,
+        getUserId(c),
+        "Only an Instance Operator may grant the operator role.",
+      );
       const user = await c.var.ports.users.byEmail(parsed.data.email);
       if (!user) {
-        // Per RFC 9110, 422 fits a well-formed request that fails a business
-        // rule. Surfacing user_not_found doesn't add an enumeration oracle
-        // beyond what the operator already sees on the approved-emails tab.
         throw new DomainError(
           "INVARIANT_VIOLATION",
           "No signed-in user has this email yet. Approve the email first; they'll appear here after they sign in.",

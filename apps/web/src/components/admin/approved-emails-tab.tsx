@@ -2,7 +2,7 @@ import type { ApprovedEmail } from "@hearth/domain";
 import { Button, EmptyState, Field, IconButton, Input, Skeleton, Textarea } from "@hearth/ui";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, X } from "lucide-react";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -11,10 +11,14 @@ import {
   useApprovedEmails,
   useRemoveApprovedEmail,
 } from "../../hooks/use-instance-admin.ts";
-import { ApiError, problemMessage } from "../../lib/problem.ts";
+import { formatShortDate } from "../../lib/format.ts";
+import { asUserMessage } from "../../lib/problem.ts";
 import { ConfirmDestructiveDialog } from "./confirm-destructive-dialog.tsx";
 
 const NOTE_MAX = 500;
+// Mirrors the server-side `emailField` regex so client-side rejection matches
+// what the API will accept; without this, `me@localhost` passes the bare
+// `z.email()` here only to fail at the server with a round-trip wasted.
 const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 const addEmailSchema = z.object({
@@ -22,22 +26,19 @@ const addEmailSchema = z.object({
     .string()
     .trim()
     .toLowerCase()
-    .pipe(z.email("Enter a valid email like name@example.com.")),
+    .pipe(z.email("Enter a valid email like name@example.com."))
+    .refine((v) => EMAIL_PATTERN.test(v), { message: "Email must include a domain." }),
   note: z.string().trim().max(NOTE_MAX).optional(),
 });
 
 type AddEmailForm = z.infer<typeof addEmailSchema>;
-
-function formatDate(d: Date | string): string {
-  const date = typeof d === "string" ? new Date(d) : d;
-  return date.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
-}
 
 export function ApprovedEmailsTab() {
   const query = useApprovedEmails(true);
   const add = useAddApprovedEmail();
   const remove = useRemoveApprovedEmail();
 
+  const bulkSummaryId = useId();
   const [bulk, setBulk] = useState("");
   const [bulkRows, setBulkRows] = useState<
     Array<{ email: string; status: "ok" | "err"; message: string }>
@@ -57,13 +58,7 @@ export function ApprovedEmailsTab() {
       toast.success("Email approved.");
       form.reset({ email: "", note: "" });
     } catch (err) {
-      const message =
-        err instanceof ApiError
-          ? problemMessage(err.problem)
-          : err instanceof Error
-            ? err.message
-            : "Add failed.";
-      form.setError("email", { type: "server", message });
+      form.setError("email", { type: "server", message: asUserMessage(err, "Add failed.") });
     }
   });
 
@@ -89,8 +84,7 @@ export function ApprovedEmailsTab() {
         await add.mutateAsync({ email: value });
         results.push({ email: value, status: "ok", message: "added" });
       } catch (err) {
-        const reason = err instanceof ApiError ? problemMessage(err.problem) : "Failed.";
-        results.push({ email: value, status: "err", message: reason });
+        results.push({ email: value, status: "err", message: asUserMessage(err, "Failed.") });
       }
     }
     setBulkRows(results);
@@ -153,7 +147,10 @@ export function ApprovedEmailsTab() {
         </form>
 
         <details className="rounded-[var(--radius-md)] border border-[var(--color-rule)] bg-[var(--color-bg)] p-3">
-          <summary className="cursor-pointer text-[12px] font-medium text-[var(--color-ink-2)]">
+          <summary
+            id={bulkSummaryId}
+            className="cursor-pointer text-[12px] font-medium text-[var(--color-ink-2)]"
+          >
             Paste a list (one email per line)
           </summary>
           <form
@@ -170,6 +167,7 @@ export function ApprovedEmailsTab() {
               onChange={(e) => setBulk(e.target.value)}
               placeholder={"first@example.com\nsecond@example.com"}
               disabled={add.isPending}
+              aria-labelledby={bulkSummaryId}
             />
             <div className="flex items-center justify-end">
               <Button
@@ -221,7 +219,7 @@ export function ApprovedEmailsTab() {
                   {row.email}
                 </div>
                 <div className="truncate text-[11px] text-[var(--color-ink-3)]">
-                  added {formatDate(row.addedAt)}
+                  added {formatShortDate(row.addedAt)}
                   {row.note ? ` · ${row.note}` : null}
                 </div>
               </div>
@@ -256,13 +254,7 @@ export function ApprovedEmailsTab() {
             toast.success(`${targetRemove.email} removed.`);
             setTargetRemove(null);
           } catch (err) {
-            const message =
-              err instanceof ApiError
-                ? problemMessage(err.problem)
-                : err instanceof Error
-                  ? err.message
-                  : "Remove failed.";
-            toast.error(message);
+            toast.error(asUserMessage(err, "Remove failed."));
           }
         }}
       />

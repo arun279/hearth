@@ -1,4 +1,9 @@
-import type { ApprovedEmail, InstanceOperator, UserId } from "@hearth/domain";
+import type {
+  ApprovedEmail,
+  InstanceOperator,
+  InstanceOperatorWithIdentity,
+  UserId,
+} from "@hearth/domain";
 
 export type ApprovedEmailPage = {
   readonly entries: readonly ApprovedEmail[];
@@ -43,7 +48,7 @@ export interface InstanceAccessPolicyRepository {
    */
   getOperator(userId: UserId): Promise<InstanceOperator | null>;
   isOperator(userId: UserId): Promise<boolean>;
-  listOperators(): Promise<readonly InstanceOperator[]>;
+  listOperators(): Promise<readonly InstanceOperatorWithIdentity[]>;
   addOperator(userId: UserId, grantedBy: UserId): Promise<AddOperatorResult>;
   revokeOperator(userId: UserId, revokedBy: UserId): Promise<void>;
   /** Count of currently active (non-revoked) operators. Cheap indexed aggregate. */

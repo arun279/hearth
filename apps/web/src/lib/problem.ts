@@ -13,7 +13,7 @@ type ApiProblem = {
   readonly issues?: ReadonlyArray<{ readonly path: string; readonly message: string }>;
 };
 
-export class ApiError extends Error {
+class ApiError extends Error {
   readonly status: number;
   readonly problem: ApiProblem;
   constructor(problem: ApiProblem) {
@@ -62,7 +62,19 @@ const policyDenialMessages: Record<string, string> = {
   unauthenticated: "Please sign in to continue.",
 };
 
-export function problemMessage(problem: ApiProblem): string {
+function problemMessage(problem: ApiProblem): string {
   const code = problem.policy?.code ?? problem.code;
   return policyDenialMessages[code] ?? problem.detail;
+}
+
+/**
+ * Maps a thrown value into a user-facing string. ApiError unwraps through
+ * the policy-denial table; any other Error uses its message; everything
+ * else gets the caller-supplied fallback. Centralised so the admin tabs
+ * don't each ship their own three-way ternary.
+ */
+export function asUserMessage(err: unknown, fallback: string): string {
+  if (err instanceof ApiError) return problemMessage(err.problem);
+  if (err instanceof Error && err.message.length > 0) return err.message;
+  return fallback;
 }

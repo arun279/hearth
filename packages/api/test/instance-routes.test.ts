@@ -1,6 +1,7 @@
 import type {
   ApprovedEmail,
   InstanceOperator,
+  InstanceOperatorWithIdentity,
   InstanceSettings,
   User,
   UserId,
@@ -493,7 +494,7 @@ describe("operators", () => {
     expect(byEmail).toHaveBeenCalledWith("target@example.com");
   });
 
-  it("POST with unknown email 422s user_not_found", async () => {
+  it("POST with unknown email 422s user_not_found (operator-side)", async () => {
     const app = harness({
       userId: opId,
       ports: {
@@ -509,6 +510,37 @@ describe("operators", () => {
     expect(res.status).toBe(422);
     const body = (await res.json()) as { code: string };
     expect(body.code).toBe("user_not_found");
+  });
+
+  it("POST 403s a non-operator regardless of whether the email maps to a user", async () => {
+    // Closes the email→user enumeration oracle: a non-operator probing the
+    // route must not be able to discriminate "known email" (would-be 422
+    // user_not_found in old code) from "unknown email" (also 422). Both
+    // shapes return 403 with the same not_instance_operator code.
+    const byEmailKnown = vi.fn(async () => targetUser);
+    const byEmailUnknown = vi.fn(async () => null);
+
+    for (const byEmail of [byEmailKnown, byEmailUnknown]) {
+      const app = harness({
+        userId: anotherId,
+        ports: {
+          policy: {
+            ...throwingProxy<InstanceAccessPolicyRepository>("policy"),
+            getOperator: vi.fn(async () => null),
+          } as InstanceAccessPolicyRepository,
+          users: baseUsers({ byEmail }),
+        },
+      });
+      const res = await app.request("/api/v1/instance/operators", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ email: "x@example.com" }),
+      });
+      expect(res.status).toBe(403);
+      const body = (await res.json()) as { policy?: { code: string }; code: string };
+      expect(body.policy?.code ?? body.code).toBe("not_instance_operator");
+      expect(byEmail).not.toHaveBeenCalled();
+    }
   });
 
   it("DELETE 204s when another operator exists", async () => {
@@ -566,10 +598,19 @@ describe("operators", () => {
     expect(body.code).toBe("would_orphan_operator");
   });
 
-  it("GET filters out revoked rows by default", async () => {
-    const rows: readonly InstanceOperator[] = [
-      actorOp,
-      { userId: anotherId, grantedAt: now, grantedBy: opId, revokedAt: now, revokedBy: opId },
+  it("GET filters out revoked rows by default and projects identity fields", async () => {
+    const rows: readonly InstanceOperatorWithIdentity[] = [
+      { ...actorOp, email: "op@example.com", name: "Op", image: null },
+      {
+        userId: anotherId,
+        grantedAt: now,
+        grantedBy: opId,
+        revokedAt: now,
+        revokedBy: opId,
+        email: "other@example.com",
+        name: "Other",
+        image: null,
+      },
     ];
     const app = harness({
       userId: opId,
@@ -579,8 +620,10 @@ describe("operators", () => {
     });
     const res = await app.request("/api/v1/instance/operators");
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { entries: InstanceOperator[] };
+    const body = (await res.json()) as { entries: InstanceOperatorWithIdentity[] };
     expect(body.entries.map((r) => r.userId)).toEqual([opId]);
+    expect(body.entries[0]?.name).toBe("Op");
+    expect(body.entries[0]?.email).toBe("op@example.com");
   });
 
   it("GET 403s a non-operator viewing the operator roster", async () => {
@@ -658,9 +701,18 @@ describe("operators", () => {
   });
 
   it("GET ?includeRevoked=true returns every row", async () => {
-    const rows: readonly InstanceOperator[] = [
-      actorOp,
-      { userId: anotherId, grantedAt: now, grantedBy: opId, revokedAt: now, revokedBy: opId },
+    const rows: readonly InstanceOperatorWithIdentity[] = [
+      { ...actorOp, email: "op@example.com", name: "Op", image: null },
+      {
+        userId: anotherId,
+        grantedAt: now,
+        grantedBy: opId,
+        revokedAt: now,
+        revokedBy: opId,
+        email: "other@example.com",
+        name: "Other",
+        image: null,
+      },
     ];
     const app = harness({
       userId: opId,
@@ -670,7 +722,7 @@ describe("operators", () => {
     });
     const res = await app.request("/api/v1/instance/operators?includeRevoked=true");
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { entries: InstanceOperator[] };
+    const body = (await res.json()) as { entries: InstanceOperatorWithIdentity[] };
     expect(body.entries).toHaveLength(2);
   });
 });

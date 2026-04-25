@@ -82,6 +82,28 @@ describe("instance-access-policy adapter (real D1)", () => {
       expect(second.created).toBe(false);
       expect(second.approvedEmail.note).toBe("original"); // unchanged
     });
+
+    it("survives a concurrent same-email race without surfacing UNIQUE-collision errors", async () => {
+      const { db, policy } = buildRepo();
+      const adder = "u_a3" as UserId;
+      await seedUser(db, adder, "a@x.com");
+
+      // Two concurrent adds for the same email. Pre-fix, both would SELECT
+      // empty → both INSERT → second fails on PK UNIQUE → 500. Atomic
+      // ON CONFLICT DO NOTHING + RETURNING means exactly one returns
+      // created=true and one created=false; neither throws.
+      const results = await Promise.allSettled([
+        policy.addApprovedEmail("race@x.com", adder),
+        policy.addApprovedEmail("race@x.com", adder),
+      ]);
+
+      const fulfilled = results.filter((r) => r.status === "fulfilled");
+      expect(fulfilled).toHaveLength(2);
+      const created = fulfilled
+        .map((r) => (r as PromiseFulfilledResult<{ created: boolean }>).value.created)
+        .sort();
+      expect(created).toEqual([false, true]);
+    });
   });
 
   describe("removeApprovedEmail → session cascade", () => {
