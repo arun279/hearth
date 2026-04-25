@@ -1,0 +1,22 @@
+{
+  "$schema": "https://dprint.dev/schemas/v0.json",
+  "indentWidth": 2,
+  "newLineKind": "lf",
+  "useTabs": false,
+  "markdown": {
+    "textWrap": "never",
+    "emphasisKind": "underscores",
+    "strongKind": "asterisks"
+  },
+  "includes": ["**/*.md"],
+  "excludes": [
+    "**/node_modules",
+    "**/.wrangler",
+    "**/.turbo",
+    "**/dist",
+    "**/coverage",
+    "**/.dprint-cache",
+    "pnpm-lock.yaml"
+  ],
+  "plugins": ["https://plugins.dprint.dev/markdown-0.18.0.wasm"]
+}

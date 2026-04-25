@@ -1,0 +1,19 @@
+# typos (https://github.com/crate-ci/typos) config.
+#
+# Uses the curated known-typo list approach (only flags KNOWN misspellings),
+# which keeps false-positive rate near zero for project-specific nouns —
+# `Hearth`, `Wrangler`, `Miniflare`, `cuid`, `FTS5`, etc. all pass through
+# without an allowlist entry because they aren't in the known-bad list.
+#
+# Add an entry here only when typos flags a legitimate token. Expect <5
+# entries at steady state.
+
+[files]
+extend-exclude = [
+  "pnpm-lock.yaml",
+  "*.snap",
+  "dist/**",
+  ".wrangler/**",
+  ".turbo/**",
+  "coverage/**",
+]

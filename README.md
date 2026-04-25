@@ -1,6 +1,6 @@
 # Hearth
 
-A collaborative learning product for small groups who study together over time. One deployment (a *Hearth Instance*) runs independently with its own users, study groups, files, and policies.
+A collaborative learning product for small groups who study together over time. One deployment (a _Hearth Instance_) runs independently with its own users, study groups, files, and policies.
 
 ## Quick start
 
