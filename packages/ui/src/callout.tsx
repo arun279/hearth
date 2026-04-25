@@ -19,6 +19,14 @@ const tones: Record<CalloutTone, string> = {
     "bg-[var(--color-danger-soft)] border-[var(--color-danger-border)] text-[var(--color-ink)]",
 };
 
+// State-change tones expose a live region so the Callout is announced
+// when it appears mid-flow. Static tones stay silent to avoid AT noise.
+function roleFor(tone: CalloutTone): { role?: string; "aria-live"?: "polite" | "assertive" } {
+  if (tone === "warn") return { role: "status", "aria-live": "polite" };
+  if (tone === "danger") return { role: "alert", "aria-live": "assertive" };
+  return {};
+}
+
 export function Callout({ tone = "neutral", title, className, children, ...props }: CalloutProps) {
   return (
     <div
@@ -27,6 +35,7 @@ export function Callout({ tone = "neutral", title, className, children, ...props
         tones[tone],
         className,
       )}
+      {...roleFor(tone)}
       {...props}
     >
       {title ? <div className="mb-1 font-medium">{title}</div> : null}

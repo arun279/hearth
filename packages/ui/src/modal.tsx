@@ -1,5 +1,6 @@
-import { type ReactNode, useCallback, useEffect, useId, useRef } from "react";
+import { type ReactNode, useId, useRef } from "react";
 import { cn } from "./cn.ts";
+import { useDialogPanel } from "./dialog-keyboard.ts";
 
 export type ModalProps = {
   readonly open: boolean;
@@ -21,10 +22,8 @@ const SIZE: Record<NonNullable<ModalProps["size"]>, string> = {
 
 /**
  * Accessible modal: role="dialog", aria-modal, focus trap, Escape to close,
- * restore focus on close. Keeps the tree simple by rendering inline (no
- * portal); the backdrop `inset-0` + high z-index prevents bleed-through on
- * the SPA's single-column layout. Good enough for v1; a full dialog primitive
- * from shadcn vendoring lands when the surface grows beyond this milestone.
+ * restore focus on close, and stack-aware so a confirm dialog opened over
+ * an existing modal inerts the lower panel and steals ESC.
  */
 export function Modal({
   open,
@@ -37,56 +36,9 @@ export function Modal({
   tone = "neutral",
 }: ModalProps) {
   const panelRef = useRef<HTMLDivElement | null>(null);
-  const triggerRef = useRef<Element | null>(null);
   const titleId = useId();
   const descId = useId();
-
-  const handleKey = useCallback(
-    (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onClose();
-      }
-      if (event.key === "Tab" && panelRef.current) {
-        const focusables = panelRef.current.querySelectorAll<HTMLElement>(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-        );
-        if (focusables.length === 0) {
-          event.preventDefault();
-          return;
-        }
-        const first = focusables[0];
-        const last = focusables[focusables.length - 1];
-        if (!first || !last) return;
-        const active = document.activeElement as HTMLElement | null;
-        if (event.shiftKey && active === first) {
-          event.preventDefault();
-          last.focus();
-        } else if (!event.shiftKey && active === last) {
-          event.preventDefault();
-          first.focus();
-        }
-      }
-    },
-    [onClose],
-  );
-
-  useEffect(() => {
-    if (!open) return;
-    triggerRef.current = document.activeElement;
-    document.addEventListener("keydown", handleKey);
-    // Focus the first focusable element in the panel on open.
-    const target = panelRef.current?.querySelector<HTMLElement>(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-    );
-    target?.focus();
-    return () => {
-      document.removeEventListener("keydown", handleKey);
-      if (triggerRef.current instanceof HTMLElement) {
-        triggerRef.current.focus();
-      }
-    };
-  }, [open, handleKey]);
+  const { isTopmost } = useDialogPanel({ open, onEscape: onClose, panelRef });
 
   if (!open) return null;
 
@@ -97,11 +49,12 @@ export function Modal({
       aria-modal="true"
       aria-labelledby={titleId}
       aria-describedby={description ? descId : undefined}
+      inert={isTopmost ? undefined : true}
     >
       <button
         type="button"
         aria-label="Close dialog"
-        className="fixed inset-0 cursor-default bg-black/35"
+        className="fixed inset-0 cursor-default bg-[var(--color-scrim)]"
         onClick={onClose}
       />
       <div

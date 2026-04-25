@@ -42,6 +42,8 @@
   --color-danger-soft: #fee4e2;
   --color-danger-border: #f9b4ae;
 
+  --color-scrim: rgb(0 0 0 / 0.35);
+
   /* Background + foreground tokens map to the shadcn convention so third-party
      components we vendor later don't require a rewrite. */
   --color-background: var(--color-bg);
@@ -89,6 +91,8 @@
   --color-danger: #f47163;
   --color-danger-soft: #2c1715;
   --color-danger-border: #4a2420;
+
+  --color-scrim: rgb(0 0 0 / 0.55);
 
   color-scheme: dark;
 }
