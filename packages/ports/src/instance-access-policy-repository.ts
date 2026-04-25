@@ -5,6 +5,23 @@ export type ApprovedEmailPage = {
   readonly nextCursor: string | null;
 };
 
+export type AddApprovedEmailResult = {
+  readonly approvedEmail: ApprovedEmail;
+  /** False when the email was already on the list; caller maps to 409. */
+  readonly created: boolean;
+};
+
+export type AddOperatorResult = {
+  readonly operator: InstanceOperator;
+  /**
+   * False when the target already had a current operator row; caller can
+   * treat the write as a no-op. Re-granting a previously-revoked operator
+   * surfaces `created: true` because a state transition (revoked → active)
+   * did happen.
+   */
+  readonly created: boolean;
+};
+
 export type BootstrapOutcome =
   | { readonly kind: "seeded"; readonly operatorUserId: UserId }
   | { readonly kind: "not_needed" }
@@ -14,7 +31,7 @@ export interface InstanceAccessPolicyRepository {
   // ── Approved Email roster ──────────────────────────────────────────────
   isEmailApproved(email: string): Promise<boolean>;
   listApprovedEmails(opts?: { cursor?: string; limit?: number }): Promise<ApprovedEmailPage>;
-  addApprovedEmail(email: string, addedBy: UserId, note?: string): Promise<ApprovedEmail>;
+  addApprovedEmail(email: string, addedBy: UserId, note?: string): Promise<AddApprovedEmailResult>;
   removeApprovedEmail(email: string, removedBy: UserId): Promise<void>;
   getApprovedEmail(email: string): Promise<ApprovedEmail | null>;
 
@@ -27,7 +44,7 @@ export interface InstanceAccessPolicyRepository {
   getOperator(userId: UserId): Promise<InstanceOperator | null>;
   isOperator(userId: UserId): Promise<boolean>;
   listOperators(): Promise<readonly InstanceOperator[]>;
-  addOperator(userId: UserId, grantedBy: UserId): Promise<InstanceOperator>;
+  addOperator(userId: UserId, grantedBy: UserId): Promise<AddOperatorResult>;
   revokeOperator(userId: UserId, revokedBy: UserId): Promise<void>;
   /** Count of currently active (non-revoked) operators. Cheap indexed aggregate. */
   countActiveOperators(): Promise<number>;

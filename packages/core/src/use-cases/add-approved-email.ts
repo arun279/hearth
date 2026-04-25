@@ -30,5 +30,17 @@ export async function addApprovedEmail(
     throw new DomainError("FORBIDDEN", verdict.reason.message, verdict.reason.code);
   }
 
-  return deps.policy.addApprovedEmail(input.email, input.actor, input.note);
+  const { approvedEmail, created } = await deps.policy.addApprovedEmail(
+    input.email,
+    input.actor,
+    input.note,
+  );
+  if (!created) {
+    throw new DomainError(
+      "CONFLICT",
+      "That email is already on the Approved Email list.",
+      "already_exists",
+    );
+  }
+  return approvedEmail;
 }

@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { AppBindings } from "./bindings.ts";
 import { adminRoutes } from "./routes/admin.ts";
+import { instanceRoutes } from "./routes/instance.ts";
 import { meRoutes } from "./routes/me.ts";
 
 /**
@@ -12,7 +13,10 @@ import { meRoutes } from "./routes/me.ts";
  * accidentally call.
  */
 export function createApiRouter() {
-  const app = new Hono<AppBindings>().route("/me", meRoutes).route("/admin", adminRoutes);
+  const app = new Hono<AppBindings>()
+    .route("/me", meRoutes)
+    .route("/instance", instanceRoutes)
+    .route("/admin", adminRoutes);
   return app;
 }
 

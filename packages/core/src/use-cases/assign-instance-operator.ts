@@ -1,7 +1,11 @@
-import type { InstanceOperator, UserId } from "@hearth/domain";
+import type { UserId } from "@hearth/domain";
 import { DomainError } from "@hearth/domain";
 import { canAssignInstanceOperator } from "@hearth/domain/policy";
-import type { InstanceAccessPolicyRepository, UserRepository } from "@hearth/ports";
+import type {
+  AddOperatorResult,
+  InstanceAccessPolicyRepository,
+  UserRepository,
+} from "@hearth/ports";
 
 export type AssignInstanceOperatorInput = {
   readonly actor: UserId;
@@ -16,7 +20,7 @@ export type AssignInstanceOperatorDeps = {
 export async function assignInstanceOperator(
   input: AssignInstanceOperatorInput,
   deps: AssignInstanceOperatorDeps,
-): Promise<InstanceOperator> {
+): Promise<AddOperatorResult> {
   const [actor, operator, targetUser] = await Promise.all([
     deps.users.byId(input.actor),
     deps.policy.getOperator(input.actor),
