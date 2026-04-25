@@ -1,16 +1,12 @@
 # Developer runbook
 
-How to clone, install, run, and sign in to a local Hearth instance for the
-first time. Written as a follow-along script — each numbered step either runs
-a command or edits a file.
+How to clone, install, run, and sign in to a local Hearth instance for the first time. Written as a follow-along script — each numbered step either runs a command or edits a file.
 
 ## Prerequisites
 
 - Node `>= 22.12.0` (use `nvm use` or `fnm use` against the `.nvmrc`).
-- pnpm `>= 10.18.0` (`corepack enable` is enough — pnpm is self-installing
-  via the package.json `packageManager` pin).
-- A Google Cloud project with an OAuth 2.0 Client ID (Web application). The
-  authorized redirect URIs must include `http://localhost:8787/api/auth/callback/google`.
+- pnpm `>= 10.18.0` (`corepack enable` is enough — pnpm is self-installing via the package.json `packageManager` pin).
+- A Google Cloud project with an OAuth 2.0 Client ID (Web application). The authorized redirect URIs must include `http://localhost:8787/api/auth/callback/google`.
 
 ## 1. Install and bootstrap
 
@@ -18,9 +14,7 @@ a command or edits a file.
 pnpm install
 ```
 
-pnpm's `minimumReleaseAge: 1440` (24 h) will delay any freshly published
-package; that's deliberate — we don't chase zero-day supply-chain compromises.
-First install also registers the Lefthook pre-commit and pre-push hooks.
+pnpm's `minimumReleaseAge: 1440` (24 h) will delay any freshly published package; that's deliberate — we don't chase zero-day supply-chain compromises. First install also registers the Lefthook pre-commit and pre-push hooks.
 
 ## 2. Configure secrets
 
@@ -37,12 +31,9 @@ Edit `apps/worker/.dev.vars`:
 - `BETTER_AUTH_URL` — leave as `http://localhost:8787` for local dev.
 - `BETTER_AUTH_TRUSTED_ORIGINS` — leave as `http://localhost:5173,http://localhost:8787`.
 - `KILLSWITCH_TOKEN` — generate with `openssl rand -hex 32`.
-- `HEARTH_BOOTSTRAP_OPERATOR_EMAIL` — the Google account you'll sign in with
-  during bootstrap. This is the one email that can sign in before any
-  Approved Email list exists.
+- `HEARTH_BOOTSTRAP_OPERATOR_EMAIL` — the Google account you'll sign in with during bootstrap. This is the one email that can sign in before any Approved Email list exists.
 
-`SENTRY_DSN` and `DISCORD_WEBHOOK_URL` stay commented; the Worker skips
-those channels gracefully when they're absent.
+`SENTRY_DSN` and `DISCORD_WEBHOOK_URL` stay commented; the Worker skips those channels gracefully when they're absent.
 
 ## 3. Apply database migrations
 
@@ -50,100 +41,70 @@ those channels gracefully when they're absent.
 pnpm db:migrate:dev
 ```
 
-This applies every migration in `packages/db/migrations/` to the local D1
-(stored under `apps/worker/.wrangler/state/v3/d1/`). The first migration
-creates all 30 tables, the second adds the FTS5 virtual table + triggers, the
-third seeds the singleton `instance_settings` row.
+This applies every migration in `packages/db/migrations/` to the local D1 (stored under `apps/worker/.wrangler/state/v3/d1/`). The first migration creates all 30 tables, the second adds the FTS5 virtual table + triggers, the third seeds the singleton `instance_settings` row.
 
-You can re-run this command any time — Wrangler tracks applied migrations in
-its own metadata and only runs what's new.
+You can re-run this command any time — Wrangler tracks applied migrations in its own metadata and only runs what's new.
 
 ## 4. Start the stack
 
 Two terminals is the fastest loop.
 
 Terminal 1 (Worker + Better Auth + D1):
+
 ```bash
 pnpm --filter @hearth/worker dev
 ```
 
 Terminal 2 (SPA with HMR):
+
 ```bash
 pnpm --filter @hearth/web dev
 ```
 
-Open `http://localhost:5173`. The SPA proxies `/api` to
-`http://localhost:8787` via `apps/web/vite.config.ts`.
+Open `http://localhost:5173`. The SPA proxies `/api` to `http://localhost:8787` via `apps/web/vite.config.ts`.
 
 ## 5. First sign-in
 
-Click **Sign in with Google**, choose the account whose email matches
-`HEARTH_BOOTSTRAP_OPERATOR_EMAIL`. The first successful sign-in:
+Click **Sign in with Google**, choose the account whose email matches `HEARTH_BOOTSTRAP_OPERATOR_EMAIL`. The first successful sign-in:
 
-1. Better Auth's `user.create.before` hook runs `admissionCheck`. Because
-   there are zero active operators AND your email is the bootstrap email,
-   the bootstrap-bypass admits you even though no Approved Email list
-   exists yet.
+1. Better Auth's `user.create.before` hook runs `admissionCheck`. Because there are zero active operators AND your email is the bootstrap email, the bootstrap-bypass admits you even though no Approved Email list exists yet.
 2. `session.create.before` runs `sessionGuard` — same bootstrap-bypass.
-3. `user.create.after` fires post-commit and calls `bootstrapIfNeeded`,
-   which inserts your email into `approved_emails` and your user id into
-   `instance_operators` in a single D1 `batch()`.
-4. The SPA reloads `/api/v1/me/context` and you appear with
-   `isOperator: true`.
+3. `user.create.after` fires post-commit and calls `bootstrapIfNeeded`, which inserts your email into `approved_emails` and your user id into `instance_operators` in a single D1 `batch()`.
+4. The SPA reloads `/api/v1/me/context` and you appear with `isOperator: true`.
 
-Subsequent sign-ins (you or anyone else) go through the normal approved-email
-path — the bootstrap window only opens while zero operators exist.
+Subsequent sign-ins (you or anyone else) go through the normal approved-email path — the bootstrap window only opens while zero operators exist.
 
-Try signing in with a different Google account to see the friendly rejection
-state (`code: "email_not_approved"`). No user row is created.
+Try signing in with a different Google account to see the friendly rejection state (`code: "email_not_approved"`). No user row is created.
 
 ## 6. Useful day-to-day commands
 
-| Goal | Command |
-|---|---|
-| Run every quality gate (pre-PR) | `pnpm check` |
+| Goal                                           | Command                                     |
+| ---------------------------------------------- | ------------------------------------------- |
+| Run every quality gate (pre-PR)                | `pnpm check`                                |
 | Regenerate D1 migrations after a schema change | `pnpm db:generate` then commit the new file |
-| Regenerate TanStack Router file tree | `pnpm --filter @hearth/web generate:routes` |
-| Verify Better Auth schema hasn't drifted | `pnpm db:check-auth` |
-| Run a single package's tests | `pnpm --filter @hearth/auth test` |
-| Format | `pnpm format` |
+| Regenerate TanStack Router file tree           | `pnpm --filter @hearth/web generate:routes` |
+| Verify Better Auth schema hasn't drifted       | `pnpm db:check-auth`                        |
+| Run a single package's tests                   | `pnpm --filter @hearth/auth test`           |
+| Format                                         | `pnpm format`                               |
 
 ## 7. Adding approved emails
 
-The bootstrap email is seeded automatically on first sign-in. After that,
-use the `Admin → Instance settings → Approved emails` tab:
-`name@example.com` + an optional note, or paste a list (one email per
-line) via the "Paste a list" affordance.
+The bootstrap email is seeded automatically on first sign-in. After that, use the `Admin → Instance settings → Approved emails` tab: `name@example.com` + an optional note, or paste a list (one email per line) via the "Paste a list" affordance.
 
-The older `pnpm approve-email …` shell helper is kept for direct DB
-access during tests or recovery. Note: it inserts into `approved_emails`
-but does not run the session-cascade path — for realistic flows, prefer
-the UI or the `DELETE /api/v1/instance/approved-emails/:email` endpoint,
-which hard-deletes live sessions for the matching users in the same
-batch as the email removal.
+The older `pnpm approve-email …` shell helper is kept for direct DB access during tests or recovery. Note: it inserts into `approved_emails` but does not run the session-cascade path — for realistic flows, prefer the UI or the `DELETE /api/v1/instance/approved-emails/:email` endpoint, which hard-deletes live sessions for the matching users in the same batch as the email removal.
 
 ## 8. Testing the multi-operator flow
 
-Two Google accounts and two browsers (or one normal + one Incognito) make
-it possible to exercise the operator handoff locally:
+Two Google accounts and two browsers (or one normal + one Incognito) make it possible to exercise the operator handoff locally:
 
 1. Sign in with the bootstrap account in the main browser.
-2. In a second profile, sign in with a second Google account. The attempt
-   is rejected until the bootstrap operator adds that email via
-   `Admin → Instance settings → Approved emails`.
-3. Re-attempt sign-in in the second browser — it succeeds. The second
-   user appears as a participant (`isOperator: false`).
+2. In a second profile, sign in with a second Google account. The attempt is rejected until the bootstrap operator adds that email via `Admin → Instance settings → Approved emails`.
+3. Re-attempt sign-in in the second browser — it succeeds. The second user appears as a participant (`isOperator: false`).
 4. Back in the first browser, `Admin → Instance settings → Operators →
-   Grant operator` with the second user's email. The second browser's
-   next `/me/context` refresh flips `isOperator: true`.
-5. Try `DELETE /api/v1/instance/operators/<bootstrap-user-id>` from the
-   second browser. Before handoff, the second operator must still exist
-   first — revoking the last operator returns `would_orphan_operator`.
+   Grant operator` with the second user's email. The second browser's next `/me/context` refresh flips `isOperator: true`.
+5. Try `DELETE /api/v1/instance/operators/<bootstrap-user-id>` from the second browser. Before handoff, the second operator must still exist first — revoking the last operator returns `would_orphan_operator`.
 
-Removing an Approved Email while the matching user is signed in is the
-only action that hard-deletes live sessions. Watch the second browser:
-the next API call returns 401 and the SPA redirects to the sign-in
-screen.
+Removing an Approved Email while the matching user is signed in is the only action that hard-deletes live sessions. Watch the second browser: the next API call returns 401 and the SPA redirects to the sign-in screen.
 
 ## 9. Resetting local state
 
@@ -154,21 +115,11 @@ rm -rf apps/worker/.wrangler/state/v3/d1
 pnpm db:migrate:dev
 ```
 
-That wipes the Miniflare D1 store; your next Worker start reseeds the
-singleton `instance_settings` row via migration `0002`.
+That wipes the Miniflare D1 store; your next Worker start reseeds the singleton `instance_settings` row via migration `0002`.
 
 ## 10. Troubleshooting
 
-- **`pnpm db:migrate:dev` says "wrangler: not found"** — run `pnpm install`
-  first; wrangler is a dev dependency of `apps/worker` and pnpm links it
-  into place on install.
-- **Sign-in succeeds but the SPA shows "Hearth is unreachable"** — the SPA
-  hit `/api/v1/me/context` before the Worker was up. Refresh; Vite's proxy
-  is lazy.
-- **Google rejects `localhost`** — the Google OAuth client's authorized
-  redirect URIs must contain `http://localhost:8787/api/auth/callback/google`
-  exactly, with no trailing slash.
-- **Cookies not persisting cross-port (5173 → 8787)** — check that the
-  Worker's response sets `SameSite=Lax` and `Secure=false` in dev. Both are
-  Better Auth defaults for `http://localhost`, but a stray `Secure=true`
-  override breaks the session.
+- **`pnpm db:migrate:dev` says "wrangler: not found"** — run `pnpm install` first; wrangler is a dev dependency of `apps/worker` and pnpm links it into place on install.
+- **Sign-in succeeds but the SPA shows "Hearth is unreachable"** — the SPA hit `/api/v1/me/context` before the Worker was up. Refresh; Vite's proxy is lazy.
+- **Google rejects `localhost`** — the Google OAuth client's authorized redirect URIs must contain `http://localhost:8787/api/auth/callback/google` exactly, with no trailing slash.
+- **Cookies not persisting cross-port (5173 → 8787)** — check that the Worker's response sets `SameSite=Lax` and `Secure=false` in dev. Both are Better Auth defaults for `http://localhost`, but a stray `Secure=true` override breaks the session.

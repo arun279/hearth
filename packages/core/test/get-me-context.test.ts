@@ -1,7 +1,8 @@
-import type { User, UserId } from "@hearth/domain";
+import type { GroupMembership, StudyGroupId, User, UserId } from "@hearth/domain";
 import type {
   InstanceAccessPolicyRepository,
   InstanceSettingsRepository,
+  StudyGroupRepository,
   UserRepository,
 } from "@hearth/ports";
 import { describe, expect, it, vi } from "vitest";
@@ -51,6 +52,22 @@ function makeSettings(
   };
 }
 
+function makeGroups(overrides: Partial<StudyGroupRepository> = {}): StudyGroupRepository {
+  return {
+    create: vi.fn(),
+    byId: vi.fn(async () => null),
+    list: vi.fn(async () => []),
+    listForUser: vi.fn(async () => []),
+    updateStatus: vi.fn(),
+    updateMetadata: vi.fn(),
+    membership: vi.fn(async () => null),
+    membershipsForUser: vi.fn(async () => []),
+    countAdmins: vi.fn(async () => 0),
+    counts: vi.fn(async () => ({ memberCount: 0, trackCount: 0, libraryItemCount: 0 })),
+    ...overrides,
+  };
+}
+
 const user: User = {
   id: uid,
   email: "op@example.com",
@@ -71,6 +88,7 @@ describe("getMeContext", () => {
         users: makeUsers(null),
         policy: makePolicy({ countActiveOperators: vi.fn(async () => 0) }),
         settings: makeSettings({ get: async () => null }),
+        groups: makeGroups(),
       },
     );
     expect(ctx.v).toBe(1);
@@ -88,6 +106,7 @@ describe("getMeContext", () => {
         settings: makeSettings({
           get: async () => ({ name: "Jolene's Hearth", updatedAt: now, updatedBy: null }),
         }),
+        groups: makeGroups(),
       },
     );
     expect(ctx.data.instance).toEqual({ name: "Jolene's Hearth", needsBootstrap: false });
@@ -103,6 +122,7 @@ describe("getMeContext", () => {
           isOperator: vi.fn(async () => true),
         }),
         settings: makeSettings(),
+        groups: makeGroups(),
       },
     );
     expect(ctx.data.user).toEqual({
@@ -121,6 +141,7 @@ describe("getMeContext", () => {
         users: makeUsers({ ...user, email: null }),
         policy: makePolicy({ countActiveOperators: vi.fn(async () => 1) }),
         settings: makeSettings(),
+        groups: makeGroups(),
       },
     );
     // A user row without an email (post-scrub) isn't exposable as MeContextUser.
@@ -129,5 +150,28 @@ describe("getMeContext", () => {
     // stays stable for the SPA consumer.
     expect(ctx.data.memberships).toEqual([]);
     expect(ctx.data.enrollments).toEqual([]);
+  });
+
+  it("populates memberships from the StudyGroupRepository", async () => {
+    const gid = "g_42" as StudyGroupId;
+    const membership: GroupMembership = {
+      groupId: gid,
+      userId: uid,
+      role: "admin",
+      joinedAt: now,
+      removedAt: null,
+    };
+    const ctx = await getMeContext(
+      { userId: uid },
+      {
+        users: makeUsers(user),
+        policy: makePolicy({ countActiveOperators: vi.fn(async () => 1) }),
+        settings: makeSettings(),
+        groups: makeGroups({
+          membershipsForUser: vi.fn(async () => [membership]),
+        }),
+      },
+    );
+    expect(ctx.data.memberships).toEqual([membership]);
   });
 });

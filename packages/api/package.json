@@ -19,6 +19,7 @@
     "@hearth/core": "workspace:*",
     "@hearth/domain": "workspace:*",
     "@hearth/ports": "workspace:*",
+    "@hono/zod-validator": "^0.7.6",
     "hono": "catalog:",
     "zod": "catalog:"
   },

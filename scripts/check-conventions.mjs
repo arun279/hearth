@@ -120,6 +120,30 @@ const rules = [
     reason:
       '`<a href>` is GET-only. Use hc<AppType> for /api/v1/* and authClient for /api/auth/*. For legitimate GET uses (file download, external nav), add `download`, `target="_blank"`, or `data-external-nav`.',
   },
+  {
+    name: "no-direct-group-byid-in-use-cases",
+    regex: /\bgroups\.byId\(/,
+    includePathPrefixes: ["packages/core/src/use-cases/"],
+    excludePathSuffixes: [
+      "scripts/check-conventions.mjs",
+      "packages/core/src/use-cases/_lib/load-viewable-group.ts",
+    ],
+    reason:
+      "Use cases must load Study Groups via loadViewableGroup() — direct `groups.byId(` skips canViewGroup and creates a 403/404 enumeration oracle (AGENTS.md § Viewability before authorization).",
+  },
+  {
+    name: "no-bespoke-dialog-role",
+    regex: /role=["']dialog["']/,
+    includePathPrefixes: ["packages/", "apps/"],
+    excludePathSuffixes: [
+      "scripts/check-conventions.mjs",
+      "packages/ui/src/modal.tsx",
+      "packages/ui/src/drawer.tsx",
+      "packages/ui/src/dialog-keyboard.ts",
+    ],
+    reason:
+      "role='dialog' must come from the @hearth/ui Modal or Drawer primitive. Bespoke dialogs miss the stack-aware ESC handling, focus trap, inert-when-not-topmost, and visible close affordance enforced by useDialogPanel.",
+  },
 ];
 
 /**

@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { AppBindings } from "./bindings.ts";
 import { adminRoutes } from "./routes/admin.ts";
+import { groupsRoutes } from "./routes/groups.ts";
 import { instanceRoutes } from "./routes/instance.ts";
 import { meRoutes } from "./routes/me.ts";
 
@@ -16,6 +17,7 @@ export function createApiRouter() {
   const app = new Hono<AppBindings>()
     .route("/me", meRoutes)
     .route("/instance", instanceRoutes)
+    .route("/g", groupsRoutes)
     .route("/admin", adminRoutes);
   return app;
 }

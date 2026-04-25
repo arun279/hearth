@@ -1,11 +1,16 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
+  // `.d.mts` declaration sidecars don't appear in the source import graph
+  // — they're consumed only by `tsc` when a TS file imports the paired
+  // `.mjs`. Knip's "unused files" sweep doesn't auto-pair them, so
+  // exclude the pattern globally rather than per-file.
+  "ignore": ["**/*.d.mts"],
   "workspaces": {
     ".": {
-      "entry": ["turbo.json", "scripts/*.mjs", "scripts/*.ts"]
+      "entry": ["turbo.json", "scripts/*.mjs", "scripts/*.ts", "scripts/lib/*.mjs"]
     },
     "apps/web": {
-      "entry": ["index.html"]
+      "entry": ["index.html", "design-review.mjs"]
     },
     "apps/worker": {
       "entry": ["wrangler.jsonc"]

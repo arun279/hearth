@@ -1,27 +1,36 @@
 import { Button, Modal } from "@hearth/ui";
 import type { ReactNode } from "react";
 
-type ConfirmDestructiveDialogProps = {
+type ConfirmActionTone = "destructive" | "primary";
+
+type ConfirmActionDialogProps = {
   readonly open: boolean;
   readonly title: string;
   readonly description?: ReactNode;
   readonly confirmLabel: string;
+  /**
+   * "destructive" — red framing + danger button (archive, remove, revoke).
+   * "primary" — neutral framing + filled-blue button for reversible-positive
+   * actions like unarchive.
+   */
+  readonly tone: ConfirmActionTone;
   readonly onConfirm: () => void;
   readonly onClose: () => void;
   readonly pending?: boolean;
   readonly children?: ReactNode;
 };
 
-export function ConfirmDestructiveDialog({
+export function ConfirmActionDialog({
   open,
   title,
   description,
   confirmLabel,
+  tone,
   onConfirm,
   onClose,
   pending,
   children,
-}: ConfirmDestructiveDialogProps) {
+}: ConfirmActionDialogProps) {
   return (
     <Modal
       open={open}
@@ -29,13 +38,17 @@ export function ConfirmDestructiveDialog({
       title={title}
       description={description}
       size="sm"
-      tone="danger"
+      tone={tone === "destructive" ? "danger" : "neutral"}
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={pending}>
             Cancel
           </Button>
-          <Button variant="danger" onClick={onConfirm} disabled={pending}>
+          <Button
+            variant={tone === "destructive" ? "danger" : "primary"}
+            onClick={onConfirm}
+            disabled={pending}
+          >
             {pending ? "Working…" : confirmLabel}
           </Button>
         </>

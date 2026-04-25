@@ -2,6 +2,7 @@ import type { MeContext, MeContextInstance, MeContextUser, UserId } from "@heart
 import type {
   InstanceAccessPolicyRepository,
   InstanceSettingsRepository,
+  StudyGroupRepository,
   UserRepository,
 } from "@hearth/ports";
 
@@ -14,17 +15,16 @@ export type GetMeContextDeps = {
   readonly users: UserRepository;
   readonly policy: InstanceAccessPolicyRepository;
   readonly settings: InstanceSettingsRepository;
+  readonly groups: StudyGroupRepository;
 };
 
 /**
  * Build the `MeContext` envelope returned by `GET /api/v1/me/context`.
  *
- * Costs: three indexed reads (user by id, operator count, instance-settings
- * singleton). Deliberately returns a versioned envelope so additive fields
- * can land in later milestones without breaking already-deployed SPA bundles.
- *
- * Memberships + enrollments are empty at this milestone; later milestones
- * populate them from the group and track aggregates when those land.
+ * Costs: four indexed reads (user, operator count, settings singleton, the
+ * actor's active group memberships). The envelope is versioned so additive
+ * fields (track enrollments in M5) land without breaking already-deployed
+ * SPA bundles.
  */
 export async function getMeContext(
   input: GetMeContextInput,
@@ -36,8 +36,12 @@ export async function getMeContext(
     deps.settings.get(),
   ]);
 
-  const isOperator =
-    user !== null && input.userId !== null ? await deps.policy.isOperator(input.userId) : false;
+  const [isOperator, memberships] = await Promise.all([
+    user !== null && input.userId !== null ? deps.policy.isOperator(input.userId) : false,
+    user !== null && input.userId !== null
+      ? deps.groups.membershipsForUser(input.userId)
+      : Promise.resolve([] as const),
+  ]);
 
   const instance: MeContextInstance = {
     name: settings?.name ?? "Hearth",
@@ -55,7 +59,7 @@ export async function getMeContext(
       user: meUser,
       instance,
       isOperator,
-      memberships: [],
+      memberships,
       enrollments: [],
     },
   };

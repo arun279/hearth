@@ -2,6 +2,7 @@ import type {
   InstanceAccessPolicyRepository,
   InstanceSettingsRepository,
   KillswitchGate,
+  StudyGroupRepository,
   SystemFlagRepository,
   UserRepository,
 } from "@hearth/ports";
@@ -68,6 +69,15 @@ function harness(opts: {
   return app;
 }
 
+// Groups port stub that returns no memberships — sufficient for me/context
+// shape tests that don't exercise the group surface.
+function emptyGroupsPort(): StudyGroupRepository {
+  return {
+    ...throwingProxy<StudyGroupRepository>("groups"),
+    membershipsForUser: async () => [],
+  } as StudyGroupRepository;
+}
+
 describe("GET /api/v1/me/context", () => {
   it("returns anonymous envelope when no session", async () => {
     const app = harness({
@@ -84,6 +94,7 @@ describe("GET /api/v1/me/context", () => {
             throw new Error("unused");
           },
         },
+        groups: emptyGroupsPort(),
       },
     });
 
@@ -136,6 +147,7 @@ describe("GET /api/v1/me/context", () => {
             throw new Error("unused");
           },
         },
+        groups: emptyGroupsPort(),
       },
     });
 
@@ -153,6 +165,62 @@ describe("GET /api/v1/me/context", () => {
     expect(body.data.user).toEqual({ id: "u_1", email: "op@example.com", name: "Op", image: null });
     expect(body.data.instance).toEqual({ name: "Jolene's Hearth", needsBootstrap: false });
     expect(body.data.isOperator).toBe(true);
+  });
+
+  it("populates the memberships array from the groups port", async () => {
+    const userId = "u_1";
+    const memberships: ReturnType<StudyGroupRepository["membershipsForUser"]> extends Promise<
+      infer R
+    >
+      ? R
+      : never = [
+      {
+        groupId: "g_42" as never,
+        userId: "u_1" as never,
+        role: "admin",
+        joinedAt: new Date("2026-01-01T00:00:00.000Z"),
+        removedAt: null,
+      },
+    ];
+    const app = harness({
+      userId,
+      ports: {
+        users: {
+          ...throwingProxy<UserRepository>("users"),
+          byId: async () => ({
+            id: "u_1" as never,
+            email: "op@example.com",
+            name: "Op",
+            image: null,
+            deactivatedAt: null,
+            deletedAt: null,
+            attributionPreference: "preserve_name",
+            createdAt: new Date(0),
+            updatedAt: new Date(0),
+          }),
+        } as UserRepository,
+        policy: {
+          ...throwingProxy<InstanceAccessPolicyRepository>("policy"),
+          countActiveOperators: async () => 1,
+          isOperator: async () => false,
+        } as InstanceAccessPolicyRepository,
+        settings: {
+          get: async () => ({ name: "X", updatedAt: new Date(0), updatedBy: null }),
+          update: async () => {
+            throw new Error("unused");
+          },
+        },
+        groups: {
+          ...throwingProxy<StudyGroupRepository>("groups"),
+          membershipsForUser: async () => memberships,
+        } as StudyGroupRepository,
+      },
+    });
+    const res = await app.request("/api/v1/me/context");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { data: { memberships: typeof memberships } };
+    expect(body.data.memberships).toHaveLength(1);
+    expect(body.data.memberships[0]?.role).toBe("admin");
   });
 
   it("maps adapter throws into a problem+json envelope", async () => {

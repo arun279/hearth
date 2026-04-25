@@ -30,6 +30,9 @@ test-results/
 # Sentry
 .sentryclirc
 
+# Local design review output (screenshots + REVIEW.md). Never push.
+design-review/
+
 # Editor / OS
 .DS_Store
 .vscode/*

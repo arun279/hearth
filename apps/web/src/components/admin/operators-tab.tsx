@@ -23,7 +23,7 @@ import {
 } from "../../hooks/use-instance-admin.ts";
 import { formatShortDate } from "../../lib/format.ts";
 import { asUserMessage } from "../../lib/problem.ts";
-import { ConfirmDestructiveDialog } from "./confirm-destructive-dialog.tsx";
+import { ConfirmActionDialog } from "./confirm-action-dialog.tsx";
 
 const grantSchema = z.object({
   email: z
@@ -160,7 +160,8 @@ export function OperatorsTab({ currentUserId }: Props) {
         }}
       />
 
-      <ConfirmDestructiveDialog
+      <ConfirmActionDialog
+        tone="destructive"
         open={targetRevoke !== null}
         title="Revoke operator role"
         description={

@@ -4,6 +4,8 @@ export { Badge, type BadgeProps, type BadgeTone } from "./badge.tsx";
 export { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from "./button.tsx";
 export { Callout, type CalloutProps, type CalloutTone } from "./callout.tsx";
 export { cn } from "./cn.ts";
+export { useDialogPanel } from "./dialog-keyboard.ts";
+export { Drawer, type DrawerProps } from "./drawer.tsx";
 export { EmptyState, type EmptyStateProps } from "./empty-state.tsx";
 export { Field, type FieldProps } from "./field.tsx";
 export { IconButton, type IconButtonProps } from "./icon-button.tsx";

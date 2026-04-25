@@ -5,6 +5,10 @@ pre-commit:
       glob: "*.{ts,tsx,js,jsx,mjs,cjs,json,jsonc,css}"
       run: pnpm biome check --staged --no-errors-on-unmatched --write {staged_files}
       stage_fixed: true
+    dprint:
+      glob: "*.md"
+      run: pnpm exec dprint fmt {staged_files}
+      stage_fixed: true
     typecheck:
       glob: "*.{ts,tsx}"
       # Full turbo typecheck — cache makes incremental runs near-instant.
@@ -29,6 +33,8 @@ pre-push:
       # (LEFTHOOK=0) or missed anything via glob edge cases, this re-runs
       # biome on the full repo before the code leaves the machine.
       run: pnpm biome check .
+    dprint:
+      run: pnpm check:md
     test:
       # Full turbo test run — cache makes incremental runs fast. Using
       # `--filter "...[HEAD]"` would be more targeted but breaks when HEAD
@@ -40,6 +46,8 @@ pre-push:
       run: pnpm check:knip
     conventions:
       run: pnpm check:conventions
+    dup:
+      run: pnpm check:dup
     policy-purity:
       glob: "packages/domain/src/(policy|visibility)/**/*.ts"
       run: pnpm --filter @hearth/domain test -- --run policy-purity
@@ -49,6 +57,8 @@ pre-push:
       run: pnpm test:integration
     coverage:
       run: pnpm check:coverage
+    e2e:
+      run: pnpm --filter @hearth/web e2e
     audit:
       run: pnpm audit --audit-level=high
     resolution:

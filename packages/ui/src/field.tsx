@@ -10,21 +10,25 @@ export type FieldProps = {
 };
 
 /**
- * Label + control + hint/error — wires `id` / `aria-describedby` so the
- * control inside gets a real label and screen readers announce the hint
- * and inline error. Controls accept a render-prop so react-hook-form
- * `register()` can spread into the right element.
+ * Label + control + hint/error. The hint/error span is rendered as a
+ * sibling of the wrapping `<label>` rather than inside it: a `<label>`'s
+ * full text content contributes to the wrapped control's accessible name
+ * (per the HTML accessibility spec), which would let an inline error
+ * leak into the input's accessible name on every validation failure.
+ * The `aria-describedby` link still wires the description to the input.
  */
 export function Field({ label, hint, error, children, className }: FieldProps) {
   const base = useId();
   const id = `${base}-control`;
   const describedBy = `${base}-describe`;
   return (
-    <label htmlFor={id} className={cn("block space-y-1.5", className)}>
-      <span className="block text-[11px] font-medium uppercase tracking-wide text-[var(--color-ink-3)]">
-        {label}
-      </span>
-      {children({ id, describedBy })}
+    <div className={cn("space-y-1.5", className)}>
+      <label htmlFor={id} className="block space-y-1.5">
+        <span className="block text-[11px] font-medium uppercase tracking-wide text-[var(--color-ink-3)]">
+          {label}
+        </span>
+        {children({ id, describedBy })}
+      </label>
       {error ? (
         <span
           id={describedBy}
@@ -38,6 +42,6 @@ export function Field({ label, hint, error, children, className }: FieldProps) {
           {hint}
         </span>
       ) : null}
-    </label>
+    </div>
   );
 }

@@ -13,7 +13,7 @@ import {
 } from "../../hooks/use-instance-admin.ts";
 import { formatShortDate } from "../../lib/format.ts";
 import { asUserMessage } from "../../lib/problem.ts";
-import { ConfirmDestructiveDialog } from "./confirm-destructive-dialog.tsx";
+import { ConfirmActionDialog } from "./confirm-action-dialog.tsx";
 
 const NOTE_MAX = 500;
 // Mirrors the server-side `emailField` regex so client-side rejection matches
@@ -235,7 +235,8 @@ export function ApprovedEmailsTab() {
         </ul>
       )}
 
-      <ConfirmDestructiveDialog
+      <ConfirmActionDialog
+        tone="destructive"
         open={targetRemove !== null}
         title="Remove approved email"
         description={

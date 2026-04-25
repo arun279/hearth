@@ -10,6 +10,12 @@ import { defineConfig } from "vitest/config";
  * `user.ts`, `me-context.ts`, `ids.ts` are pure type declarations — they
  * compile to nothing, so coverage on them is meaningless. `parts/**` lands
  * with M8 (Activity composition) and gets its own threshold then.
+ *
+ * `perFile: true` is enforced on this layer only: at 95% global, a single
+ * weakly-tested policy predicate could hide behind well-tested neighbours.
+ * Per-file enforcement on the highest-stakes layer is cheap insurance — the
+ * other layers stay on aggregate thresholds because their files have
+ * legitimate sparse-coverage ratios (defensive catch blocks, etc.).
  */
 export default defineConfig({
   test: {
@@ -18,6 +24,7 @@ export default defineConfig({
       include: ["src/policy/**/*.ts", "src/visibility/**/*.ts", "src/errors.ts"],
       reporter: ["text-summary", "text"],
       thresholds: {
+        perFile: true,
         branches: 95,
         functions: 95,
         lines: 95,
