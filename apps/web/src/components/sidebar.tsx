@@ -1,18 +1,11 @@
-import type { MeContext, StudyGroup } from "@hearth/domain";
+import type { MeContext } from "@hearth/domain";
 import { Avatar, Badge, cn, ThemeToggle } from "@hearth/ui";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Settings } from "lucide-react";
+import { Settings, Users } from "lucide-react";
+import { useMyGroups } from "../hooks/use-groups.ts";
 
 type Props = {
   readonly me: MeContext["data"] | null;
-  /**
-   * Optional group context. When the user is on `/g/$groupId`, the route
-   * passes the loaded group so the sidebar can show a "Study Group"
-   * section above Admin — matches the design plan's desktop sidebar
-   * spec (current group → tracks → browse → admin). Tracks/browse
-   * sections land with later milestones.
-   */
-  readonly activeGroup?: Pick<StudyGroup, "id" | "name"> | null;
 };
 
 const SECTION_LABEL_CLASSES =
@@ -24,27 +17,38 @@ const NAV_ITEM_CLASSES = cn(
   "focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg)]",
 );
 
+const NAV_ITEM_ACTIVE = "bg-[var(--color-surface-2)] font-medium text-[var(--color-ink)]";
+const NAV_ITEM_INACTIVE = "text-[var(--color-ink-2)]";
+
 /**
  * Desktop sidebar chrome. Sections (top to bottom):
  *   - Hearth wordmark (links to `/`) + theme toggle
  *   - Current Hearth Instance pill
- *   - Study Group section (when a group is active)
+ *   - "Your groups" — every group the user is a current member of, with the
+ *     active group (matching `/g/$groupId`) highlighted via `aria-current`.
+ *     Reads from `useMyGroups()` directly so the layout is stable across
+ *     routes (Shneiderman #1: consistency) and the user always sees the
+ *     groups they belong to (Nielsen #6: recognition over recall, Rams #4:
+ *     understandable). React Query dedupes the fetch with the home picker.
  *   - Admin section (operator-only)
  *   - Account card pinned to bottom
  *
- * The Hearth wordmark is the universal "back to home" affordance —
- * standard web convention; Nielsen heuristic #4 (consistency &
- * standards). Without it, deep pages like `/admin/instance` and
- * `/g/$groupId` have no escape path back to the picker.
+ * The Hearth wordmark is the universal "back to home" affordance; without
+ * it, deep pages (`/admin/instance`, `/g/$groupId`) have no path back.
+ *
+ * Tracks / Browse / Library / Sessions / People sections from the design
+ * plan land with later milestones (M3, M4, M6, M13) — they are deliberately
+ * not pre-built here.
  */
-export function Sidebar({ me, activeGroup }: Props) {
+export function Sidebar({ me }: Props) {
   const name = me?.user?.name ?? me?.user?.email ?? null;
   const roleLabel = me?.isOperator ? "Instance Operator" : "Group Member";
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const isHome = pathname === "/";
-  const isOnActiveGroup =
-    activeGroup !== undefined && activeGroup !== null && pathname === `/g/${activeGroup.id}`;
   const isOnAdmin = pathname.startsWith("/admin/instance");
+
+  const groupsQuery = useMyGroups(me?.user !== null && me?.user !== undefined);
+  const groups = groupsQuery.data ?? [];
 
   return (
     <div className="flex h-full flex-col gap-1">
@@ -85,23 +89,28 @@ export function Sidebar({ me, activeGroup }: Props) {
         </div>
       ) : null}
 
-      {activeGroup ? (
-        <>
-          <div className={SECTION_LABEL_CLASSES}>Study group</div>
-          <Link
-            to="/g/$groupId"
-            params={{ groupId: activeGroup.id }}
-            aria-current={isOnActiveGroup ? "page" : undefined}
-            className={cn(
-              NAV_ITEM_CLASSES,
-              isOnActiveGroup
-                ? "bg-[var(--color-surface-2)] font-medium text-[var(--color-ink)]"
-                : "text-[var(--color-ink-2)]",
-            )}
-          >
-            <span className="truncate">{activeGroup.name}</span>
-          </Link>
-        </>
+      {groups.length > 0 ? (
+        <nav aria-label="Your groups">
+          <div className={SECTION_LABEL_CLASSES}>Your groups</div>
+          <ul className="flex flex-col gap-0.5">
+            {groups.map((g) => {
+              const isActive = pathname === `/g/${g.id}`;
+              return (
+                <li key={g.id}>
+                  <Link
+                    to="/g/$groupId"
+                    params={{ groupId: g.id }}
+                    aria-current={isActive ? "page" : undefined}
+                    className={cn(NAV_ITEM_CLASSES, isActive ? NAV_ITEM_ACTIVE : NAV_ITEM_INACTIVE)}
+                  >
+                    <Users size={14} strokeWidth={1.5} aria-hidden="true" />
+                    <span className="truncate">{g.name}</span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
       ) : null}
 
       {me?.isOperator ? (
@@ -110,12 +119,7 @@ export function Sidebar({ me, activeGroup }: Props) {
           <Link
             to="/admin/instance"
             aria-current={isOnAdmin ? "page" : undefined}
-            className={cn(
-              NAV_ITEM_CLASSES,
-              isOnAdmin
-                ? "bg-[var(--color-surface-2)] font-medium text-[var(--color-ink)]"
-                : "text-[var(--color-ink-2)]",
-            )}
+            className={cn(NAV_ITEM_CLASSES, isOnAdmin ? NAV_ITEM_ACTIVE : NAV_ITEM_INACTIVE)}
           >
             <Settings size={14} strokeWidth={1.5} aria-hidden="true" />
             Instance settings

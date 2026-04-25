@@ -78,33 +78,62 @@ test.describe("M2 — Study Group lifecycle", () => {
     await context.close();
   });
 
-  test("sidebar reflects which group is active", async ({ browser }) => {
-    // Intent: when the user is inside a group, the sidebar tells them which
-    // one. Matches the design plan's desktop-sidebar spec (current group →
-    // tracks → browse → admin); tracks/browse land in later milestones.
+  test("sidebar lists every group the user belongs to and highlights the active one", async ({
+    browser,
+  }) => {
+    // Intent: the sidebar acts as a project switcher (Linear/GitHub pattern).
+    // The user's groups are always visible — recognition over recall —
+    // independent of which page they're on. Active group on `/g/$id` is
+    // marked `aria-current="page"`. Lays the groundwork for tracks /
+    // browse / etc. to nest under the active group in later milestones.
     const op = await seedOperator(BOOTSTRAP_USER);
     const context = await browser.newContext();
     await attachSession(context, op.cookie);
     const page = await context.newPage();
 
-    const create = await context.request.post("/api/v1/g", {
-      data: { name: "Sidebar Test Group" },
-      headers: { "content-type": "application/json" },
-    });
-    expect(create.status()).toBe(201);
-    const { id } = (await create.json()) as { id: string };
+    // Two groups so we can verify "all listed" + "only the active one
+    // highlighted" — a single-group fixture would not catch a mistaken
+    // `aria-current` on every entry.
+    const create = async (name: string) => {
+      const res = await context.request.post("/api/v1/g", {
+        data: { name },
+        headers: { "content-type": "application/json" },
+      });
+      expect(res.status()).toBe(201);
+      return ((await res.json()) as { id: string }).id;
+    };
+    const aId = await create("Alpha");
+    const bId = await create("Beta");
 
-    // On `/`, no group is active — no Study group section.
+    const yourGroupsNav = page.getByRole("navigation", { name: "Your groups" });
+
+    // On `/`, both groups appear; neither is the current page.
     await page.goto("/");
-    const sidebar = page.getByRole("complementary");
-    await expect(sidebar.getByText(/^Study group$/i)).toBeHidden();
+    await expect(yourGroupsNav.getByRole("link", { name: "Alpha" })).toBeVisible();
+    await expect(yourGroupsNav.getByRole("link", { name: "Beta" })).toBeVisible();
+    await expect(yourGroupsNav.getByRole("link", { name: "Alpha" })).not.toHaveAttribute(
+      "aria-current",
+      "page",
+    );
 
-    // On the group page, the Study group section appears with the group's
-    // name as a link to itself, marked aria-current="page".
-    await page.goto(`/g/${id}`);
-    await expect(sidebar.getByText(/^Study group$/i)).toBeVisible();
-    const groupLink = sidebar.getByRole("link", { name: "Sidebar Test Group" });
-    await expect(groupLink).toHaveAttribute("aria-current", "page");
+    // On `/g/$alpha`, Alpha is `aria-current="page"`; Beta is not.
+    await page.goto(`/g/${aId}`);
+    await expect(yourGroupsNav.getByRole("link", { name: "Alpha" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    await expect(yourGroupsNav.getByRole("link", { name: "Beta" })).not.toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+
+    // Switching via the sidebar — the user does not have to detour through `/`.
+    await yourGroupsNav.getByRole("link", { name: "Beta" }).click();
+    await expect(page).toHaveURL(`/g/${bId}`);
+    await expect(yourGroupsNav.getByRole("link", { name: "Beta" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
 
     await context.close();
   });
