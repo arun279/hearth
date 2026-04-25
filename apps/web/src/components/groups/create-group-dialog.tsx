@@ -34,7 +34,7 @@ export function CreateGroupDialog({ open, onClose, onCreate }: Props) {
   const form = useForm<CreateForm>({
     resolver: zodResolver(createSchema),
     defaultValues: { name: "", description: "" },
-    mode: "onSubmit",
+    mode: "onTouched",
   });
 
   // Reset the form on close so re-opening starts blank rather than retaining
@@ -61,6 +61,8 @@ export function CreateGroupDialog({ open, onClose, onCreate }: Props) {
 
   const nameError = form.formState.errors.name?.message;
   const descError = form.formState.errors.description?.message;
+  const nameValue = form.watch("name");
+  const submitDisabled = form.formState.isSubmitting || nameValue.trim().length === 0;
 
   return (
     <Modal
@@ -78,7 +80,7 @@ export function CreateGroupDialog({ open, onClose, onCreate }: Props) {
             type="submit"
             variant="primary"
             form="create-group-form"
-            disabled={form.formState.isSubmitting}
+            disabled={submitDisabled}
           >
             {form.formState.isSubmitting ? "Creating…" : "Create Study Group"}
           </Button>

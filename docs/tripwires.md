@@ -82,6 +82,14 @@ Each entry names the **pinned tool**, the **condition** that triggers a reassess
 - **Action**: add a `test:coverage` script + `coverage.thresholds` block to `packages/adapters/cloudflare` and to `apps/worker`. Until then, the adapter is exercised by Miniflare-backed integration tests under `test/integration/` and _does not appear_ in `pnpm check:coverage`. This is deliberate, not an oversight — the integration suite asserts behaviour against real D1 + R2 (atomic batches, idempotent updates, killswitch gating). The same applies to `apps/worker`, whose composition-root code is covered by the Playwright E2E suite.
 - **Location**: `packages/adapters/cloudflare/vitest.config.ts`, `apps/worker/`.
 
+## Forms + validation
+
+### `@hookform/resolvers` × Zod major version (current pin: `^5.2.2`, paired with Zod `^4.1.11`)
+
+- **Trigger**: a `zod` major bump (5.x or later), OR `@hookform/resolvers` releases a new major (6.x), OR a `react-hook-form` form mysteriously sticks at `isSubmitting=true` after a failed validation — that is the exact symptom of a resolver that doesn't recognise the active Zod error shape.
+- **Action**: confirm the resolver's Zod-version-compat path is still wired up. The v3 → v5 bump that landed with the M2 PR shifted the recogniser from `Array.isArray(error.errors)` (Zod 3 shape) to `error instanceof $ZodError` + `error.issues` (Zod 4 shape). A future Zod 5 will likely move the goalposts again, and the symptom is silent: validation passes through, the resolver re-throws, RHF leaves the form locked. The empty-submit assertion in `apps/web/e2e/dialog-keyboard.spec.ts` catches it; if it goes red after a bump, this is the first place to look.
+- **Location**: `apps/web/package.json` (`@hookform/resolvers`, `zod`); call sites in `apps/web/src/components/groups/{create-group-dialog,group-settings-dialog}.tsx`.
+
 ## How to remove an entry
 
 An entry leaves this list only when one of the following is true:

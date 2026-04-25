@@ -12,7 +12,7 @@ import {
   useUpdateGroupMetadata,
 } from "../../hooks/use-groups.ts";
 import { asUserMessage } from "../../lib/problem.ts";
-import { ConfirmDestructiveDialog } from "../admin/confirm-destructive-dialog.tsx";
+import { ConfirmActionDialog } from "../admin/confirm-action-dialog.tsx";
 
 const NAME_MAX = 120;
 const DESCRIPTION_MAX = 2000;
@@ -49,7 +49,7 @@ export function GroupSettingsDialog({ open, onClose, group, caps }: Props) {
   const form = useForm<SettingsForm>({
     resolver: zodResolver(settingsSchema),
     defaultValues: { name: group.name, description: group.description ?? "" },
-    mode: "onSubmit",
+    mode: "onTouched",
   });
 
   // Re-hydrate the form whenever the group prop changes (e.g., after a
@@ -83,6 +83,9 @@ export function GroupSettingsDialog({ open, onClose, group, caps }: Props) {
 
   const nameError = form.formState.errors.name?.message;
   const descError = form.formState.errors.description?.message;
+  const nameValue = form.watch("name");
+  const submitDisabled =
+    !form.formState.isDirty || form.formState.isSubmitting || nameValue.trim().length === 0;
   const archived = group.status === "archived";
 
   return (
@@ -91,7 +94,11 @@ export function GroupSettingsDialog({ open, onClose, group, caps }: Props) {
         open={open}
         size="md"
         title="Group settings"
-        description="Edit the name your members see. Archiving freezes new work but keeps history readable."
+        description={
+          archived
+            ? "This group is archived — name and description are read-only. Unarchive from the panel below to resume edits."
+            : "Edit the name your members see. Archiving freezes new work but keeps history readable."
+        }
         onClose={close}
         footer={
           <>
@@ -103,7 +110,7 @@ export function GroupSettingsDialog({ open, onClose, group, caps }: Props) {
                 type="submit"
                 variant="primary"
                 form="group-settings-form"
-                disabled={!form.formState.isDirty || form.formState.isSubmitting}
+                disabled={submitDisabled}
               >
                 {form.formState.isSubmitting ? "Saving…" : "Save changes"}
               </Button>
@@ -182,7 +189,8 @@ export function GroupSettingsDialog({ open, onClose, group, caps }: Props) {
         ) : null}
       </Modal>
 
-      <ConfirmDestructiveDialog
+      <ConfirmActionDialog
+        tone="destructive"
         open={confirmingArchive}
         title="Archive this group?"
         description="New activities, tracks, and contributions will be paused. History stays readable. You can unarchive later from this same panel."
@@ -200,7 +208,8 @@ export function GroupSettingsDialog({ open, onClose, group, caps }: Props) {
           }
         }}
       />
-      <ConfirmDestructiveDialog
+      <ConfirmActionDialog
+        tone="primary"
         open={confirmingUnarchive}
         title="Unarchive this group?"
         description="Members will be able to resume creating tracks, activities, and contributions."
