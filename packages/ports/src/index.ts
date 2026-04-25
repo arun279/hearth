@@ -2,6 +2,8 @@ export type { ActivityRecordRepository } from "./activity-record-repository.ts";
 export type { Clock } from "./clock.ts";
 export type { IdGenerator } from "./id-generator.ts";
 export type {
+  AddApprovedEmailResult,
+  AddOperatorResult,
   ApprovedEmailPage,
   BootstrapOutcome,
   InstanceAccessPolicyRepository,

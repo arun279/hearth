@@ -2,7 +2,7 @@ import type { KillswitchGate } from "@hearth/ports";
 import { Hono } from "hono";
 import { describe, expect, it, vi } from "vitest";
 import type { AppBindings, RateLimitHandle } from "../src/bindings.ts";
-import { writeRateLimit } from "../src/middleware/rate-limit.ts";
+import { authRateLimit, writeRateLimit } from "../src/middleware/rate-limit.ts";
 
 /**
  * CI-enforced resilience invariant (per docs/free-tier-guardrails.md §4):
@@ -101,5 +101,70 @@ describe("rate-limit does not touch D1 (resilience invariant 4)", () => {
     const res = await app.request("/noop");
     expect(res.status).toBe(200);
     expect(limit).not.toHaveBeenCalled();
+  });
+
+  it("keys per-IP when no userId — falling back through cf-connecting-ip → x-forwarded-for → unknown-ip", async () => {
+    // 1: cf-connecting-ip wins
+    {
+      const limit = vi.fn(async () => ({ success: true }));
+      const app = new Hono<AppBindings>();
+      installVars(app, { userId: null, limit });
+      app.use("*", writeRateLimit());
+      app.post("/noop", (c) => c.text("ok"));
+      await app.request("/noop", { method: "POST", headers: { "cf-connecting-ip": "1.2.3.4" } });
+      expect(limit).toHaveBeenCalledWith({ key: "1.2.3.4" });
+    }
+    // 2: cf-connecting-ip absent → x-forwarded-for first comma-segment
+    {
+      const limit = vi.fn(async () => ({ success: true }));
+      const app = new Hono<AppBindings>();
+      installVars(app, { userId: null, limit });
+      app.use("*", writeRateLimit());
+      app.post("/noop", (c) => c.text("ok"));
+      await app.request("/noop", {
+        method: "POST",
+        headers: { "x-forwarded-for": " 9.9.9.9 ,  10.0.0.1 " },
+      });
+      expect(limit).toHaveBeenCalledWith({ key: "9.9.9.9" });
+    }
+    // 3: both absent → "unknown-ip" sentinel
+    {
+      const limit = vi.fn(async () => ({ success: true }));
+      const app = new Hono<AppBindings>();
+      installVars(app, { userId: null, limit });
+      app.use("*", writeRateLimit());
+      app.post("/noop", (c) => c.text("ok"));
+      await app.request("/noop", { method: "POST" });
+      expect(limit).toHaveBeenCalledWith({ key: "unknown-ip" });
+    }
+  });
+});
+
+describe("authRateLimit (resilience invariant 4 — same edge counter, no D1)", () => {
+  it("meters every request against the auth limiter binding using IP", async () => {
+    const limit = vi.fn(async () => ({ success: true }));
+    const app = new Hono<AppBindings>();
+    installVars(app, { limit });
+    app.use("*", authRateLimit());
+    app.get("/api/auth/sign-in", (c) => c.text("ok"));
+    const res = await app.request("/api/auth/sign-in", {
+      headers: { "cf-connecting-ip": "5.5.5.5" },
+    });
+    expect(res.status).toBe(200);
+    expect(limit).toHaveBeenCalledWith({ key: "5.5.5.5" });
+  });
+
+  it("returns 429 RFC 7807 when the auth binding rejects", async () => {
+    const limit = vi.fn(async () => ({ success: false }));
+    const app = new Hono<AppBindings>();
+    installVars(app, { limit });
+    app.use("*", authRateLimit());
+    app.get("/api/auth/sign-in", (c) => c.text("ok"));
+    const res = await app.request("/api/auth/sign-in", {
+      headers: { "cf-connecting-ip": "5.5.5.5" },
+    });
+    expect(res.status).toBe(429);
+    expect(res.headers.get("content-type")).toContain("application/problem+json");
+    expect(await res.json()).toMatchObject({ code: "rate_limited", status: 429 });
   });
 });

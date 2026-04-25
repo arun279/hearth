@@ -1,0 +1,1 @@
+ALTER TABLE `instance_operators` ADD `revoked_by` text REFERENCES users(id);

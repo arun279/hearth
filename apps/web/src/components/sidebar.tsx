@@ -1,17 +1,29 @@
 import type { MeContext } from "@hearth/domain";
-import { Avatar, Badge, ThemeToggle } from "@hearth/ui";
+import { Avatar, Badge, cn, ThemeToggle } from "@hearth/ui";
+import { Link, useRouterState } from "@tanstack/react-router";
+import { Settings } from "lucide-react";
 
 type Props = {
   readonly me: MeContext["data"] | null;
 };
 
+const SECTION_LABEL_CLASSES =
+  "px-1 pt-3 pb-1 font-medium text-[10px] text-[var(--color-ink-3)] uppercase tracking-wide";
+
 /**
- * Desktop sidebar chrome. In M0 the group / track / admin sections are empty
- * because those aggregates have not landed yet — the structural header + user
- * pill still render so the layout matches what will ship in M1+.
+ * Desktop sidebar chrome. Shows:
+ *   - Hearth wordmark + theme toggle
+ *   - The current Hearth Instance pill (with operator-only "private" badge)
+ *   - An Admin section (operator-only) linking to /admin/instance
+ *   - The account pill at the bottom
+ *
+ * Group/Track sections land with their aggregates in later milestones.
  */
 export function Sidebar({ me }: Props) {
   const name = me?.user?.name ?? me?.user?.email ?? null;
+  const roleLabel = me?.isOperator ? "Instance Operator" : "Group Member";
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+
   return (
     <div className="flex h-full flex-col gap-1">
       <div className="flex items-center gap-2 px-2 pt-1 pb-3">
@@ -40,6 +52,26 @@ export function Sidebar({ me }: Props) {
         </div>
       ) : null}
 
+      {me?.isOperator ? (
+        <>
+          <div className={SECTION_LABEL_CLASSES}>Admin</div>
+          <Link
+            to="/admin/instance"
+            className={cn(
+              "flex items-center gap-2 rounded-[var(--radius-sm)] px-2 py-1.5 text-[13px]",
+              "transition-colors hover:bg-[var(--color-surface-2)] focus-visible:outline-none",
+              "focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg)]",
+              pathname.startsWith("/admin/instance")
+                ? "bg-[var(--color-surface-2)] font-medium text-[var(--color-ink)]"
+                : "text-[var(--color-ink-2)]",
+            )}
+          >
+            <Settings size={14} strokeWidth={1.5} aria-hidden="true" />
+            Instance settings
+          </Link>
+        </>
+      ) : null}
+
       <div className="flex-1" />
 
       {name ? (
@@ -49,9 +81,7 @@ export function Sidebar({ me }: Props) {
             <div className="truncate font-medium text-[12px] text-[var(--color-ink)]">
               {me?.user?.name ?? "Member"}
             </div>
-            <div className="truncate text-[11px] text-[var(--color-ink-3)]">
-              {me?.isOperator ? "Instance Operator" : "Group Member"}
-            </div>
+            <div className="truncate text-[11px] text-[var(--color-ink-3)]">{roleLabel}</div>
           </div>
         </div>
       ) : null}

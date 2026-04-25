@@ -32,9 +32,12 @@ All of these must pass locally before merge. Most run automatically via `lefthoo
 9. `pnpm db:check-auth`
 10. `pnpm test`
 11. `pnpm test:integration`
-12. `pnpm audit --audit-level=high`
+12. `pnpm check:coverage`
+13. `pnpm audit --audit-level=high`
 
 `pnpm check` runs all of the above in one pass.
+
+`pnpm e2e` runs the Playwright suite against a locally-spawned worker + Vite dev server. It is intentionally *not* part of the `pnpm check` aggregate (it boots two long-lived servers and downloads ~150 MB of Chromium on a fresh runner); CI invokes it as a separate workflow gate. First-time setup: `pnpm --filter @hearth/web e2e:install`.
 
 Additional:
 - If you touched `packages/db/src/**`, run `pnpm db:generate` and commit the new migration.
@@ -58,6 +61,7 @@ Additional:
 - Before bumping a pinned tool (TypeScript, wrangler, better-auth, drizzle, `@cloudflare/vitest-pool-workers`, etc.) or proposing a stack change, consult `docs/tripwires.md` — it catalogues reassess-when-X triggers tied to each pin. If an entry is relevant, follow its "Action" step rather than treating the bump as routine.
 - Cloudflare D1 local (Miniflare-backed SQLite) is strongly consistent and synchronous. Remote D1 is async-replicated across regions and a read replica may be arbitrarily out of date relative to the primary. **Never rely on read-your-own-writes within a short window for flow-critical data.** Ephemeral auth state (OAuth state, CSRF nonces, one-shot verifications, session-token handshakes) belongs in cookies or KV, not D1. Local integration tests cannot reproduce this class of bug — only deployed-remote testing can. If a change involves a D1 write immediately followed by a read in a different request, call it out and pick a non-D1 store for the short-lived side.
 - Cloudflare Workers Static Assets with `not_found_handling: "single-page-application"` + `compatibility_date >= 2025-04-01` implicitly activates `assets_navigation_prefers_asset_serving`. Any browser request carrying `Sec-Fetch-Mode: navigate` that doesn't match a static asset is served the SPA's `index.html` — **the Worker is never invoked**. This silently breaks OAuth callbacks, Stripe webhooks visited via browser, magic-link landing URLs, and any other API route expected to be reachable via top-level navigation. The `assets.run_worker_first` array form (e.g. `["/api/*", "/healthz"]`) explicitly opts those paths out of SPA fallback and is CF's documented fix for this exact case. Local `wrangler dev` does not reproduce this without the real edge routing; only deployed-remote testing catches it. Never add an API route under a path pattern outside `run_worker_first` without verifying it's either XHR-only or gated behind the array.
+- **Record fix-later debt where it can be found again.** When a review surfaces an issue that is correct *for now* but must change later (a hardcoded value tied to a v1 assumption, a deferred feature gate, an explicit "we'll revisit when X ships"), write it down before the session closes. Pick the right surface: a `TODO(scope-hint):` at the call site for code-local debt that a `grep` will surface; a `docs/tripwires.md` entry for stack-level debt with an upstream trigger; a GitHub issue for milestone-shaped work. Lampshading an issue in conversation and moving on is forbidden — the next session has no memory of it. If you cannot decide where it belongs, default to `docs/tripwires.md` and note the trigger condition explicitly.
 
 ## When each check runs
 
@@ -74,6 +78,7 @@ Additional:
 | `pnpm db:check-auth` | — | — | ✓ | ✓ |
 | `pnpm test` | — | — | changed packages only | all packages |
 | `pnpm test:integration` | — | — | ✓ | ✓ |
+| `pnpm check:coverage` | — | — | ✓ | ✓ |
 | Policy-purity test | — | — | when policy/visibility changes | (part of `pnpm test`) |
 | `pnpm audit --audit-level=high` | — | — | ✓ | daily + per-PR |
 | TruffleHog secrets scan | — | staged files only | — | daily + per-PR |

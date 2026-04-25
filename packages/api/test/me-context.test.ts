@@ -154,4 +154,37 @@ describe("GET /api/v1/me/context", () => {
     expect(body.data.instance).toEqual({ name: "Jolene's Hearth", needsBootstrap: false });
     expect(body.data.isOperator).toBe(true);
   });
+
+  it("maps adapter throws into a problem+json envelope", async () => {
+    const app = harness({
+      userId: null,
+      ports: {
+        policy: {
+          ...throwingProxy<InstanceAccessPolicyRepository>("policy"),
+          countActiveOperators: async () => {
+            throw new Error("d1 down");
+          },
+          isOperator: async () => false,
+        } as InstanceAccessPolicyRepository,
+        settings: {
+          get: async () => null,
+          update: async () => {
+            throw new Error("unused");
+          },
+        },
+      },
+    });
+    const res = await app.request("/api/v1/me/context");
+    expect(res.status).toBe(500);
+    expect(res.headers.get("content-type")).toContain("problem+json");
+  });
+});
+
+describe("GET /api/v1/me/up-next", () => {
+  it("returns an empty items list — stub until sessions aggregate lands", async () => {
+    const app = harness({ userId: "u_1", ports: {} });
+    const res = await app.request("/api/v1/me/up-next");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ items: [] });
+  });
 });

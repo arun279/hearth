@@ -48,6 +48,7 @@
       },
       "nursery": {
         "noFloatingPromises": "error",
+        "useExhaustiveSwitchCases": "error",
         "useSortedClasses": {
           "level": "warn",
           "options": {
