@@ -15,6 +15,18 @@ import { defineConfig } from "vitest/config";
  * Absolute paths (via `import.meta.dirname`) are required by
  * `@cloudflare/vitest-pool-workers` ≥ 0.14 when the config lives outside the
  * Wrangler working directory.
+ *
+ * Why no `coverage.thresholds` here (intentional, not an oversight):
+ * V8 coverage instrumentation does not work inside the Workers runtime —
+ * the runtime does not expose the V8 profiler API that v8-to-istanbul
+ * needs (per Vitest's own coverage docs). The adapter is exercised by
+ * the Miniflare-backed integration suite under `test/integration/`,
+ * which asserts behaviour against real D1 + R2 (atomic batch writes,
+ * idempotent updates, killswitch gating, etc.). Adding a no-op
+ * coverage script to satisfy a turbo task would only produce
+ * misleading "0% covered" reports against unit-test-instrumented code
+ * and ignore the integration suite. See `docs/tripwires.md` —
+ * "v8 coverage on Workers runtime" — for the reassessment trigger.
  */
 const thisDir = import.meta.dirname;
 const wranglerConfigPath = path.join(thisDir, "test/wrangler.test.jsonc");

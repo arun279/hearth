@@ -55,6 +55,8 @@ pre-push:
       run: pnpm test:integration
     coverage:
       run: pnpm check:coverage
+    e2e:
+      run: pnpm --filter @hearth/web e2e
     audit:
       run: pnpm audit --audit-level=high
     resolution:

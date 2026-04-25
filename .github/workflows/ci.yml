@@ -57,3 +57,9 @@ jobs:
       - run: pnpm db:check-auth
 
       - run: pnpm test:integration
+
+      - run: pnpm check:coverage
+
+      # TODO(e2e-ci): also run `pnpm --filter @hearth/web e2e` here.
+      # E2E is currently gated only at pre-push (lefthook.yml `e2e:`),
+      # which is bypassable. Wiring it in CI is deferred — not declined.

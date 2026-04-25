@@ -68,6 +68,14 @@ Each entry names the **pinned tool**, the **condition** that triggers a reassess
 - **Action**: surface the active admission policy on `MeContext.instance` (e.g. `accessPolicy: "private_email_allowlist" | "open" | "request_to_join"`) and gate the badge text + tone off it. Remove this entry once the badge is no longer hardcoded.
 - **Location**: `apps/web/src/components/sidebar.tsx`.
 
+## Test infrastructure
+
+### V8 coverage on the Workers runtime
+
+- **Trigger**: Vitest's coverage docs no longer list "Cloudflare Workers" as unsupported, OR `@cloudflare/vitest-pool-workers` ships a coverage binding that surfaces V8 profiler output from the workerd runtime.
+- **Action**: add a `test:coverage` script + `coverage.thresholds` block to `packages/adapters/cloudflare` and to `apps/worker`. Until then, the adapter is exercised by Miniflare-backed integration tests under `test/integration/` and _does not appear_ in `pnpm check:coverage`. This is deliberate, not an oversight — the integration suite asserts behaviour against real D1 + R2 (atomic batches, idempotent updates, killswitch gating). The same applies to `apps/worker`, whose composition-root code is covered by the Playwright E2E suite.
+- **Location**: `packages/adapters/cloudflare/vitest.config.ts`, `apps/worker/`.
+
 ## How to remove an entry
 
 An entry leaves this list only when one of the following is true:
