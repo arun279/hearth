@@ -30,7 +30,23 @@ first — the killswitch design is explained there, not here.
 3. Authorized redirect URIs: `https://hearth.wiki/api/auth/callback/google`.
 4. Copy the client id and secret into Worker secrets (next step).
 
-### 1.3 Worker secrets
+### 1.3 Force HTTPS at the edge
+
+In the Cloudflare dashboard for hearth.wiki:
+
+1. **SSL/TLS → Edge Certificates → Always Use HTTPS = ON.** Mandatory.
+   `BETTER_AUTH_TRUSTED_ORIGINS` is HTTPS-only by design (auth cookies must
+   not travel in plaintext); without this, a browser that lands on
+   `http://hearth.wiki` will load the SPA, POST `/api/auth/sign-in/social`
+   with `Origin: http://hearth.wiki`, and get a 403 INVALID_ORIGIN every
+   time. Mobile Chrome with "Always Use Secure Connections" off is the
+   common way users hit this.
+2. **SSL/TLS → Edge Certificates → HTTP Strict Transport Security (HSTS) =
+   enable, max-age=31536000.** The Worker also emits this header on every
+   HTTPS response as defense in depth, but the dashboard setting is what
+   protects users on their first-ever visit.
+
+### 1.4 Worker secrets
 
 Set once:
 
@@ -53,7 +69,7 @@ wrangler secret put DISCORD_WEBHOOK_URL   # if using Discord alerter
 `BETTER_AUTH_URL` and `BETTER_AUTH_TRUSTED_ORIGINS` are public `vars` in
 `wrangler.jsonc`, not secrets.
 
-### 1.4 First deploy
+### 1.5 First deploy
 
 ```bash
 pnpm --filter @hearth/worker deploy:upload
@@ -65,14 +81,14 @@ This is the canonical path — `wrangler versions upload` followed by
 The split gives atomic traffic flips and one-command rollback
 (`wrangler rollback`).
 
-### 1.5 First sign-in
+### 1.6 First sign-in
 
 Open `https://hearth.wiki`. Click **Sign in with Google**. The admission +
 session-guard bootstrap-bypass admits the bootstrap email, and
 `user.create.after` seeds `approved_emails` + `instance_operators`. The
 SPA then shows `isOperator: true`.
 
-### 1.6 First-operator workflow
+### 1.7 First-operator workflow
 
 Once the bootstrap operator is signed in:
 

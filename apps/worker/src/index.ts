@@ -119,6 +119,22 @@ app.get("/healthz", (c) => c.text("ok"));
 app.use("*", killswitchMiddleware());
 app.use("*", logger());
 
+// HSTS on every HTTPS response. Defense in depth against the case where
+// Cloudflare's "Always Use HTTPS" is disabled and a browser ends up cached
+// onto http://hearth.wiki — the page loads, the SPA POSTs `/api/auth/sign-in/social`,
+// the request carries `Origin: http://hearth.wiki`, better-auth rejects it
+// with 403 INVALID_ORIGIN. Once a browser has seen STS once over HTTPS it
+// auto-upgrades all subsequent navigations for `max-age` seconds, breaking
+// the loop without a CF dashboard change. The header is meaningless over
+// plain HTTP and browsers ignore it there, so the protocol gate is just to
+// avoid emitting a no-op header.
+app.use("*", async (c, next) => {
+  await next();
+  if (new URL(c.req.url).protocol === "https:") {
+    c.res.headers.set("Strict-Transport-Security", "max-age=31536000");
+  }
+});
+
 // Rate-limit auth endpoints per-IP and /api/v1 writes per-session via
 // Cloudflare's edge counter (no D1/KV/DO writes — see docs/free-tier-guardrails.md).
 app.use("/api/auth/*", authRateLimit());
