@@ -5,7 +5,7 @@ import type {
   UserRepository,
 } from "@hearth/ports";
 import { describe, expect, it, vi } from "vitest";
-import { archiveGroup } from "../src/use-cases/archive-group.ts";
+import { unarchiveGroup } from "../src/use-cases/unarchive-group.ts";
 
 const now = new Date("2026-04-22T00:00:00.000Z");
 const actorId = "u_actor" as UserId;
@@ -23,14 +23,14 @@ const actor: User = {
   updatedAt: now,
 };
 
-const activeGroup: StudyGroup = {
+const archivedGroup: StudyGroup = {
   id: groupId,
   name: "G",
   description: null,
   admissionPolicy: "invite_only",
-  status: "active",
-  archivedAt: null,
-  archivedBy: null,
+  status: "archived",
+  archivedAt: now,
+  archivedBy: actorId,
   createdAt: now,
   updatedAt: now,
 };
@@ -57,7 +57,7 @@ function makeUsers(user: User | null): UserRepository {
 function makeGroups(overrides: Partial<StudyGroupRepository>): StudyGroupRepository {
   return {
     create: vi.fn(),
-    byId: vi.fn(async () => activeGroup),
+    byId: vi.fn(async () => archivedGroup),
     list: vi.fn(async () => []),
     listForUser: vi.fn(async () => []),
     updateStatus: vi.fn(),
@@ -90,47 +90,44 @@ function makePolicy(
   } as InstanceAccessPolicyRepository;
 }
 
-describe("archiveGroup", () => {
-  it("archives an active group when actor is current admin", async () => {
+describe("unarchiveGroup", () => {
+  it("unarchives an archived group when actor is current admin", async () => {
     const updateStatus = vi.fn();
-    await archiveGroup(
+    await unarchiveGroup(
       { actor: actorId, groupId },
       { users: makeUsers(actor), groups: makeGroups({ updateStatus }), policy: makePolicy() },
     );
-    expect(updateStatus).toHaveBeenCalledWith(groupId, "archived", actorId);
+    expect(updateStatus).toHaveBeenCalledWith(groupId, "active", actorId);
   });
 
-  it("rejects NOT_FOUND when actor doesn't exist", async () => {
-    await expect(
-      archiveGroup(
-        { actor: actorId, groupId },
-        { users: makeUsers(null), groups: makeGroups({}), policy: makePolicy() },
-      ),
-    ).rejects.toMatchObject({ code: "NOT_FOUND" });
-  });
-
-  it("rejects NOT_FOUND when group doesn't exist", async () => {
-    await expect(
-      archiveGroup(
-        { actor: actorId, groupId },
-        {
-          users: makeUsers(actor),
-          groups: makeGroups({ byId: vi.fn(async () => null) }),
-          policy: makePolicy(),
-        },
-      ),
-    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  it("is a no-op on an already-active group", async () => {
+    const updateStatus = vi.fn();
+    await unarchiveGroup(
+      { actor: actorId, groupId },
+      {
+        users: makeUsers(actor),
+        groups: makeGroups({
+          byId: vi.fn(async () => ({ ...archivedGroup, status: "active" }) as StudyGroup),
+          updateStatus,
+        }),
+        policy: makePolicy(),
+      },
+    );
+    expect(updateStatus).not.toHaveBeenCalled();
   });
 
   it("rejects FORBIDDEN/not_group_admin for a non-admin", async () => {
     await expect(
-      archiveGroup(
+      unarchiveGroup(
         { actor: actorId, groupId },
         {
           users: makeUsers(actor),
           groups: makeGroups({
             membership: vi.fn(
-              async (): Promise<GroupMembership> => ({ ...adminMembership, role: "participant" }),
+              async (): Promise<GroupMembership> => ({
+                ...adminMembership,
+                role: "participant",
+              }),
             ),
           }),
           policy: makePolicy(),
@@ -141,7 +138,7 @@ describe("archiveGroup", () => {
 
   it("rejects NOT_FOUND/not_group_member for a non-member non-operator (no existence leak)", async () => {
     await expect(
-      archiveGroup(
+      unarchiveGroup(
         { actor: actorId, groupId },
         {
           users: makeUsers(actor),
@@ -150,21 +147,5 @@ describe("archiveGroup", () => {
         },
       ),
     ).rejects.toMatchObject({ code: "NOT_FOUND", reason: "not_group_member" });
-  });
-
-  it("is a no-op on an already-archived group (idempotent retry)", async () => {
-    const updateStatus = vi.fn();
-    await archiveGroup(
-      { actor: actorId, groupId },
-      {
-        users: makeUsers(actor),
-        groups: makeGroups({
-          byId: vi.fn(async (): Promise<StudyGroup> => ({ ...activeGroup, status: "archived" })),
-          updateStatus,
-        }),
-        policy: makePolicy(),
-      },
-    );
-    expect(updateStatus).not.toHaveBeenCalled();
   });
 });

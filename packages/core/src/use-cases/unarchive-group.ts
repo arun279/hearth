@@ -1,6 +1,6 @@
 import type { StudyGroupId, UserId } from "@hearth/domain";
 import { DomainError } from "@hearth/domain";
-import { canArchiveGroup } from "@hearth/domain/policy/can-archive-group";
+import { canUnarchiveGroup } from "@hearth/domain/policy/can-unarchive-group";
 import { canViewGroup } from "@hearth/domain/policy/can-view-group";
 import type {
   InstanceAccessPolicyRepository,
@@ -8,25 +8,24 @@ import type {
   UserRepository,
 } from "@hearth/ports";
 
-export type ArchiveGroupInput = {
+export type UnarchiveGroupInput = {
   readonly actor: UserId;
   readonly groupId: StudyGroupId;
 };
 
-export type ArchiveGroupDeps = {
+export type UnarchiveGroupDeps = {
   readonly groups: StudyGroupRepository;
   readonly users: UserRepository;
   readonly policy: InstanceAccessPolicyRepository;
 };
 
 /**
- * Archive a Study Group. Idempotent — calling on an already-archived group
- * is a no-op success so a retry from the SPA cannot surface as a 4xx after
- * the first call landed.
+ * Unarchive a Study Group. Idempotent — calling on an already-active group
+ * is a no-op success.
  */
-export async function archiveGroup(
-  input: ArchiveGroupInput,
-  deps: ArchiveGroupDeps,
+export async function unarchiveGroup(
+  input: UnarchiveGroupInput,
+  deps: UnarchiveGroupDeps,
 ): Promise<void> {
   const [actor, group, membership, operator] = await Promise.all([
     deps.users.byId(input.actor),
@@ -38,25 +37,18 @@ export async function archiveGroup(
   if (!actor) throw new DomainError("NOT_FOUND", "Actor not found");
   if (!group) throw new DomainError("NOT_FOUND", "Group not found", "not_found");
 
-  // Viewability is checked before authorization so a non-member probing the
-  // route by id receives the same 404 a non-existent group would — existence
-  // of the group is not leaked to non-members or non-operators via the 403
-  // vs 404 status-code distinction. The same shape lives in `getGroup`.
+  // View → admin → idempotence ordering. Same security rationale as `archiveGroup`.
   const view = canViewGroup(actor, group, membership, operator);
   if (!view.ok) {
     throw new DomainError("NOT_FOUND", view.reason.message, view.reason.code);
   }
 
-  // Authorization (admin) is checked next so a non-admin viewing a group
-  // sees the same 403 whether the group is active or already archived —
-  // the use case's idempotence early-return below cannot leak state to
-  // someone the policy would have rejected anyway.
-  const verdict = canArchiveGroup(actor, group, membership);
+  const verdict = canUnarchiveGroup(actor, group, membership);
   if (!verdict.ok) {
     throw new DomainError("FORBIDDEN", verdict.reason.message, verdict.reason.code);
   }
 
-  if (group.status === "archived") return;
+  if (group.status === "active") return;
 
-  await deps.groups.updateStatus(input.groupId, "archived", input.actor);
+  await deps.groups.updateStatus(input.groupId, "active", input.actor);
 }

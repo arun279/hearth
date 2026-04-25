@@ -1,8 +1,15 @@
-import { AppShell, EmptyState } from "@hearth/ui";
+import type { GroupMembership } from "@hearth/domain";
+import { AppShell, Button, EmptyState, Skeleton } from "@hearth/ui";
 import { createFileRoute } from "@tanstack/react-router";
+import { Plus } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
 import { z } from "zod";
+import { CreateGroupDialog } from "../components/groups/create-group-dialog.tsx";
+import { GroupCard } from "../components/groups/group-card.tsx";
 import { Sidebar } from "../components/sidebar.tsx";
 import { SignInScreen } from "../components/sign-in-screen.tsx";
+import { useCreateGroup, useMyGroups } from "../hooks/use-groups.ts";
 import { useMeContext } from "../hooks/use-me-context.ts";
 
 const searchSchema = z.object({
@@ -45,20 +52,88 @@ function HomeComponent() {
     return <SignInScreen me={me} rejection={search.rejection ?? null} />;
   }
 
-  // Signed-in. In M0 the group/track aggregates haven't landed, so we render
-  // an empty state rather than a navigational dead-end.
   return (
     <AppShell sidebar={<Sidebar me={me} />} mobileTitle={me.instance.name}>
-      <div className="mx-auto max-w-2xl px-5 py-10">
-        <EmptyState
-          title="No Study Groups yet"
-          description={
-            me.isOperator
-              ? "As an Instance Operator you'll be able to create Study Groups here once the group aggregate lands."
-              : "Your Instance Operator hasn't added you to a Study Group yet. Check back after they invite you."
-          }
-        />
-      </div>
+      <SignedInHome me={me} />
     </AppShell>
+  );
+}
+
+function SignedInHome({
+  me,
+}: {
+  readonly me: NonNullable<ReturnType<typeof useMeContext>["data"]>["data"];
+}) {
+  const groups = useMyGroups(me.user !== null);
+  const create = useCreateGroup();
+  const [createOpen, setCreateOpen] = useState(false);
+
+  const myMembershipById = new Map<string, GroupMembership>(
+    me.memberships.map((m) => [m.groupId, m]),
+  );
+
+  const entries = groups.data ?? [];
+  const empty = !groups.isLoading && entries.length === 0;
+
+  return (
+    <div className="mx-auto max-w-3xl px-5 py-8 md:px-8">
+      <header className="space-y-2">
+        <div className="text-[11px] font-medium uppercase tracking-wide text-[var(--color-ink-3)]">
+          Your groups
+        </div>
+        <h1 className="font-serif text-[28px] leading-tight text-[var(--color-ink)]">
+          {me.instance.name}
+        </h1>
+        <p className="text-[13px] text-[var(--color-ink-2)]">
+          A small, trusted space for learning together. Pick a group to continue, or — if you're the
+          operator — start a new one.
+        </p>
+      </header>
+
+      <div className="mt-6 space-y-3">
+        {groups.isLoading ? (
+          <>
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+          </>
+        ) : empty ? (
+          <EmptyState
+            title="No Study Groups yet"
+            description={
+              me.isOperator
+                ? "Create your first group below. You'll be its first Group Admin."
+                : "Your Instance Operator hasn't added you to a Study Group yet. Check back after they invite you."
+            }
+          />
+        ) : (
+          <ul className="space-y-2" aria-label="Your Study Groups">
+            {entries.map((group) => (
+              <li key={group.id}>
+                <GroupCard group={group} myRole={myMembershipById.get(group.id)?.role ?? null} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {me.isOperator ? (
+        <div className="mt-6 flex justify-center">
+          <Button variant="secondary" onClick={() => setCreateOpen(true)}>
+            <Plus size={12} strokeWidth={2} aria-hidden="true" />
+            Create Study Group
+          </Button>
+        </div>
+      ) : null}
+
+      <CreateGroupDialog
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreate={async (input) => {
+          await create.mutateAsync(input);
+          toast.success("Study Group created.");
+          setCreateOpen(false);
+        }}
+      />
+    </div>
   );
 }

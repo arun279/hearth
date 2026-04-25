@@ -5,6 +5,9 @@ import type { InstanceOperator } from "../src/instance.ts";
 import { canArchiveGroup } from "../src/policy/can-archive-group.ts";
 import { canCreateStudyGroup } from "../src/policy/can-create-study-group.ts";
 import { canCreateTrack } from "../src/policy/can-create-track.ts";
+import { canUnarchiveGroup } from "../src/policy/can-unarchive-group.ts";
+import { canUpdateGroupMetadata } from "../src/policy/can-update-group-metadata.ts";
+import { canViewGroup } from "../src/policy/can-view-group.ts";
 import type { User } from "../src/user.ts";
 
 const now = new Date("2026-04-22T00:00:00.000Z");
@@ -71,10 +74,10 @@ describe("canArchiveGroup", () => {
   it("allows a current admin on an active group", () => {
     expect(canArchiveGroup(actor, activeGroup, adminMembership).ok).toBe(true);
   });
-  it("denies an already-archived group", () => {
-    const r = canArchiveGroup(actor, { ...activeGroup, status: "archived" }, adminMembership);
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.reason.code).toBe("already_archived");
+  it("allows a current admin on an already-archived group (idempotence handled by use case)", () => {
+    expect(canArchiveGroup(actor, { ...activeGroup, status: "archived" }, adminMembership).ok).toBe(
+      true,
+    );
   });
   it("denies when membership is missing", () => {
     const r = canArchiveGroup(actor, activeGroup, null);
@@ -90,6 +93,83 @@ describe("canArchiveGroup", () => {
     const r = canArchiveGroup(actor, activeGroup, { ...adminMembership, role: "participant" });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.reason.code).toBe("not_group_admin");
+  });
+});
+
+describe("canUnarchiveGroup", () => {
+  const archived: StudyGroup = { ...activeGroup, status: "archived", archivedAt: now };
+  it("allows a current admin on an archived group", () => {
+    expect(canUnarchiveGroup(actor, archived, adminMembership).ok).toBe(true);
+  });
+  it("allows a current admin on an already-active group (idempotence handled by use case)", () => {
+    expect(canUnarchiveGroup(actor, activeGroup, adminMembership).ok).toBe(true);
+  });
+  it("denies a non-admin", () => {
+    const r = canUnarchiveGroup(actor, archived, { ...adminMembership, role: "participant" });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason.code).toBe("not_group_admin");
+  });
+  it("denies when membership is removed", () => {
+    const r = canUnarchiveGroup(actor, archived, { ...adminMembership, removedAt: now });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason.code).toBe("not_group_admin");
+  });
+});
+
+describe("canUpdateGroupMetadata", () => {
+  it("allows a current admin on an active group", () => {
+    expect(canUpdateGroupMetadata(actor, activeGroup, adminMembership).ok).toBe(true);
+  });
+  it("denies on an archived group", () => {
+    const r = canUpdateGroupMetadata(
+      actor,
+      { ...activeGroup, status: "archived" },
+      adminMembership,
+    );
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason.code).toBe("group_archived");
+  });
+  it("denies a non-admin participant", () => {
+    const r = canUpdateGroupMetadata(actor, activeGroup, {
+      ...adminMembership,
+      role: "participant",
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason.code).toBe("not_group_admin");
+  });
+  it("denies a non-member", () => {
+    const r = canUpdateGroupMetadata(actor, activeGroup, null);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason.code).toBe("not_group_admin");
+  });
+});
+
+describe("canViewGroup", () => {
+  it("allows an active operator regardless of membership", () => {
+    expect(canViewGroup(actor, activeGroup, null, activeOp).ok).toBe(true);
+  });
+  it("allows a current member", () => {
+    expect(
+      canViewGroup(actor, activeGroup, { ...adminMembership, role: "participant" }, null).ok,
+    ).toBe(true);
+  });
+  it("allows a current admin", () => {
+    expect(canViewGroup(actor, activeGroup, adminMembership, null).ok).toBe(true);
+  });
+  it("denies a non-member non-operator", () => {
+    const r = canViewGroup(actor, activeGroup, null, null);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason.code).toBe("not_group_member");
+  });
+  it("denies a removed member", () => {
+    const r = canViewGroup(actor, activeGroup, { ...adminMembership, removedAt: now }, null);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason.code).toBe("not_group_member");
+  });
+  it("denies a revoked operator", () => {
+    const r = canViewGroup(actor, activeGroup, null, { ...activeOp, revokedAt: now });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason.code).toBe("not_group_member");
   });
 });
 

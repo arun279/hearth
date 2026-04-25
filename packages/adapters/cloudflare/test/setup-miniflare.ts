@@ -44,6 +44,7 @@ beforeEach(async () => {
     env.DB.prepare(
       "UPDATE instance_settings SET name = 'Hearth', updated_by = NULL, updated_at = 0 WHERE id = 'instance'",
     ),
+    env.DB.prepare("DELETE FROM group_memberships"),
     env.DB.prepare("DELETE FROM groups"),
     env.DB.prepare("DELETE FROM users"),
   ]);

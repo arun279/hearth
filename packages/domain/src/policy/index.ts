@@ -7,6 +7,9 @@ export { canEnrollInTrack } from "./can-enroll-in-track.ts";
 export { canRemoveApprovedEmail } from "./can-remove-approved-email.ts";
 export { canRenameInstance } from "./can-rename-instance.ts";
 export { canRevokeInstanceOperator } from "./can-revoke-instance-operator.ts";
+export { canUnarchiveGroup } from "./can-unarchive-group.ts";
+export { canUpdateGroupMetadata } from "./can-update-group-metadata.ts";
+export { canViewGroup } from "./can-view-group.ts";
 export {
   isActiveOperator,
   isCurrentEnrollment,

@@ -70,6 +70,12 @@ Each entry names the **pinned tool**, the **condition** that triggers a reassess
 
 ## Test infrastructure
 
+### Playwright session seeding bypasses Better Auth's cookie creation
+
+- **Trigger**: `better-auth` ships a major version (`2.x`, `3.x`, …), or the cookie format / signing scheme changes within a minor (rare, but the kind of change that lands in a "small" release without obvious fanfare).
+- **Action**: re-validate `apps/web/e2e/auth.ts`'s `signSessionToken` against the upstream cookie format. Update the helper if the scheme drifted. Until then the e2e suite is not protecting us from a Better Auth cookie-format regression — a real OAuth round-trip would, but Google OAuth has no headless test mode so we mint signed cookies directly. The trade-off is acceptable; the gap is recorded so a future Better Auth bump doesn't silently drift the helper from production behaviour.
+- **Location**: `apps/web/e2e/auth.ts` (`signSessionToken`, `seedOperator`).
+
 ### V8 coverage on the Workers runtime
 
 - **Trigger**: Vitest's coverage docs no longer list "Cloudflare Workers" as unsupported, OR `@cloudflare/vitest-pool-workers` ships a coverage binding that surfaces V8 profiler output from the workerd runtime.

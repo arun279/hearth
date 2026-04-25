@@ -77,6 +77,9 @@ export function resetInstanceState(): void {
       "DELETE FROM instance_operators",
       "DELETE FROM approved_emails",
       "UPDATE instance_settings SET name = 'Hearth', updated_by = NULL, updated_at = 0 WHERE id = 'instance'",
+      // group_memberships → groups before users so FK cascade order is safe.
+      "DELETE FROM group_memberships",
+      "DELETE FROM groups",
       "DELETE FROM users WHERE id LIKE 'u_e2e_%'",
     ].join("; "),
   );

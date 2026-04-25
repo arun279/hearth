@@ -87,13 +87,14 @@ function makeGroups(overrides: Partial<StudyGroupRepository>): StudyGroupReposit
   return {
     create: vi.fn(),
     byId: vi.fn(),
+    list: vi.fn(async () => []),
+    listForUser: vi.fn(async () => []),
     updateStatus: vi.fn(),
-    addMembership: vi.fn(),
-    removeMembership: vi.fn(),
-    listMemberships: vi.fn(async () => []),
+    updateMetadata: vi.fn(),
     membership: vi.fn(async () => membership),
-    listAdmins: vi.fn(async () => []),
+    membershipsForUser: vi.fn(async () => []),
     countAdmins: vi.fn(async () => 1),
+    counts: vi.fn(async () => ({ memberCount: 0, trackCount: 0, libraryItemCount: 0 })),
     ...overrides,
   };
 }

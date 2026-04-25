@@ -15,7 +15,7 @@ export type { LearningTrackRepository } from "./learning-track-repository.ts";
 export type { LibraryItemRepository } from "./library-item-repository.ts";
 export type { ObjectHead, ObjectMetadata, ObjectStorage } from "./object-storage.ts";
 export type { CronHandler, Scheduler } from "./scheduler.ts";
-export type { StudyGroupRepository } from "./study-group-repository.ts";
+export type { StudyGroupCounts, StudyGroupRepository } from "./study-group-repository.ts";
 export type { StudySessionRepository } from "./study-session-repository.ts";
 export type {
   SystemFlagKey,

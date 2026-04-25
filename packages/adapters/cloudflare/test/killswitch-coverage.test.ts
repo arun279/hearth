@@ -7,6 +7,7 @@ import {
   createInstanceSettingsRepository,
   createKillswitchGate,
   createObjectStorage,
+  createStudyGroupRepository,
   createUserRepository,
   KillswitchBlocked,
 } from "../src/index.ts";
@@ -69,7 +70,10 @@ describe("killswitch coverage (resilience invariant 2 + 3)", () => {
   const users = createUserRepository({ db, gate });
   const policy = createInstanceAccessPolicyRepository({ db, gate });
   const settings = createInstanceSettingsRepository({ db, gate });
+  const groups = createStudyGroupRepository({ db, gate });
   const object = createObjectStorage(storage, gate);
+
+  const gid = "g_test" as Parameters<typeof groups.byId>[0];
 
   const CASES: ReadonlyArray<readonly [string, () => Promise<unknown>]> = [
     ["UserRepository.deactivate", () => users.deactivate(uid, uid)],
@@ -85,6 +89,10 @@ describe("killswitch coverage (resilience invariant 2 + 3)", () => {
     ["InstanceAccessPolicyRepository.revokeOperator", () => policy.revokeOperator(uid, uid)],
 
     ["InstanceSettingsRepository.update", () => settings.update({ name: "x" }, uid)],
+
+    ["StudyGroupRepository.create", () => groups.create({ name: "g", createdBy: uid })],
+    ["StudyGroupRepository.updateStatus", () => groups.updateStatus(gid, "archived", uid)],
+    ["StudyGroupRepository.updateMetadata", () => groups.updateMetadata(gid, { name: "x" }, uid)],
 
     ["ObjectStorage.putUpload", () => object.putUpload("k", new Blob([]).stream(), undefined)],
     ["ObjectStorage.delete", () => object.delete("k")],
