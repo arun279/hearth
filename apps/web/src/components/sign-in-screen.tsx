@@ -32,7 +32,26 @@ async function startGoogleSignIn(): Promise<string> {
     }),
   });
   if (!res.ok) {
-    throw new Error(`Sign-in initiation failed (${res.status})`);
+    // Better Auth returns `{ code, message }` JSON for errors. Surface the
+    // code so a user-reported failure is diagnosable without server-side log
+    // access — INVALID_ORIGIN, MISSING_OR_NULL_ORIGIN, INVALID_CALLBACK_URL,
+    // and CROSS_SITE_NAVIGATION_LOGIN_BLOCKED all collapse to 403, and the
+    // code is what tells you which.
+    const detail = await res
+      .clone()
+      .json()
+      .then((b: unknown) => {
+        if (b && typeof b === "object" && "code" in b && typeof b.code === "string") {
+          return b.code;
+        }
+        return null;
+      })
+      .catch(() => null);
+    throw new Error(
+      detail
+        ? `Sign-in initiation failed (${res.status}: ${detail})`
+        : `Sign-in initiation failed (${res.status})`,
+    );
   }
   const body = (await res.json()) as { readonly url?: string };
   if (!body.url) throw new Error("Sign-in response missing redirect URL");

@@ -122,6 +122,44 @@ app.use("*", logger());
 // Rate-limit auth endpoints per-IP and /api/v1 writes per-session via
 // Cloudflare's edge counter (no D1/KV/DO writes — see docs/free-tier-guardrails.md).
 app.use("/api/auth/*", authRateLimit());
+// Capture anomalous responses from Better Auth to Sentry. Origin-check
+// failures (INVALID_ORIGIN, MISSING_OR_NULL_ORIGIN, INVALID_CALLBACK_URL,
+// CROSS_SITE_NAVIGATION_LOGIN_BLOCKED) all surface as 403 with no other
+// trail in Workers logs once the Worker version rotates — having the code,
+// the request origin, and the path on a Sentry event is what makes a
+// "Sign-in initiation failed (403)" report diagnosable. 401 is excluded
+// because "no session yet" is a normal response on this prefix.
+app.use("/api/auth/*", async (c, next) => {
+  await next();
+  const res = c.res;
+  if (res.status < 400 || res.status === 401) return;
+  const text = await res
+    .clone()
+    .text()
+    .catch(() => "");
+  let code: string | undefined;
+  try {
+    const parsed = JSON.parse(text) as { code?: unknown };
+    if (typeof parsed.code === "string") code = parsed.code;
+  } catch {
+    // Better Auth always returns JSON; a non-JSON body means the failure
+    // came from upstream (CF, our own middleware) and the status alone is
+    // the signal.
+  }
+  Sentry.captureMessage("auth_endpoint_failure", {
+    level: res.status >= 500 ? "error" : "warning",
+    extra: {
+      method: c.req.method,
+      path: c.req.path,
+      status: res.status,
+      code,
+      origin: c.req.header("origin") ?? null,
+      referer: c.req.header("referer") ?? null,
+      hasCookie: c.req.header("cookie") !== undefined,
+      bodyPreview: text.slice(0, 500),
+    },
+  });
+});
 app.on(["GET", "POST"], "/api/auth/*", (c) => c.var.auth.handler(c.req.raw));
 
 app.use("/api/v1/*", writeRateLimit());
