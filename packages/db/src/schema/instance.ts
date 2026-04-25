@@ -32,4 +32,8 @@ export const instanceOperators = sqliteTable("instance_operators", {
     .notNull()
     .references(() => users.id),
   revokedAt: integer("revoked_at", { mode: "timestamp_ms" }),
+  // Captured when revokedAt is written; null on currently-active rows. NOT a
+  // FK with ON DELETE — losing the revoker's user row should not corrupt the
+  // audit trail. Snapshot semantics match group/track removedBy fields.
+  revokedBy: text("revoked_by").references(() => users.id),
 });

@@ -18,4 +18,6 @@ export type InstanceOperator = {
   readonly grantedAt: Date;
   readonly grantedBy: UserId;
   readonly revokedAt: Date | null;
+  /** UserId of whoever revoked this row; null on currently-active rows. */
+  readonly revokedBy: UserId | null;
 };

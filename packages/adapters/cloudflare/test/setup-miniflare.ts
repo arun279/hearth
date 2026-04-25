@@ -37,6 +37,13 @@ beforeEach(async () => {
     env.DB.prepare("DELETE FROM library_items"),
     env.DB.prepare("DELETE FROM instance_operators"),
     env.DB.prepare("DELETE FROM approved_emails"),
+    env.DB.prepare("DELETE FROM sessions"),
+    env.DB.prepare("DELETE FROM accounts"),
+    // instance_settings is a singleton — reset its user FK before the users
+    // table is truncated so the FK to updated_by does not block the delete.
+    env.DB.prepare(
+      "UPDATE instance_settings SET name = 'Hearth', updated_by = NULL, updated_at = 0 WHERE id = 'instance'",
+    ),
     env.DB.prepare("DELETE FROM groups"),
     env.DB.prepare("DELETE FROM users"),
   ]);
