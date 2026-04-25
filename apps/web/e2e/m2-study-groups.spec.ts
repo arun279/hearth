@@ -20,7 +20,7 @@ test.describe("M2 — Study Group lifecycle", () => {
 
     // Empty home: operator-only Create Study Group CTA.
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: /^Hearth$/ })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /^Your groups$/i })).toBeVisible();
     await expect(page.getByText(/No Study Groups yet/i)).toBeVisible();
 
     await page.getByRole("button", { name: /Create Study Group/i }).click();

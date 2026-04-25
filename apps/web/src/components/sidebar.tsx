@@ -104,7 +104,9 @@ export function Sidebar({ me }: Props) {
                     className={cn(NAV_ITEM_CLASSES, isActive ? NAV_ITEM_ACTIVE : NAV_ITEM_INACTIVE)}
                   >
                     <Users size={14} strokeWidth={1.5} aria-hidden="true" />
-                    <span className="truncate">{g.name}</span>
+                    <span className="truncate" title={g.name}>
+                      {g.name}
+                    </span>
                   </Link>
                 </li>
               );

@@ -1,6 +1,4 @@
-import type { MeContext } from "@hearth/domain";
 import { AppShell, Callout, panelIdFor, TabBar, tabIdFor } from "@hearth/ui";
-import type { QueryClient } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -9,6 +7,7 @@ import { OperatorsTab } from "../components/admin/operators-tab.tsx";
 import { SettingsTab } from "../components/admin/settings-tab.tsx";
 import { Sidebar } from "../components/sidebar.tsx";
 import { useMeContext } from "../hooks/use-me-context.ts";
+import { loadMeContext } from "../lib/me-context.ts";
 
 const searchSchema = z.object({
   tab: z.enum(["settings", "operators", "emails"]).optional(),
@@ -23,13 +22,11 @@ export const Route = createFileRoute("/admin/instance")({
   // and gets a 403 with the toast message we already map — the redirect here
   // is just a gentler UX.
   beforeLoad: async ({ context, location }) => {
-    const me = await fetchMe(context.queryClient);
+    const me = await loadMeContext(context.queryClient);
     if (!me?.user) {
-      // Signed-out users hit the sign-in screen at `/`.
       throw redirect({ to: "/", search: {} });
     }
     if (!me.isOperator) {
-      // Defer the toast to the next tick so the redirect lands first.
       queueMicrotask(() => {
         toast.error("You need operator access to open that page.");
       });
@@ -39,22 +36,6 @@ export const Route = createFileRoute("/admin/instance")({
   },
   component: InstanceAdminPage,
 });
-
-async function fetchMe(queryClient: QueryClient): Promise<MeContext["data"]> {
-  // Reuse the cached /me/context response rather than re-fetching on every
-  // navigation. If the query has never run yet, `fetchQuery` will populate it.
-  const result = await queryClient.fetchQuery<MeContext>({
-    queryKey: ["me", "context"],
-    queryFn: async () => {
-      const { api } = await import("../lib/api-client.ts");
-      const res = await api.me.context.$get();
-      if (!res.ok) throw new Error(`me/context ${res.status}`);
-      return (await res.json()) as MeContext;
-    },
-    staleTime: 60_000,
-  });
-  return result.data;
-}
 
 function InstanceAdminPage() {
   const { me } = Route.useRouteContext();

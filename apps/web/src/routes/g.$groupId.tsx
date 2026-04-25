@@ -1,6 +1,4 @@
-import type { MeContext } from "@hearth/domain";
 import { AppShell, Avatar, Badge, Button, Callout, EmptyState, Skeleton } from "@hearth/ui";
-import type { QueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { Settings } from "lucide-react";
 import { useState } from "react";
@@ -9,6 +7,7 @@ import { GroupSettingsDialog } from "../components/groups/group-settings-dialog.
 import { Sidebar } from "../components/sidebar.tsx";
 import { useGroup } from "../hooks/use-groups.ts";
 import { useMeContext } from "../hooks/use-me-context.ts";
+import { loadMeContextOrNull } from "../lib/me-context.ts";
 
 const searchSchema = z.object({
   settings: z.enum(["open"]).optional(),
@@ -16,34 +15,14 @@ const searchSchema = z.object({
 
 export const Route = createFileRoute("/g/$groupId")({
   validateSearch: searchSchema,
-  // Resolve the cached `me/context` (or fetch it on first navigation) and
-  // bounce anonymous users to `/` so the sign-in screen lives in one place.
-  // The SPA already caches `me/context` for 60s — `fetchQuery` is a no-op
-  // when the cache is fresh.
   beforeLoad: async ({ context }) => {
-    const me = await fetchMe(context.queryClient);
+    const me = await loadMeContextOrNull(context.queryClient);
     if (!me?.user) {
       throw redirect({ to: "/", search: {} });
     }
   },
   component: GroupHome,
 });
-
-async function fetchMe(queryClient: QueryClient): Promise<MeContext["data"] | null> {
-  const result = await queryClient
-    .fetchQuery<MeContext>({
-      queryKey: ["me", "context"],
-      queryFn: async () => {
-        const { api } = await import("../lib/api-client.ts");
-        const res = await api.me.context.$get();
-        if (!res.ok) throw new Error(`me/context ${res.status}`);
-        return (await res.json()) as MeContext;
-      },
-      staleTime: 60_000,
-    })
-    .catch(() => null);
-  return result?.data ?? null;
-}
 
 function GroupHome() {
   const params = Route.useParams();
@@ -118,7 +97,7 @@ function GroupHome() {
         </nav>
 
         <header className="mt-3 space-y-3">
-          <div className="flex items-start gap-3">
+          <div className="flex flex-col items-start gap-2 md:flex-row md:items-start md:gap-3">
             <div className="min-w-0 flex-1">
               <h1 className="font-serif text-[28px] leading-tight text-[var(--color-ink)]">
                 {g.name}
@@ -128,9 +107,8 @@ function GroupHome() {
               ) : null}
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
-              {archived ? <Badge>archived</Badge> : <Badge tone="good">active</Badge>}
-              <Badge tone="warn">{g.admissionPolicy.replace("_", " ")}</Badge>
-              {myRole === "admin" ? <Badge tone="accent">Group Admin</Badge> : null}
+              {archived ? <Badge tone="warn">archived</Badge> : <Badge tone="good">active</Badge>}
+              <Badge>{g.admissionPolicy.replace("_", " ")}</Badge>
             </div>
           </div>
 

@@ -75,18 +75,22 @@ function SignedInHome({
   const entries = groups.data ?? [];
   const empty = !groups.isLoading && entries.length === 0;
 
+  const createButton = me.isOperator ? (
+    <Button variant={empty ? "primary" : "secondary"} onClick={() => setCreateOpen(true)}>
+      <Plus size={12} strokeWidth={2} aria-hidden="true" />
+      Create Study Group
+    </Button>
+  ) : null;
+
   return (
     <div className="mx-auto max-w-3xl px-5 py-8 md:px-8">
       <header className="space-y-2">
-        <div className="text-[11px] font-medium uppercase tracking-wide text-[var(--color-ink-3)]">
-          Your groups
-        </div>
         <h1 className="font-serif text-[28px] leading-tight text-[var(--color-ink)]">
-          {me.instance.name}
+          Your groups
         </h1>
         <p className="text-[13px] text-[var(--color-ink-2)]">
-          A small, trusted space for learning together. Pick a group to continue, or — if you're the
-          operator — start a new one.
+          A small, trusted space for learning together inside {me.instance.name}. Pick a group to
+          continue{me.isOperator ? ", or start a new one" : ""}.
         </p>
       </header>
 
@@ -101,9 +105,10 @@ function SignedInHome({
             title="No Study Groups yet"
             description={
               me.isOperator
-                ? "Create your first group below. You'll be its first Group Admin."
+                ? "Create your first group to get started — you'll be its first Group Admin."
                 : "Your Instance Operator hasn't added you to a Study Group yet. Check back after they invite you."
             }
+            action={createButton}
           />
         ) : (
           <ul className="space-y-2" aria-label="Your Study Groups">
@@ -116,13 +121,8 @@ function SignedInHome({
         )}
       </div>
 
-      {me.isOperator ? (
-        <div className="mt-6 flex justify-center">
-          <Button variant="secondary" onClick={() => setCreateOpen(true)}>
-            <Plus size={12} strokeWidth={2} aria-hidden="true" />
-            Create Study Group
-          </Button>
-        </div>
+      {!empty && createButton ? (
+        <div className="mt-6 flex justify-center">{createButton}</div>
       ) : null}
 
       <CreateGroupDialog
