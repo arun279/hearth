@@ -10,10 +10,12 @@ import {
   createLearningTrackRepository,
   createLibraryItemRepository,
   createObjectStorage,
+  createPendingUploadsSweep,
   createScheduler,
   createStudyGroupRepository,
   createStudySessionRepository,
   createSystemFlagRepository,
+  createUploadCoordinationRepository,
   createUserRepository,
 } from "@hearth/adapter-cloudflare";
 import {
@@ -44,6 +46,10 @@ export type WorkerEnv = {
   BETTER_AUTH_TRUSTED_ORIGINS: string;
   KILLSWITCH_TOKEN: string;
   HEARTH_BOOTSTRAP_OPERATOR_EMAIL: string;
+  R2_ACCOUNT_ID: string;
+  R2_ACCESS_KEY_ID: string;
+  R2_SECRET_ACCESS_KEY: string;
+  R2_PUBLIC_ORIGIN: string;
   SENTRY_DSN?: string;
   DISCORD_WEBHOOK_URL?: string;
 };
@@ -102,7 +108,16 @@ app.use("*", async (c, next) => {
     activities: createLearningActivityRepository({ db, gate }),
     records: createActivityRecordRepository({ db, gate }),
     sessions: createStudySessionRepository({ db, gate }),
-    storage: createObjectStorage(storage, gate),
+    storage: createObjectStorage(storage, gate, {
+      endpoint: `https://${env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+      accessKeyId: env.R2_ACCESS_KEY_ID,
+      secretAccessKey: env.R2_SECRET_ACCESS_KEY,
+      bucket: "hearth-storage",
+      // 15-minute ceiling for presigned PUTs. R2/S3 caps at 7 days; we
+      // pick lower to limit blast radius if a URL leaks.
+      maxExpirySeconds: 900,
+    }),
+    uploads: createUploadCoordinationRepository({ db, gate }),
     flags,
     clock: createClock(),
     ids: createIdGenerator(),
@@ -131,21 +146,38 @@ app.route("/api/v1", createApiRouter());
  * Static asset fallthrough is handled by the ASSETS binding for any path
  * not matched above.
  *
- * The Worker exports both `fetch` and `scheduled` so the hourly usage-poll
- * cron declared in `wrangler.jsonc [triggers] crons` has a handler to invoke.
+ * The Worker exports both `fetch` and `scheduled` so the hourly cron
+ * declared in `wrangler.jsonc [triggers] crons` has a handler to invoke.
+ * The scheduler is constructed per cron firing so each invocation builds
+ * its own bindings against the (per-isolate) `env`. Hand-rolling the
+ * cron loop here — instead of relying on a long-lived module-scope
+ * scheduler — matches Workers isolate semantics: fresh per request.
  */
-const scheduler = createScheduler();
-
 const handler: ExportedHandler<WorkerEnv> = {
   fetch: app.fetch,
   scheduled: async (event, env, ctx) => {
-    // Register cron tasks on first invocation. Keeping this in the handler
-    // scope avoids top-level mutation; Workers isolates are short-lived.
-    await scheduler.dispatch(event.cron, new Date(event.scheduledTime));
-    // env + ctx are reserved for cron handlers that will need bindings when
-    // the usage poller and backup-export cron land in later milestones.
-    void env;
-    void ctx;
+    parseEnv(env as unknown as Record<string, unknown>);
+    const { db } = createDrizzleAdapter(env.DB);
+    const flags = createSystemFlagRepository({ db });
+    const gate = createKillswitchGate(flags);
+
+    const scheduler = createScheduler();
+    // Hourly sweep of orphaned `pending_uploads` rows: clears keys whose
+    // presigned-PUT window expired without a finalize call. The sweep
+    // calls `bucket.delete()` directly on the R2 binding (no presigning
+    // needed) and uses the killswitch gate so a flipped instance stops
+    // mutating R2 even from cron handlers.
+    const sweep = createPendingUploadsSweep({ db, storage: env.STORAGE, gate });
+    scheduler.registerCron("pending-uploads-sweep", "0 * * * *", async (at) => {
+      // Drop the swept count — telemetry will live on the operator
+      // health surface (M16). The cron handler signature is `void`.
+      await sweep(at);
+    });
+
+    // ctx.waitUntil holds the isolate alive while async work finishes;
+    // wrapping `dispatch` keeps the cron correctness invariant that all
+    // scheduled work resolves before the cron event closes.
+    ctx.waitUntil(scheduler.dispatch(event.cron, new Date(event.scheduledTime)));
   },
 };
 

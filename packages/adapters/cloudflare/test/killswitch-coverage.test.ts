@@ -1,4 +1,4 @@
-import type { AttributionPreference, UserId } from "@hearth/domain";
+import type { AttributionPreference, InvitationId, StudyGroupId, UserId } from "@hearth/domain";
 import type { SystemFlagRepository } from "@hearth/ports";
 import { describe, expect, it } from "vitest";
 import type { CloudflareAdapterDeps } from "../src/deps.ts";
@@ -8,6 +8,7 @@ import {
   createKillswitchGate,
   createObjectStorage,
   createStudyGroupRepository,
+  createUploadCoordinationRepository,
   createUserRepository,
   KillswitchBlocked,
 } from "../src/index.ts";
@@ -71,7 +72,14 @@ describe("killswitch coverage (resilience invariant 2 + 3)", () => {
   const policy = createInstanceAccessPolicyRepository({ db, gate });
   const settings = createInstanceSettingsRepository({ db, gate });
   const groups = createStudyGroupRepository({ db, gate });
-  const object = createObjectStorage(storage, gate);
+  const uploads = createUploadCoordinationRepository({ db, gate });
+  const object = createObjectStorage(storage, gate, {
+    endpoint: "https://example.r2.cloudflarestorage.com",
+    accessKeyId: "test",
+    secretAccessKey: "test",
+    bucket: "hearth-storage",
+    maxExpirySeconds: 900,
+  });
 
   const gid = "g_test" as Parameters<typeof groups.byId>[0];
 
@@ -93,6 +101,71 @@ describe("killswitch coverage (resilience invariant 2 + 3)", () => {
     ["StudyGroupRepository.create", () => groups.create({ name: "g", createdBy: uid })],
     ["StudyGroupRepository.updateStatus", () => groups.updateStatus(gid, "archived", uid)],
     ["StudyGroupRepository.updateMetadata", () => groups.updateMetadata(gid, { name: "x" }, uid)],
+    [
+      "StudyGroupRepository.addMembership",
+      () => groups.addMembership({ groupId: gid, userId: uid, role: "participant", by: uid }),
+    ],
+    [
+      "StudyGroupRepository.removeMembership",
+      () =>
+        groups.removeMembership({
+          groupId: gid,
+          userId: uid,
+          by: uid,
+          attribution: attrib,
+          displayNameSnapshot: "name",
+        }),
+    ],
+    [
+      "StudyGroupRepository.setMembershipRole",
+      () => groups.setMembershipRole({ groupId: gid, userId: uid, role: "admin", by: uid }),
+    ],
+    [
+      "StudyGroupRepository.updateProfile",
+      () => groups.updateProfile({ groupId: gid, userId: uid, patch: { nickname: "n" } }),
+    ],
+    [
+      "StudyGroupRepository.createInvitation",
+      () =>
+        groups.createInvitation({
+          groupId: gid,
+          trackId: null,
+          token: "tok",
+          email: null,
+          createdBy: uid,
+          expiresAt: new Date(),
+        }),
+    ],
+    [
+      "StudyGroupRepository.revokeInvitation",
+      () => groups.revokeInvitation({ id: "iid" as InvitationId, by: uid, now: new Date() }),
+    ],
+    [
+      "StudyGroupRepository.consumeInvitation",
+      () =>
+        groups.consumeInvitation({
+          invitationId: "iid" as InvitationId,
+          userId: uid,
+          now: new Date(),
+        }),
+    ],
+
+    [
+      "UploadCoordinationRepository.createPending",
+      () =>
+        uploads.createPending({
+          id: "u_test",
+          uploaderUserId: uid,
+          groupId: gid as StudyGroupId,
+          context: "avatar",
+          storageKey: "avatars/u_test/g_test/k",
+          declaredSizeBytes: 1,
+          declaredMimeType: "image/png",
+          createdAt: new Date(),
+          expiresAt: new Date(),
+        }),
+    ],
+    ["UploadCoordinationRepository.deletePending", () => uploads.deletePending("u_test")],
 
     ["ObjectStorage.putUpload", () => object.putUpload("k", new Blob([]).stream(), undefined)],
     ["ObjectStorage.delete", () => object.delete("k")],

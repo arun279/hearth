@@ -3,6 +3,7 @@ import type { AppBindings } from "./bindings.ts";
 import { adminRoutes } from "./routes/admin.ts";
 import { groupsRoutes } from "./routes/groups.ts";
 import { instanceRoutes } from "./routes/instance.ts";
+import { invitationsRoutes } from "./routes/invitations.ts";
 import { meRoutes } from "./routes/me.ts";
 
 /**
@@ -18,6 +19,7 @@ export function createApiRouter() {
     .route("/me", meRoutes)
     .route("/instance", instanceRoutes)
     .route("/g", groupsRoutes)
+    .route("/invitations", invitationsRoutes)
     .route("/admin", adminRoutes);
   return app;
 }

@@ -30,6 +30,10 @@ const FAKE_ENV: WorkerEnv = {
   BETTER_AUTH_TRUSTED_ORIGINS: "http://localhost:8787",
   KILLSWITCH_TOKEN: "b".repeat(64),
   HEARTH_BOOTSTRAP_OPERATOR_EMAIL: "test@example.com",
+  R2_ACCOUNT_ID: "test-account",
+  R2_ACCESS_KEY_ID: "test-access-key",
+  R2_SECRET_ACCESS_KEY: "test-secret-key",
+  R2_PUBLIC_ORIGIN: "https://pub-example.r2.dev",
 };
 
 const CTX = {

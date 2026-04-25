@@ -1,12 +1,28 @@
 import {
   archiveGroup,
+  createGroupInvitation,
   createStudyGroup,
+  finalizeAvatarUpload,
   getGroup,
+  leaveGroup,
+  listGroupInvitations,
+  listGroupMembers,
   listMyGroups,
+  removeGroupMember,
+  requestAvatarUpload,
+  revokeGroupInvitation,
+  setGroupAdmin,
   unarchiveGroup,
   updateGroupMetadata,
+  updateGroupProfile,
 } from "@hearth/core";
-import type { StudyGroupId } from "@hearth/domain";
+import type {
+  GroupRole,
+  InvitationId,
+  LearningTrackId,
+  StudyGroupId,
+  UserId,
+} from "@hearth/domain";
 import { zValidator } from "@hono/zod-validator";
 import type { Context } from "hono";
 import { Hono } from "hono";
@@ -24,6 +40,61 @@ const groupIdParam = z.object({ groupId: z.string().min(1).max(64) });
 
 const nameField = z.string().trim().min(1).max(120);
 const descriptionField = z.string().trim().max(2000);
+
+const userIdParam = z.object({
+  groupId: z.string().min(1).max(64),
+  userId: z.string().min(1).max(64),
+});
+
+const invitationIdParam = z.object({
+  groupId: z.string().min(1).max(64),
+  invitationId: z.string().min(1).max(64),
+});
+
+const emailField = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .min(3)
+  .max(254)
+  .pipe(z.email())
+  .refine((v) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v), { message: "Email must include a domain." });
+
+const attributionField = z.enum(["preserve_name", "anonymize"]);
+
+const leaveBody = z.object({ attribution: attributionField.optional() }).optional();
+
+const setRoleBody = z.object({ role: z.enum(["participant", "admin"]) });
+
+const updateProfileBody = z
+  .object({
+    nickname: z.union([z.string().trim().min(1).max(60), z.null()]).optional(),
+    bio: z.union([z.string().max(800), z.null()]).optional(),
+  })
+  .refine((v) => v.nickname !== undefined || v.bio !== undefined, {
+    message: "Provide a nickname or bio to update.",
+    path: ["nickname"],
+  });
+
+const createInvitationBody = z.object({
+  email: emailField.optional(),
+  trackId: z.string().min(1).max(64).optional(),
+});
+
+const avatarMimeField = z.enum(["image/png", "image/jpeg", "image/webp"]);
+
+const requestAvatarBody = z.object({
+  mimeType: avatarMimeField,
+  sizeBytes: z
+    .number()
+    .int()
+    .positive()
+    .max(512 * 1024),
+});
+
+const finalizeAvatarBody = z.object({
+  uploadId: z.string().min(1).max(64),
+});
 
 const createBody = z.object({
   name: nameField,
@@ -188,5 +259,302 @@ export const groupsRoutes = new Hono<AppBindings>()
         return problemResponse(c, mapUnknown(err));
       }
     },
+  )
+  // jscpd:ignore-end
+
+  // ── Memberships ───────────────────────────────────────────────────────
+
+  // GET /g/:groupId/members — list active members + per-row capabilities.
+  .get(
+    "/:groupId/members",
+    zValidator("param", groupIdParam, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    async (c) => {
+      const { groupId } = c.req.valid("param");
+      try {
+        const result = await listGroupMembers(
+          { actor: getUserId(c), groupId: groupId as StudyGroupId },
+          { users: c.var.ports.users, groups: c.var.ports.groups, policy: c.var.ports.policy },
+        );
+        return c.json(result);
+      } catch (err) {
+        return problemResponse(c, mapUnknown(err));
+      }
+    },
+  )
+
+  // DELETE /g/:groupId/members/:userId — remove someone else.
+  .delete(
+    "/:groupId/members/:userId",
+    zValidator("param", userIdParam, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    async (c) => {
+      const { groupId, userId } = c.req.valid("param");
+      try {
+        await removeGroupMember(
+          {
+            actor: getUserId(c),
+            groupId: groupId as StudyGroupId,
+            target: userId as UserId,
+          },
+          {
+            users: c.var.ports.users,
+            groups: c.var.ports.groups,
+            tracks: c.var.ports.tracks,
+            policy: c.var.ports.policy,
+          },
+        );
+        return c.body(null, 204);
+      } catch (err) {
+        return problemResponse(c, mapUnknown(err));
+      }
+    },
+  )
+
+  // PATCH /g/:groupId/members/:userId/role — promote / demote.
+  .patch(
+    "/:groupId/members/:userId/role",
+    zValidator("param", userIdParam, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    zValidator("json", setRoleBody, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    async (c) => {
+      const { groupId, userId } = c.req.valid("param");
+      const body = c.req.valid("json");
+      try {
+        const membership = await setGroupAdmin(
+          {
+            actor: getUserId(c),
+            groupId: groupId as StudyGroupId,
+            target: userId as UserId,
+            role: body.role as GroupRole,
+          },
+          { users: c.var.ports.users, groups: c.var.ports.groups, policy: c.var.ports.policy },
+        );
+        return c.json(membership);
+      } catch (err) {
+        return problemResponse(c, mapUnknown(err));
+      }
+    },
+  )
+
+  // PATCH /g/:groupId/members/:userId/profile — self-edit nickname/bio.
+  .patch(
+    "/:groupId/members/:userId/profile",
+    zValidator("param", userIdParam, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    zValidator("json", updateProfileBody, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    async (c) => {
+      const { groupId, userId } = c.req.valid("param");
+      const body = c.req.valid("json");
+      try {
+        const membership = await updateGroupProfile(
+          {
+            actor: getUserId(c),
+            groupId: groupId as StudyGroupId,
+            target: userId as UserId,
+            patch: body,
+          },
+          {
+            users: c.var.ports.users,
+            groups: c.var.ports.groups,
+            policy: c.var.ports.policy,
+            storage: c.var.ports.storage,
+          },
+        );
+        return c.json(membership);
+      } catch (err) {
+        return problemResponse(c, mapUnknown(err));
+      }
+    },
+  )
+
+  // POST /g/:groupId/leave — self-leave.
+  .post(
+    "/:groupId/leave",
+    zValidator("param", groupIdParam, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    zValidator("json", leaveBody, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    async (c) => {
+      const { groupId } = c.req.valid("param");
+      const body = c.req.valid("json");
+      try {
+        await leaveGroup(
+          {
+            actor: getUserId(c),
+            groupId: groupId as StudyGroupId,
+            ...(body?.attribution !== undefined ? { attribution: body.attribution } : {}),
+          },
+          {
+            users: c.var.ports.users,
+            groups: c.var.ports.groups,
+            tracks: c.var.ports.tracks,
+            policy: c.var.ports.policy,
+          },
+        );
+        return c.body(null, 204);
+      } catch (err) {
+        return problemResponse(c, mapUnknown(err));
+      }
+    },
+  )
+
+  // ── Invitations ───────────────────────────────────────────────────────
+
+  // GET /g/:groupId/invitations — admin-only outstanding list.
+  .get(
+    "/:groupId/invitations",
+    zValidator("param", groupIdParam, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    async (c) => {
+      const { groupId } = c.req.valid("param");
+      try {
+        const entries = await listGroupInvitations(
+          { actor: getUserId(c), groupId: groupId as StudyGroupId, now: new Date() },
+          { users: c.var.ports.users, groups: c.var.ports.groups, policy: c.var.ports.policy },
+        );
+        return c.json({ entries });
+      } catch (err) {
+        return problemResponse(c, mapUnknown(err));
+      }
+    },
+  )
+
+  // POST /g/:groupId/invitations — mint a new invitation.
+  .post(
+    "/:groupId/invitations",
+    zValidator("param", groupIdParam, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    zValidator("json", createInvitationBody, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    async (c) => {
+      const { groupId } = c.req.valid("param");
+      const body = c.req.valid("json");
+      try {
+        const result = await createGroupInvitation(
+          {
+            actor: getUserId(c),
+            groupId: groupId as StudyGroupId,
+            trackId: (body.trackId ?? null) as LearningTrackId | null,
+            email: body.email ?? null,
+            now: new Date(),
+          },
+          {
+            users: c.var.ports.users,
+            groups: c.var.ports.groups,
+            policy: c.var.ports.policy,
+            ids: c.var.ports.ids,
+          },
+        );
+        return c.json(result, 201);
+      } catch (err) {
+        return problemResponse(c, mapUnknown(err));
+      }
+    },
+  )
+
+  // DELETE /g/:groupId/invitations/:invitationId — revoke an invitation.
+  .delete(
+    "/:groupId/invitations/:invitationId",
+    zValidator("param", invitationIdParam, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    async (c) => {
+      const { groupId, invitationId } = c.req.valid("param");
+      try {
+        await revokeGroupInvitation(
+          {
+            actor: getUserId(c),
+            groupId: groupId as StudyGroupId,
+            invitationId: invitationId as InvitationId,
+            now: new Date(),
+          },
+          { users: c.var.ports.users, groups: c.var.ports.groups, policy: c.var.ports.policy },
+        );
+        return c.body(null, 204);
+      } catch (err) {
+        return problemResponse(c, mapUnknown(err));
+      }
+    },
+  )
+
+  // ── Avatars ───────────────────────────────────────────────────────────
+
+  // POST /g/:groupId/avatar/upload-request — mint presigned PUT URL.
+  .post(
+    "/:groupId/avatar/upload-request",
+    zValidator("param", groupIdParam, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    zValidator("json", requestAvatarBody, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    async (c) => {
+      const { groupId } = c.req.valid("param");
+      const body = c.req.valid("json");
+      try {
+        const result = await requestAvatarUpload(
+          {
+            actor: getUserId(c),
+            groupId: groupId as StudyGroupId,
+            mimeType: body.mimeType,
+            sizeBytes: body.sizeBytes,
+            now: new Date(),
+          },
+          {
+            users: c.var.ports.users,
+            groups: c.var.ports.groups,
+            policy: c.var.ports.policy,
+            storage: c.var.ports.storage,
+            uploads: c.var.ports.uploads,
+            ids: c.var.ports.ids,
+          },
+        );
+        return c.json(result, 201);
+      } catch (err) {
+        return problemResponse(c, mapUnknown(err));
+      }
+    },
+  )
+
+  // POST /g/:groupId/avatar/finalize — finalize the upload.
+  .post(
+    "/:groupId/avatar/finalize",
+    zValidator("param", groupIdParam, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    zValidator("json", finalizeAvatarBody, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    async (c) => {
+      const body = c.req.valid("json");
+      try {
+        const membership = await finalizeAvatarUpload(
+          { actor: getUserId(c), uploadId: body.uploadId },
+          {
+            users: c.var.ports.users,
+            groups: c.var.ports.groups,
+            policy: c.var.ports.policy,
+            storage: c.var.ports.storage,
+            uploads: c.var.ports.uploads,
+          },
+        );
+        return c.json(membership);
+      } catch (err) {
+        return problemResponse(c, mapUnknown(err));
+      }
+    },
   );
-// jscpd:ignore-end

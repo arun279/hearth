@@ -18,7 +18,7 @@ type GroupCounts = {
   readonly libraryItemCount: number;
 };
 
-type GroupDetail = {
+export type GroupDetail = {
   readonly group: StudyGroup;
   readonly myMembership: GroupMembership | null;
   readonly counts: GroupCounts;

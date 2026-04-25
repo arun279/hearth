@@ -1,10 +1,12 @@
-import { AppShell, Avatar, Badge, Button, Callout, EmptyState, Skeleton } from "@hearth/ui";
+import type { GroupMembership, MeContext, StudyGroup } from "@hearth/domain";
+import { Avatar, Badge, Button, Callout, EmptyState } from "@hearth/ui";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { Settings } from "lucide-react";
 import { useState } from "react";
 import { z } from "zod";
+import { GroupPageShell } from "../components/groups/group-page-shell.tsx";
 import { GroupSettingsDialog } from "../components/groups/group-settings-dialog.tsx";
-import { Sidebar } from "../components/sidebar.tsx";
+import type { GroupCaps } from "../hooks/use-groups.ts";
 import { useGroup } from "../hooks/use-groups.ts";
 import { useMeContext } from "../hooks/use-me-context.ts";
 import { loadMeContextOrNull } from "../lib/me-context.ts";
@@ -39,184 +41,186 @@ function GroupHome() {
   const settingsOpen = settingsOpenLocal || search.settings === "open";
 
   if (me.isLoading || !me.data?.data.user) {
-    return <FullPageMessage>Loading…</FullPageMessage>;
-  }
-
-  if (group.isLoading) {
     return (
-      <AppShell sidebar={<Sidebar me={me.data.data} />} mobileTitle={me.data.data.instance.name}>
-        <div className="mx-auto max-w-3xl space-y-4 px-5 py-8 md:px-8">
-          <Skeleton className="h-6 w-40" />
-          <Skeleton className="h-10 w-2/3" />
-          <Skeleton className="h-4 w-full" />
-        </div>
-      </AppShell>
+      <div className="flex min-h-screen items-center justify-center text-[var(--color-ink-3)]">
+        Loading…
+      </div>
     );
   }
 
-  if (group.isError || !group.data) {
-    // The API returns 404 (problem+json `not_group_member`) for both
-    // "doesn't exist" and "not a member"; the SPA shows the same friendly
-    // copy either way so existence is not leaked client-side either.
-    return (
-      <AppShell sidebar={<Sidebar me={me.data.data} />} mobileTitle={me.data.data.instance.name}>
-        <div className="mx-auto max-w-2xl px-5 py-12 md:px-8">
-          <EmptyState
-            title="Group not found"
-            description="This group may have been removed, or you may not be a member."
-          >
-            <Link
-              to="/"
-              search={{}}
-              className="text-[13px] text-[var(--color-accent)] underline-offset-2 hover:underline"
-            >
-              Back to your groups
-            </Link>
-          </EmptyState>
-        </div>
-      </AppShell>
-    );
+  const meData = me.data.data;
+  const meUser = meData.user;
+  if (!meUser) {
+    return null;
   }
-
-  const { group: g, caps, counts } = group.data;
-  const archived = g.status === "archived";
-  const myRole = group.data.myMembership?.role ?? null;
 
   return (
-    <AppShell sidebar={<Sidebar me={me.data.data} />} mobileTitle={g.name}>
-      <div className="mx-auto max-w-3xl px-5 py-8 md:px-8">
-        <nav
-          aria-label="Breadcrumb"
-          className="flex items-center gap-2 text-[12px] text-[var(--color-ink-3)]"
-        >
-          <Link to="/" search={{}} className="hover:text-[var(--color-ink-2)]">
-            Your groups
-          </Link>
-          <span aria-hidden="true">/</span>
-          <span className="text-[var(--color-ink-2)] truncate">{g.name}</span>
-        </nav>
-
-        <header className="mt-3 space-y-3">
-          <div className="flex flex-col items-start gap-2 md:flex-row md:items-start md:gap-3">
-            <div className="min-w-0 flex-1">
-              <h1 className="font-serif text-[28px] leading-tight text-[var(--color-ink)]">
-                {g.name}
-              </h1>
-              {g.description ? (
-                <p className="mt-1 text-[13px] text-[var(--color-ink-2)]">{g.description}</p>
-              ) : null}
-            </div>
-            <div className="flex shrink-0 items-center gap-1.5">
-              {archived ? <Badge tone="warn">archived</Badge> : <Badge tone="good">active</Badge>}
-              <Badge>{g.admissionPolicy.replace("_", " ")}</Badge>
-            </div>
-          </div>
-
-          {caps.canArchive || caps.canUnarchive || caps.canUpdateMetadata ? (
-            <div>
-              <Button variant="secondary" size="sm" onClick={() => setSettingsOpenLocal(true)}>
-                <Settings size={12} strokeWidth={1.75} aria-hidden="true" />
-                Group settings
-              </Button>
-            </div>
-          ) : null}
-        </header>
-
-        {archived ? (
-          <Callout tone="warn" title="This group is archived" className="mt-5">
-            New work is paused; history remains readable. A Group Admin can unarchive from settings.
-          </Callout>
-        ) : null}
-
-        <section className="mt-6 space-y-2" aria-labelledby="tracks-heading">
-          <h2
-            id="tracks-heading"
-            className="font-medium text-[11px] uppercase tracking-wide text-[var(--color-ink-3)]"
-          >
-            Learning Tracks · {counts.trackCount}
-          </h2>
-          <EmptyState
-            title="No tracks yet"
-            description={
-              myRole === "admin"
-                ? "Create the first Learning Track to organise activities for this group."
-                : "Your Group Admin hasn't created a Learning Track yet."
-            }
+    <GroupPageShell me={meData} group={group}>
+      {(detail) => (
+        <>
+          <GroupHomeBody
+            g={detail.group}
+            caps={detail.caps}
+            counts={detail.counts}
+            myMembership={detail.myMembership}
+            meUser={meUser}
+            onOpenSettings={() => setSettingsOpenLocal(true)}
           />
-        </section>
+          <GroupSettingsDialog
+            open={settingsOpen}
+            group={detail.group}
+            caps={detail.caps}
+            onClose={() => {
+              setSettingsOpenLocal(false);
+              if (search.settings) {
+                void navigate({ search: {} });
+              }
+            }}
+          />
+        </>
+      )}
+    </GroupPageShell>
+  );
+}
 
-        <section className="mt-6 space-y-2" aria-labelledby="people-heading">
+type GroupHomeBodyProps = {
+  readonly g: StudyGroup;
+  readonly caps: GroupCaps;
+  readonly counts: { memberCount: number; trackCount: number; libraryItemCount: number };
+  readonly myMembership: GroupMembership | null;
+  readonly meUser: NonNullable<MeContext["data"]["user"]>;
+  readonly onOpenSettings: () => void;
+};
+
+function GroupHomeBody({
+  g,
+  caps,
+  counts,
+  myMembership,
+  meUser,
+  onOpenSettings,
+}: GroupHomeBodyProps) {
+  const archived = g.status === "archived";
+  const myRole = myMembership?.role ?? null;
+
+  return (
+    <div className="mx-auto max-w-3xl px-5 py-8 md:px-8">
+      <nav
+        aria-label="Breadcrumb"
+        className="flex items-center gap-2 text-[12px] text-[var(--color-ink-3)]"
+      >
+        <Link to="/" search={{}} className="hover:text-[var(--color-ink-2)]">
+          Your groups
+        </Link>
+        <span aria-hidden="true">/</span>
+        <span className="truncate text-[var(--color-ink-2)]">{g.name}</span>
+      </nav>
+
+      <header className="mt-3 space-y-3">
+        <div className="flex flex-col items-start gap-2 md:flex-row md:items-start md:gap-3">
+          <div className="min-w-0 flex-1">
+            <h1 className="font-serif text-[28px] text-[var(--color-ink)] leading-tight">
+              {g.name}
+            </h1>
+            {g.description ? (
+              <p className="mt-1 text-[13px] text-[var(--color-ink-2)]">{g.description}</p>
+            ) : null}
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            {archived ? <Badge tone="warn">archived</Badge> : <Badge tone="good">active</Badge>}
+            <Badge>{g.admissionPolicy.replace("_", " ")}</Badge>
+          </div>
+        </div>
+
+        {caps.canArchive || caps.canUnarchive || caps.canUpdateMetadata ? (
+          <div>
+            <Button variant="secondary" size="sm" onClick={onOpenSettings}>
+              <Settings size={12} strokeWidth={1.75} aria-hidden="true" />
+              Group settings
+            </Button>
+          </div>
+        ) : null}
+      </header>
+
+      {archived ? (
+        <Callout tone="warn" title="This group is archived" className="mt-5">
+          New work is paused; history remains readable. A Group Admin can unarchive from settings.
+        </Callout>
+      ) : null}
+
+      <section className="mt-6 space-y-2" aria-labelledby="tracks-heading">
+        <h2
+          id="tracks-heading"
+          className="font-medium text-[11px] uppercase tracking-wide text-[var(--color-ink-3)]"
+        >
+          Learning Tracks · {counts.trackCount}
+        </h2>
+        <EmptyState
+          title="No tracks yet"
+          description={
+            myRole === "admin"
+              ? "Create the first Learning Track to organise activities for this group."
+              : "Your Group Admin hasn't created a Learning Track yet."
+          }
+        />
+      </section>
+
+      <section className="mt-6 space-y-2" aria-labelledby="people-heading">
+        <div className="flex items-center gap-3">
           <h2
             id="people-heading"
             className="font-medium text-[11px] uppercase tracking-wide text-[var(--color-ink-3)]"
           >
             People · {counts.memberCount}
           </h2>
-          {group.data.myMembership && me.data.data.user ? (
-            <ul
-              aria-label="Group members"
-              className="divide-y divide-[var(--color-rule)] rounded-[var(--radius-md)] border border-[var(--color-rule)] bg-[var(--color-surface)]"
-            >
-              <li className="flex items-center gap-3 px-3 py-2.5">
-                <Avatar
-                  name={me.data.data.user.name ?? me.data.data.user.email}
-                  src={me.data.data.user.image ?? null}
-                  size={32}
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="truncate font-medium text-[13px] text-[var(--color-ink)]">
-                      {me.data.data.user.name ?? me.data.data.user.email}
-                    </span>
-                    <Badge tone="accent">you</Badge>
-                  </div>
-                  <div className="mt-0.5 truncate text-[11px] text-[var(--color-ink-3)]">
-                    {group.data.myMembership.role === "admin" ? "Group Admin" : "Member"}
-                  </div>
-                </div>
-              </li>
-            </ul>
-          ) : (
-            <EmptyState
-              title="Members and invitations"
-              description="The roster appears here once group membership lands."
-            />
-          )}
-        </section>
-
-        <section className="mt-6 space-y-2" aria-labelledby="library-heading">
-          <h2
-            id="library-heading"
-            className="font-medium text-[11px] uppercase tracking-wide text-[var(--color-ink-3)]"
+          <Link
+            to="/g/$groupId/people"
+            params={{ groupId: g.id }}
+            className="ml-auto text-[12px] text-[var(--color-accent)] hover:underline"
           >
-            Library · {counts.libraryItemCount}
-          </h2>
+            Open People →
+          </Link>
+        </div>
+        {myMembership && meUser ? (
+          <ul
+            aria-label="Group members"
+            className="divide-y divide-[var(--color-rule)] rounded-[var(--radius-md)] border border-[var(--color-rule)] bg-[var(--color-surface)]"
+          >
+            <li className="flex items-center gap-3 px-3 py-2.5">
+              <Avatar name={meUser.name ?? meUser.email} src={meUser.image ?? null} size={32} />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="truncate font-medium text-[13px] text-[var(--color-ink)]">
+                    {meUser.name ?? meUser.email}
+                  </span>
+                  <Badge tone="accent">you</Badge>
+                </div>
+                <div className="mt-0.5 truncate text-[11px] text-[var(--color-ink-3)]">
+                  {myMembership.role === "admin" ? "Group Admin" : "Member"}
+                </div>
+              </div>
+            </li>
+          </ul>
+        ) : (
           <EmptyState
-            title="The shared Library is empty"
-            description="Stewards upload PDFs, audio, and other materials here once the Library aggregate ships."
+            title="Members and invitations"
+            description="The roster appears here once group membership lands."
           />
-        </section>
-      </div>
+        )}
+      </section>
 
-      <GroupSettingsDialog
-        open={settingsOpen}
-        group={g}
-        caps={caps}
-        onClose={() => {
-          setSettingsOpenLocal(false);
-          if (search.settings) {
-            void navigate({ search: {} });
-          }
-        }}
-      />
-    </AppShell>
-  );
-}
-
-function FullPageMessage({ children }: { readonly children: React.ReactNode }) {
-  return (
-    <div className="flex min-h-screen items-center justify-center text-[var(--color-ink-3)]">
-      {children}
+      <section className="mt-6 space-y-2" aria-labelledby="library-heading">
+        <h2
+          id="library-heading"
+          className="font-medium text-[11px] uppercase tracking-wide text-[var(--color-ink-3)]"
+        >
+          Library · {counts.libraryItemCount}
+        </h2>
+        <EmptyState
+          title="The shared Library is empty"
+          description="Stewards upload PDFs, audio, and other materials here once the Library aggregate ships."
+        />
+      </section>
     </div>
   );
 }

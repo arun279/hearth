@@ -12,6 +12,7 @@ import type {
   StudyGroupRepository,
   StudySessionRepository,
   SystemFlagRepository,
+  UploadCoordinationRepository,
   UserRepository,
 } from "@hearth/ports";
 
@@ -65,6 +66,7 @@ export type AppBindings = {
       readonly records: ActivityRecordRepository;
       readonly sessions: StudySessionRepository;
       readonly storage: ObjectStorage;
+      readonly uploads: UploadCoordinationRepository;
       readonly flags: SystemFlagRepository;
       readonly clock: Clock;
       readonly ids: IdGenerator;
