@@ -78,6 +78,69 @@ test.describe("M2 — Study Group lifecycle", () => {
     await context.close();
   });
 
+  test("sidebar reflects which group is active", async ({ browser }) => {
+    // Intent: when the user is inside a group, the sidebar tells them which
+    // one. Matches the design plan's desktop-sidebar spec (current group →
+    // tracks → browse → admin); tracks/browse land in later milestones.
+    const op = await seedOperator(BOOTSTRAP_USER);
+    const context = await browser.newContext();
+    await attachSession(context, op.cookie);
+    const page = await context.newPage();
+
+    const create = await context.request.post("/api/v1/g", {
+      data: { name: "Sidebar Test Group" },
+      headers: { "content-type": "application/json" },
+    });
+    expect(create.status()).toBe(201);
+    const { id } = (await create.json()) as { id: string };
+
+    // On `/`, no group is active — no Study group section.
+    await page.goto("/");
+    const sidebar = page.getByRole("complementary");
+    await expect(sidebar.getByText(/^Study group$/i)).toBeHidden();
+
+    // On the group page, the Study group section appears with the group's
+    // name as a link to itself, marked aria-current="page".
+    await page.goto(`/g/${id}`);
+    await expect(sidebar.getByText(/^Study group$/i)).toBeVisible();
+    const groupLink = sidebar.getByRole("link", { name: "Sidebar Test Group" });
+    await expect(groupLink).toHaveAttribute("aria-current", "page");
+
+    await context.close();
+  });
+
+  test("brand wordmark navigates back to home from any inner page", async ({ browser }) => {
+    // Intent: a user inside a group or in /admin can always escape back to
+    // the picker via the brand wordmark — Nielsen #4 (consistency &
+    // standards), Shneiderman #7 (internal locus of control). Covers both
+    // common deep-page entry points; one spec, one affordance.
+    const op = await seedOperator(BOOTSTRAP_USER);
+    const context = await browser.newContext();
+    await attachSession(context, op.cookie);
+    const page = await context.newPage();
+
+    const create = await context.request.post("/api/v1/g", {
+      data: { name: "Anywhere Group" },
+      headers: { "content-type": "application/json" },
+    });
+    const { id } = (await create.json()) as { id: string };
+
+    const sidebar = page.getByRole("complementary");
+    const brandLink = sidebar.getByRole("link", { name: "Hearth — back to your groups" });
+
+    // From a group page → home.
+    await page.goto(`/g/${id}`);
+    await brandLink.click();
+    await expect(page).toHaveURL("/");
+
+    // From the admin instance page → home.
+    await page.goto("/admin/instance");
+    await brandLink.click();
+    await expect(page).toHaveURL("/");
+
+    await context.close();
+  });
+
   test("operator updates the group name from the settings dialog", async ({ browser }) => {
     const op = await seedOperator(BOOTSTRAP_USER);
     const context = await browser.newContext();

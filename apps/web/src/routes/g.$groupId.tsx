@@ -104,7 +104,10 @@ function GroupHome() {
   const myRole = group.data.myMembership?.role ?? null;
 
   return (
-    <AppShell sidebar={<Sidebar me={me.data.data} />} mobileTitle={g.name}>
+    <AppShell
+      sidebar={<Sidebar me={me.data.data} activeGroup={{ id: g.id, name: g.name }} />}
+      mobileTitle={g.name}
+    >
       <div className="mx-auto max-w-3xl px-5 py-8 md:px-8">
         <nav
           aria-label="Breadcrumb"
