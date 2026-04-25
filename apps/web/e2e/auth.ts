@@ -66,20 +66,38 @@ function executeSql(sql: string): void {
 
 /**
  * Removes prior test-seeded rows so each spec starts from a known baseline.
- * Order matches FK dependency: sessions/accounts before users; instance state
- * before users (the singleton row's updated_by is FK'd to users).
+ *
+ * Every destructive statement is scoped to test-data identifiers
+ * (`u_e2e_*` user ids, `s_e2e_*` session ids, `a_e2e_*` account ids,
+ * `*@e2e.example.com` emails). The local Miniflare D1 is the same
+ * database a developer signed in to via `wrangler dev`; a non-scoped
+ * teardown (the prior shape) wiped real users' operator status and
+ * approved-email rows during dev, leaving the developer signed in but
+ * stripped of operator powers. A non-scoped `DELETE FROM groups` /
+ * `DELETE FROM group_memberships` would do the same to real groups.
+ *
+ * Order is FK-safe (children before parents): sessions / accounts /
+ * operators / approved-emails / instance-settings reference release
+ * → group memberships → groups → users.
  */
 export function resetInstanceState(): void {
   executeSql(
     [
-      "DELETE FROM sessions WHERE id LIKE 's_e2e_%'",
-      "DELETE FROM accounts WHERE id LIKE 'a_e2e_%'",
-      "DELETE FROM instance_operators",
-      "DELETE FROM approved_emails",
+      "DELETE FROM sessions WHERE id LIKE 's_e2e_%' OR user_id LIKE 'u_e2e_%'",
+      "DELETE FROM accounts WHERE id LIKE 'a_e2e_%' OR user_id LIKE 'u_e2e_%'",
+      "DELETE FROM instance_operators WHERE user_id LIKE 'u_e2e_%'",
+      "DELETE FROM approved_emails WHERE email LIKE '%@e2e.example.com'",
+      // Reset the singleton instance-settings row so the M1 rename spec
+      // can assert an "Hearth" baseline. Losing a renamed instance is
+      // recoverable in a dev DB (just rename again); losing operator
+      // status was not — that was the lockout this fix addresses.
       "UPDATE instance_settings SET name = 'Hearth', updated_by = NULL, updated_at = 0 WHERE id = 'instance'",
-      // group_memberships → groups before users so FK cascade order is safe.
-      "DELETE FROM group_memberships",
-      "DELETE FROM groups",
+      // E2e memberships first; then groups whose remaining membership
+      // count is zero (orphaned by the membership delete) — those are
+      // the e2e-only groups. A group that still has any non-e2e member
+      // survives.
+      "DELETE FROM group_memberships WHERE user_id LIKE 'u_e2e_%'",
+      "DELETE FROM groups WHERE id NOT IN (SELECT DISTINCT group_id FROM group_memberships)",
       "DELETE FROM users WHERE id LIKE 'u_e2e_%'",
     ].join("; "),
   );
