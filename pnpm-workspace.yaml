@@ -26,6 +26,7 @@ catalog:
   drizzle-kit: 0.31.10
   better-auth: ^1.6.4
   vitest: 4.1.0
+  "@vitest/coverage-v8": 4.1.0
   "@cloudflare/vitest-pool-workers": ^0.14.7
   typescript: ^5.7.2
   "@biomejs/biome": ^2.4.12

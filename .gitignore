@@ -14,6 +14,9 @@ build/
 # Testing
 coverage/
 *.lcov
+playwright-report/
+test-results/
+.playwright-mcp/
 
 # Drizzle
 .drizzle/

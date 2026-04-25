@@ -47,6 +47,8 @@ pre-push:
       run: pnpm db:check-auth
     test-integration:
       run: pnpm test:integration
+    coverage:
+      run: pnpm check:coverage
     audit:
       run: pnpm audit --audit-level=high
     resolution:

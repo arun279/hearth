@@ -32,9 +32,12 @@ All of these must pass locally before merge. Most run automatically via `lefthoo
 9. `pnpm db:check-auth`
 10. `pnpm test`
 11. `pnpm test:integration`
-12. `pnpm audit --audit-level=high`
+12. `pnpm check:coverage`
+13. `pnpm audit --audit-level=high`
 
 `pnpm check` runs all of the above in one pass.
+
+`pnpm e2e` runs the Playwright suite against a locally-spawned worker + Vite dev server. It is intentionally *not* part of the `pnpm check` aggregate (it boots two long-lived servers and downloads ~150 MB of Chromium on a fresh runner); CI invokes it as a separate workflow gate. First-time setup: `pnpm --filter @hearth/web e2e:install`.
 
 Additional:
 - If you touched `packages/db/src/**`, run `pnpm db:generate` and commit the new migration.
@@ -74,6 +77,7 @@ Additional:
 | `pnpm db:check-auth` | — | — | ✓ | ✓ |
 | `pnpm test` | — | — | changed packages only | all packages |
 | `pnpm test:integration` | — | — | ✓ | ✓ |
+| `pnpm check:coverage` | — | — | ✓ | ✓ |
 | Policy-purity test | — | — | when policy/visibility changes | (part of `pnpm test`) |
 | `pnpm audit --audit-level=high` | — | — | ✓ | daily + per-PR |
 | TruffleHog secrets scan | — | staged files only | — | daily + per-PR |

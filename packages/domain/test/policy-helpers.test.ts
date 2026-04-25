@@ -83,6 +83,7 @@ const operator = (over: Partial<InstanceOperator> = {}): InstanceOperator => ({
   grantedAt: now,
   grantedBy: uid,
   revokedAt: null,
+  revokedBy: null,
   ...over,
 });
 
