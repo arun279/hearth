@@ -17,3 +17,12 @@ extend-exclude = [
   ".turbo/**",
   "coverage/**",
 ]
+
+# Pluralised acronyms / SQL keywords (`SELECTs`, `INSERTs`, `UPDATEs`,
+# `URLs`, `IDs` of 3+ letters) trip typos's word-splitter, which can
+# isolate `SELEC` and "correct" it to `SELECT`. The pattern below silences
+# any UPPERCASE token of 3+ letters followed by a lowercase `s` — covering
+# the whole pluralised-acronym category without hiding misspellings in
+# unrelated mixed-case identifiers.
+[default]
+extend-ignore-identifiers-re = ["^[A-Z]{3,}s$"]

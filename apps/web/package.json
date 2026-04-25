@@ -17,7 +17,7 @@
     "@hearth/api": "workspace:*",
     "@hearth/domain": "workspace:*",
     "@hearth/ui": "workspace:*",
-    "@hookform/resolvers": "^3.10.0",
+    "@hookform/resolvers": "^5.2.2",
     "hono": "catalog:",
     "lucide-react": "^0.540.0",
     "zod": "catalog:",

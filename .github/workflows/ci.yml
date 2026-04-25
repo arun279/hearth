@@ -52,6 +52,8 @@ jobs:
 
       - run: pnpm check:conventions
 
+      - run: pnpm check:dup
+
       - run: pnpm check:env-example
 
       - run: pnpm db:check-auth

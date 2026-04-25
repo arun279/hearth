@@ -1,0 +1,29 @@
+{
+  "$schema": "https://raw.githubusercontent.com/kucherenko/jscpd/master/packages/jscpd/schemas/jscpd.json",
+  "threshold": 0,
+  "reporters": ["console"],
+  "absolute": true,
+  "gitignore": true,
+  "format": ["typescript", "tsx", "javascript", "jsx"],
+  "ignore": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/.turbo/**",
+    "**/.wrangler/**",
+    "**/test-results/**",
+    "**/playwright-report/**",
+    "**/coverage/**",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.spec.ts",
+    "**/*.spec.tsx",
+    "**/test/**",
+    "**/tests/**",
+    "**/e2e/**",
+    "**/__fixtures__/**",
+    "**/routeTree.gen.ts"
+  ],
+  "minLines": 8,
+  "minTokens": 80
+}
