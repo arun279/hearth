@@ -49,6 +49,15 @@ test.describe("M2 — Study Group lifecycle", () => {
     await expect(page.getByText(/^active$/i).first()).toBeVisible();
     await expect(page.getByText(/This group is archived/i)).toBeHidden();
 
+    // The People section reflects the creator's own membership — count says
+    // 1 and the row delivers on it. Closing the gap between count and body
+    // (Rams #4 understandable, #6 honest).
+    const peopleList = page.getByRole("list", { name: "Group members" });
+    await expect(peopleList).toBeVisible();
+    await expect(peopleList.getByText(BOOTSTRAP_USER.name)).toBeVisible();
+    await expect(peopleList.getByText(/Group Admin/)).toBeVisible();
+    await expect(peopleList.getByText(/^you$/i)).toBeVisible();
+
     // Archive via settings → confirm.
     await page.getByRole("button", { name: /Group settings/i }).click();
     const settingsDialog = page.getByRole("dialog", { name: /Group settings/i });

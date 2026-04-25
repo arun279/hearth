@@ -1,5 +1,5 @@
 import type { MeContext } from "@hearth/domain";
-import { AppShell, Badge, Button, Callout, EmptyState, Skeleton } from "@hearth/ui";
+import { AppShell, Avatar, Badge, Button, Callout, EmptyState, Skeleton } from "@hearth/ui";
 import type { QueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { Settings } from "lucide-react";
@@ -174,10 +174,36 @@ function GroupHome() {
           >
             People · {counts.memberCount}
           </h2>
-          <EmptyState
-            title="Members and invitations"
-            description="The roster appears here once group membership lands. For now you can see your own role above."
-          />
+          {group.data.myMembership && me.data.data.user ? (
+            <ul
+              aria-label="Group members"
+              className="divide-y divide-[var(--color-rule)] rounded-[var(--radius-md)] border border-[var(--color-rule)] bg-[var(--color-surface)]"
+            >
+              <li className="flex items-center gap-3 px-3 py-2.5">
+                <Avatar
+                  name={me.data.data.user.name ?? me.data.data.user.email}
+                  src={me.data.data.user.image ?? null}
+                  size={32}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate font-medium text-[13px] text-[var(--color-ink)]">
+                      {me.data.data.user.name ?? me.data.data.user.email}
+                    </span>
+                    <Badge tone="accent">you</Badge>
+                  </div>
+                  <div className="mt-0.5 truncate text-[11px] text-[var(--color-ink-3)]">
+                    {group.data.myMembership.role === "admin" ? "Group Admin" : "Member"}
+                  </div>
+                </div>
+              </li>
+            </ul>
+          ) : (
+            <EmptyState
+              title="Members and invitations"
+              description="The roster appears here once group membership lands."
+            />
+          )}
         </section>
 
         <section className="mt-6 space-y-2" aria-labelledby="library-heading">
