@@ -108,38 +108,44 @@ state (`code: "email_not_approved"`). No user row is created.
 | Run a single package's tests | `pnpm --filter @hearth/auth test` |
 | Format | `pnpm format` |
 
-## 7. Adding approved emails (until the operator admin UI lands)
+## 7. Adding approved emails
 
-Until the admin surface for instance operations ships (next milestone), there
-is no HTTP endpoint for managing the approved-email roster. The bootstrap
-email is seeded automatically on first sign-in; additional emails need to be
-inserted directly.
+The bootstrap email is seeded automatically on first sign-in. After that,
+use the `Admin → Instance settings → Approved emails` tab:
+`name@example.com` + an optional note, or paste a list (one email per
+line) via the "Paste a list" affordance.
 
-```bash
-pnpm approve-email friend@example.com "optional note"
-```
+The older `pnpm approve-email …` shell helper is kept for direct DB
+access during tests or recovery. Note: it inserts into `approved_emails`
+but does not run the session-cascade path — for realistic flows, prefer
+the UI or the `DELETE /api/v1/instance/approved-emails/:email` endpoint,
+which hard-deletes live sessions for the matching users in the same
+batch as the email removal.
 
-The helper reads the first active operator from `instance_operators` and
-attributes the new row to them (so the foreign key is satisfied). Run it
-**after** your first operator sign-in — it fails loudly if no operator
-exists yet.
+## 8. Testing the multi-operator flow
 
-To see the current roster:
+Two Google accounts and two browsers (or one normal + one Incognito) make
+it possible to exercise the operator handoff locally:
 
-```bash
-pnpm --filter @hearth/worker exec wrangler d1 execute hearth --local \
-  --command "SELECT email, note, added_at FROM approved_emails ORDER BY added_at DESC"
-```
+1. Sign in with the bootstrap account in the main browser.
+2. In a second profile, sign in with a second Google account. The attempt
+   is rejected until the bootstrap operator adds that email via
+   `Admin → Instance settings → Approved emails`.
+3. Re-attempt sign-in in the second browser — it succeeds. The second
+   user appears as a participant (`isOperator: false`).
+4. Back in the first browser, `Admin → Instance settings → Operators →
+   Grant operator` with the second user's email. The second browser's
+   next `/me/context` refresh flips `isOperator: true`.
+5. Try `DELETE /api/v1/instance/operators/<bootstrap-user-id>` from the
+   second browser. Before handoff, the second operator must still exist
+   first — revoking the last operator returns `would_orphan_operator`.
 
-To revoke an email (the matching user's sessions are not auto-invalidated —
-that cascade lands with the admin UI milestone):
+Removing an Approved Email while the matching user is signed in is the
+only action that hard-deletes live sessions. Watch the second browser:
+the next API call returns 401 and the SPA redirects to the sign-in
+screen.
 
-```bash
-pnpm --filter @hearth/worker exec wrangler d1 execute hearth --local \
-  --command "DELETE FROM approved_emails WHERE email = 'friend@example.com'"
-```
-
-## 8. Resetting local state
+## 9. Resetting local state
 
 If you want a clean database:
 
@@ -151,7 +157,7 @@ pnpm db:migrate:dev
 That wipes the Miniflare D1 store; your next Worker start reseeds the
 singleton `instance_settings` row via migration `0002`.
 
-## 8. Troubleshooting
+## 10. Troubleshooting
 
 - **`pnpm db:migrate:dev` says "wrangler: not found"** — run `pnpm install`
   first; wrangler is a dev dependency of `apps/worker` and pnpm links it

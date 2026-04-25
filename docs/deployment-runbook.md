@@ -72,6 +72,31 @@ session-guard bootstrap-bypass admits the bootstrap email, and
 `user.create.after` seeds `approved_emails` + `instance_operators`. The
 SPA then shows `isOperator: true`.
 
+### 1.6 First-operator workflow
+
+Once the bootstrap operator is signed in:
+
+1. **Name the instance.** Open `Admin → Instance settings → Settings` in
+   the sidebar. Change the name from "Hearth" to something the group will
+   recognise (shown in the sidebar and on the sign-in screen).
+2. **Approve your first non-bootstrap email.** `Admin → Instance settings →
+   Approved emails → Add email`. Removing an approved email hard-deletes
+   every live session tied to that address — treat removal the same as
+   revoking a key, not as a cosmetic list edit.
+3. **Grant a second operator.** Ask the second person to sign in first; the
+   `user_not_found` hint appears otherwise. Then in `Admin → Instance
+   settings → Operators → Grant operator` enter their email. Two active
+   operators is the target state before any operator is revoked — the
+   orphan guard rejects the last revocation with
+   `would_orphan_operator` from both the policy layer and the adapter
+   under a D1 batch, so the invariant holds even under concurrent
+   revocations.
+4. **(Optional) Step down as bootstrap.** If someone else should own the
+   instance long-term, the second operator revokes the bootstrap operator
+   from the same tab. The bootstrap env var (`HEARTH_BOOTSTRAP_OPERATOR_EMAIL`)
+   becomes a no-op once any operator exists — rotating it later has no
+   effect on admission.
+
 ## 2. Routine deploy
 
 Every merge to `main` runs `.github/workflows/deploy.yml` which does:

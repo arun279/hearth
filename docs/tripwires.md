@@ -96,6 +96,20 @@ maintainer-approved change so the watch-list doesn't quietly rot.
   runbook; treat the alert as the fourth line of defense behind the
   adapter gate, HTTP middleware, and no-card account state.
 
+## Domain assumptions
+
+### Hardcoded "private" admission badge
+
+- **Trigger**: a non-`private_email_allowlist` admission policy ships
+  (`open` or `request_to_join`). v1 fixes the policy at
+  `private_email_allowlist`; the sidebar's `<Badge tone="warn">private</Badge>`
+  is a true statement only as long as that holds.
+- **Action**: surface the active admission policy on `MeContext.instance`
+  (e.g. `accessPolicy: "private_email_allowlist" | "open" | "request_to_join"`)
+  and gate the badge text + tone off it. Remove this entry once the
+  badge is no longer hardcoded.
+- **Location**: `apps/web/src/components/sidebar.tsx`.
+
 ## How to remove an entry
 
 An entry leaves this list only when one of the following is true:
