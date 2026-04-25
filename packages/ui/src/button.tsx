@@ -10,8 +10,10 @@ export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   readonly children: ReactNode;
 };
 
+// `whitespace-nowrap`: a button's fixed height (`h-7`/`h-8`) cannot fit a
+// wrapped label. Make the layout absorb pressure, not the label.
 const base =
-  "inline-flex items-center justify-center gap-2 rounded-[var(--radius-md)] font-medium transition-colors " +
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[var(--radius-md)] font-medium transition-colors " +
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 " +
   "focus-visible:ring-offset-[var(--color-bg)] disabled:opacity-50 disabled:pointer-events-none";
 
