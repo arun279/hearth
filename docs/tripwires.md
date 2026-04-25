@@ -90,6 +90,14 @@ Each entry names the **pinned tool**, the **condition** that triggers a reassess
 - **Action**: confirm the resolver's Zod-version-compat path is still wired up. The v3 → v5 bump that landed with the M2 PR shifted the recogniser from `Array.isArray(error.errors)` (Zod 3 shape) to `error instanceof $ZodError` + `error.issues` (Zod 4 shape). A future Zod 5 will likely move the goalposts again, and the symptom is silent: validation passes through, the resolver re-throws, RHF leaves the form locked. The empty-submit assertion in `apps/web/e2e/dialog-keyboard.spec.ts` catches it; if it goes red after a bump, this is the first place to look.
 - **Location**: `apps/web/package.json` (`@hookform/resolvers`, `zod`); call sites in `apps/web/src/components/groups/{create-group-dialog,group-settings-dialog}.tsx`.
 
+## Supply-chain + licensing
+
+### `spark-md5@3.0.2` per-package carve-out on dep-review (current pin: `jscpd@^4.0.9`)
+
+- **Trigger**: `jscpd` swaps its hash backend away from `spark-md5`, OR `jscpd` is replaced with another duplicate-detector, OR `spark-md5` publishes a new version (the carve-out is version-pinned, so a bump turns the gate red until the version string here is updated).
+- **Action**: drop the `allow-dependencies-licenses: 'pkg:npm/spark-md5@3.0.2'` line from `.github/workflows/dep-review.yml`. The carve-out is intentionally pinned to one package and one version so any future WTFPL-touched dependency surfaces in dep-review and prompts a deliberate review — promoting `WTFPL` to the project-wide `allow-licenses` would silence that signal across the whole tree. If a `spark-md5` minor/patch bump arrives, update the version in the carve-out string in the same PR; if a different package introduces WTFPL, evaluate its provenance from scratch rather than extending this carve-out.
+- **Location**: `.github/workflows/dep-review.yml` (`allow-dependencies-licenses`); transitive owner via `@jscpd/tokenizer`.
+
 ## How to remove an entry
 
 An entry leaves this list only when one of the following is true:
