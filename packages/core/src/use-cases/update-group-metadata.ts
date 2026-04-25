@@ -1,6 +1,11 @@
 import { DomainError, type StudyGroup, type StudyGroupId, type UserId } from "@hearth/domain";
 import { canUpdateGroupMetadata } from "@hearth/domain/policy/can-update-group-metadata";
-import type { StudyGroupRepository, UserRepository } from "@hearth/ports";
+import type {
+  InstanceAccessPolicyRepository,
+  StudyGroupRepository,
+  UserRepository,
+} from "@hearth/ports";
+import { loadViewableGroup } from "./_lib/load-viewable-group.ts";
 
 export type UpdateGroupMetadataInput = {
   readonly actor: UserId;
@@ -12,12 +17,14 @@ export type UpdateGroupMetadataInput = {
 export type UpdateGroupMetadataDeps = {
   readonly users: UserRepository;
   readonly groups: StudyGroupRepository;
+  readonly policy: InstanceAccessPolicyRepository;
 };
 
 const MIN_NAME = 1;
 const MAX_NAME = 120;
 const MAX_DESCRIPTION = 2000;
 
+/** Edit a Study Group's name and/or description. Group Admin only. */
 export async function updateGroupMetadata(
   input: UpdateGroupMetadataInput,
   deps: UpdateGroupMetadataDeps,
@@ -47,14 +54,7 @@ export async function updateGroupMetadata(
     );
   }
 
-  const [actor, group, membership] = await Promise.all([
-    deps.users.byId(input.actor),
-    deps.groups.byId(input.groupId),
-    deps.groups.membership(input.groupId, input.actor),
-  ]);
-
-  if (!actor) throw new DomainError("NOT_FOUND", "Actor not found.");
-  if (!group) throw new DomainError("NOT_FOUND", "Group not found.");
+  const { actor, group, membership } = await loadViewableGroup(input.actor, input.groupId, deps);
 
   const verdict = canUpdateGroupMetadata(actor, group, membership);
   if (!verdict.ok) {

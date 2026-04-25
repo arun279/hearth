@@ -141,7 +141,7 @@ export const groupsRoutes = new Hono<AppBindings>()
             ...(body.name !== undefined ? { name: body.name } : {}),
             ...(body.description !== undefined ? { description: body.description } : {}),
           },
-          { users: c.var.ports.users, groups: c.var.ports.groups },
+          { users: c.var.ports.users, groups: c.var.ports.groups, policy: c.var.ports.policy },
         );
         return c.json(group);
       } catch (err) {
@@ -150,7 +150,9 @@ export const groupsRoutes = new Hono<AppBindings>()
     },
   )
 
-  // POST /g/:groupId/archive — idempotent.
+  // Archive + unarchive are mirror-pair routes by design — flatten the
+  // structure once jscpd-ignored than abstract a one-string-difference helper.
+  // jscpd:ignore-start
   .post(
     "/:groupId/archive",
     zValidator("param", groupIdParam, (result, c) => {
@@ -169,8 +171,6 @@ export const groupsRoutes = new Hono<AppBindings>()
       }
     },
   )
-
-  // POST /g/:groupId/unarchive — idempotent.
   .post(
     "/:groupId/unarchive",
     zValidator("param", groupIdParam, (result, c) => {
@@ -189,3 +189,4 @@ export const groupsRoutes = new Hono<AppBindings>()
       }
     },
   );
+// jscpd:ignore-end

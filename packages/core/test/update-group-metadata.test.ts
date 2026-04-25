@@ -1,5 +1,9 @@
 import type { GroupMembership, StudyGroup, StudyGroupId, User, UserId } from "@hearth/domain";
-import type { StudyGroupRepository, UserRepository } from "@hearth/ports";
+import type {
+  InstanceAccessPolicyRepository,
+  StudyGroupRepository,
+  UserRepository,
+} from "@hearth/ports";
 import { describe, expect, it, vi } from "vitest";
 import { updateGroupMetadata } from "../src/use-cases/update-group-metadata.ts";
 
@@ -66,12 +70,32 @@ function makeGroups(overrides: Partial<StudyGroupRepository>): StudyGroupReposit
   };
 }
 
+function makePolicy(
+  overrides: Partial<InstanceAccessPolicyRepository> = {},
+): InstanceAccessPolicyRepository {
+  return {
+    isEmailApproved: vi.fn(),
+    listApprovedEmails: vi.fn(),
+    addApprovedEmail: vi.fn(),
+    removeApprovedEmail: vi.fn(),
+    getApprovedEmail: vi.fn(),
+    getOperator: vi.fn(async () => null),
+    isOperator: vi.fn(async () => false),
+    listOperators: vi.fn(),
+    addOperator: vi.fn(),
+    revokeOperator: vi.fn(),
+    countActiveOperators: vi.fn(async () => 1),
+    bootstrapIfNeeded: vi.fn(),
+    ...overrides,
+  } as InstanceAccessPolicyRepository;
+}
+
 describe("updateGroupMetadata", () => {
   it("trims and forwards the patch", async () => {
     const updateMetadata = vi.fn(async () => ({ ...activeGroup, name: "New" }));
     await updateGroupMetadata(
       { actor: actorId, groupId, name: "  New  " },
-      { users: makeUsers(actor), groups: makeGroups({ updateMetadata }) },
+      { users: makeUsers(actor), groups: makeGroups({ updateMetadata }), policy: makePolicy() },
     );
     expect(updateMetadata).toHaveBeenCalledWith(groupId, { name: "New" }, actorId);
   });
@@ -80,7 +104,7 @@ describe("updateGroupMetadata", () => {
     const updateMetadata = vi.fn(async () => activeGroup);
     await updateGroupMetadata(
       { actor: actorId, groupId, description: "   " },
-      { users: makeUsers(actor), groups: makeGroups({ updateMetadata }) },
+      { users: makeUsers(actor), groups: makeGroups({ updateMetadata }), policy: makePolicy() },
     );
     expect(updateMetadata).toHaveBeenCalledWith(groupId, { description: null }, actorId);
   });
@@ -89,7 +113,7 @@ describe("updateGroupMetadata", () => {
     const updateMetadata = vi.fn(async () => activeGroup);
     await updateGroupMetadata(
       { actor: actorId, groupId, description: null },
-      { users: makeUsers(actor), groups: makeGroups({ updateMetadata }) },
+      { users: makeUsers(actor), groups: makeGroups({ updateMetadata }), policy: makePolicy() },
     );
     expect(updateMetadata).toHaveBeenCalledWith(groupId, { description: null }, actorId);
   });
@@ -98,12 +122,12 @@ describe("updateGroupMetadata", () => {
     await expect(
       updateGroupMetadata(
         { actor: actorId, groupId },
-        { users: makeUsers(actor), groups: makeGroups({}) },
+        { users: makeUsers(actor), groups: makeGroups({}), policy: makePolicy() },
       ),
     ).rejects.toMatchObject({ reason: "no_metadata_provided" });
   });
 
-  it("rejects FORBIDDEN/not_group_admin for a non-admin", async () => {
+  it("rejects FORBIDDEN/not_group_admin for a non-admin member", async () => {
     await expect(
       updateGroupMetadata(
         { actor: actorId, groupId, name: "New" },
@@ -117,6 +141,7 @@ describe("updateGroupMetadata", () => {
               }),
             ),
           }),
+          policy: makePolicy(),
         },
       ),
     ).rejects.toMatchObject({ code: "FORBIDDEN", reason: "not_group_admin" });
@@ -131,8 +156,22 @@ describe("updateGroupMetadata", () => {
           groups: makeGroups({
             byId: vi.fn(async () => ({ ...activeGroup, status: "archived" }) as StudyGroup),
           }),
+          policy: makePolicy(),
         },
       ),
     ).rejects.toMatchObject({ code: "FORBIDDEN", reason: "group_archived" });
+  });
+
+  it("rejects NOT_FOUND/not_group_member for a non-member non-operator (no existence leak)", async () => {
+    await expect(
+      updateGroupMetadata(
+        { actor: actorId, groupId, name: "New" },
+        {
+          users: makeUsers(actor),
+          groups: makeGroups({ membership: vi.fn(async () => null) }),
+          policy: makePolicy(),
+        },
+      ),
+    ).rejects.toMatchObject({ code: "NOT_FOUND", reason: "not_group_member" });
   });
 });

@@ -345,6 +345,7 @@ describe("PATCH /api/v1/g/:groupId", () => {
       userId: opId,
       ports: {
         users: makeUsersPort(opUser),
+        policy: makePolicyPort(),
         groups: makeGroupsPort({ updateMetadata }),
       },
     });
@@ -362,6 +363,7 @@ describe("PATCH /api/v1/g/:groupId", () => {
       userId: opId,
       ports: {
         users: makeUsersPort(opUser),
+        policy: makePolicyPort(),
         groups: makeGroupsPort({
           byId: vi.fn(async (): Promise<StudyGroup> => ({ ...group, status: "archived" })),
         }),
@@ -380,11 +382,31 @@ describe("PATCH /api/v1/g/:groupId", () => {
     expect(body.code).toBe("group_archived");
   });
 
+  it("404s (not 403) for a non-member non-operator probing PATCH — closes the enumeration oracle", async () => {
+    const app = harness({
+      userId: strangerId,
+      ports: {
+        users: makeUsersPort(strangerUser),
+        policy: makePolicyPort(),
+        groups: makeGroupsPort({ membership: vi.fn(async () => null) }),
+      },
+    });
+    const res = await app.request(`/api/v1/g/${gid}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "New" }),
+    });
+    expect(res.status).toBe(404);
+    const body = (await res.json()) as { code: string };
+    expect(body.code).toBe("not_group_member");
+  });
+
   it("400s when the body has no fields", async () => {
     const app = harness({
       userId: opId,
       ports: {
         users: makeUsersPort(opUser),
+        policy: makePolicyPort(),
         groups: makeGroupsPort(),
       },
     });
