@@ -29,6 +29,27 @@ Run `pnpm check` (aggregate script) or at minimum the individual gates listed in
 - Run `/code-review` before merging a PR to main.
 - Run `/simplify` before merging a PR to main.
 
+## Local Playwright / dev auth — use `pnpm local-session`
+
+Whenever a task needs an authenticated session against the local stack (driving a Playwright script, hitting the worker via curl, running `/design-review`), use `scripts/local-session.mjs` instead of re-deriving the Better Auth HMAC dance. The script is the canonical seam — a cookie minted by it is byte-identical to one minted by an e2e test or a real OAuth sign-in (modulo the user-id prefix).
+
+```sh
+# Defaults: seed-operator@local.dev, "Local Operator", instance operator.
+pnpm local-session --seed                           # human-readable hint
+pnpm -s local-session --seed --cookie-only          # just the cookie value
+pnpm local-session --seed --json                    # machine-readable
+pnpm local-session --reset --seed                   # drop user's groups+sessions, re-seed
+pnpm local-session --email me@x.com --seed          # different identity
+```
+
+Three things to know:
+
+1. **`--seed` is idempotent.** It uses `INSERT OR IGNORE`, so re-running it never errors and never bumps `granted_at`. Pass it freely.
+2. **`--reset` scrubs only the named user's state** (sessions, group memberships, and groups whose only member was that user). It will not touch other users — it's safe to use against the dev DB you're signed into via OAuth.
+3. **`pnpm` is cwd-sensitive.** Running `pnpm local-session` from `apps/web/` fails because the script lives in the root `package.json`. Either run from the repo root, or have your script `spawnSync` with `cwd: REPO_ROOT`. `apps/web/design-review.mjs` is the reference pattern for the Playwright case.
+
+Implementation lives at `scripts/lib/auth-session.mjs` (shared module, JSDoc-typed via `auth-session.d.mts`); `apps/web/e2e/auth.ts` and `scripts/local-session.mjs` both import from it. Do not re-implement HMAC signing or session-row inserts in a third place — extend that module instead.
+
 ## Never in committed code
 
 - Don't reference internal planning docs (e.g., paths under `docs/` that don't exist in this repo). Explain the "why" directly in the comment instead.

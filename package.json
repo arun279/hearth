@@ -10,10 +10,11 @@
   "scripts": {
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
-    "check": "pnpm install --resolution-only && pnpm biome check . && pnpm check:md && pnpm typecheck && pnpm check:types:boundaries && pnpm check:arch && pnpm check:knip && pnpm check:conventions && pnpm check:env-example && pnpm db:check-auth && pnpm test && pnpm test:integration && pnpm check:coverage && pnpm audit --audit-level=high",
+    "check": "pnpm install --resolution-only && pnpm biome check . && pnpm check:md && pnpm typecheck && pnpm check:types:boundaries && pnpm check:arch && pnpm check:knip && pnpm check:conventions && pnpm check:env-example && pnpm db:check-auth && pnpm test && pnpm test:scripts && pnpm test:integration && pnpm check:coverage && pnpm audit --audit-level=high",
     "check:types:boundaries": "pnpm --filter @hearth/domain --filter @hearth/core --filter @hearth/ports typecheck",
     "check:conventions": "node scripts/check-conventions.mjs",
     "check:env-example": "node scripts/check-env-example.mjs",
+    "test:scripts": "node --test scripts/lib/*.test.mjs",
     "check:md": "dprint check",
     "format:md": "dprint fmt",
     "test": "turbo run test",
@@ -30,6 +31,7 @@
     "db:migrate:dev": "pnpm --filter @hearth/db db:migrate:dev",
     "db:check-auth": "pnpm --filter @hearth/db db:check-auth",
     "approve-email": "node scripts/approve-email.mjs",
+    "local-session": "node scripts/local-session.mjs",
     "prepare": "lefthook install"
   },
   "pnpm": {

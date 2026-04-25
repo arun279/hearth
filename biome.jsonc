@@ -80,7 +80,12 @@
       }
     },
     {
-      "includes": ["scripts/**/*.mjs", "scripts/**/*.cjs", "scripts/**/*.js"],
+      "includes": [
+        "scripts/**/*.mjs",
+        "scripts/**/*.cjs",
+        "scripts/**/*.js",
+        "apps/web/design-review.mjs"
+      ],
       "linter": {
         "rules": {
           "suspicious": {
