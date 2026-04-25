@@ -31,8 +31,6 @@
     "tailwindcss",
     "@types/react-dom",
     "@hono-rate-limiter/cloudflare",
-    "@hookform/resolvers",
-    "react-hook-form",
     "@tanstack/react-query-devtools",
     "@tanstack/router-devtools"
   ]
