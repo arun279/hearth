@@ -121,7 +121,13 @@ export function InviteDialog({ open, onClose, group }: Props) {
                 id={id}
                 readOnly
                 value={result.url}
+                // The token URL is ~120 chars and won't fit any reasonable
+                // input width — `title` exposes the full link via the
+                // native hover tooltip so an admin can verify before
+                // sharing without arrow-keying through the field.
+                title={result.url}
                 onFocus={(e) => e.currentTarget.select()}
+                className="cursor-default"
               />
             )}
           </Field>
@@ -146,8 +152,12 @@ export function InviteDialog({ open, onClose, group }: Props) {
             {({ id, describedBy }) => (
               <Input
                 id={id}
-                type="email"
+                // No `type="email"` on purpose — the Zod resolver covers
+                // the validation, and the native bubble flashes briefly
+                // before our resolver swaps in the styled error,
+                // diverging from the rest of the app's forms.
                 autoComplete="email"
+                inputMode="email"
                 aria-describedby={describedBy}
                 aria-required
                 invalid={form.formState.errors.email !== undefined}

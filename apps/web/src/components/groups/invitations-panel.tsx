@@ -86,28 +86,44 @@ export function InvitationsPanel({ group, enabled, onInvite }: Props) {
             const badge = STATUS_BADGE[entry.status];
             const isLive = entry.status === "pending" || entry.status === "pending_approval";
             return (
-              <li key={inv.id} className="flex items-center gap-3 px-3 py-2.5">
-                <Mail
-                  size={14}
-                  strokeWidth={1.5}
-                  aria-hidden="true"
-                  className="text-[var(--color-ink-3)]"
-                />
-                <div className="min-w-0 flex-1 text-[13px]">
-                  <div className="truncate text-[var(--color-ink)]">
-                    {inv.email ?? "open invitation"}
-                  </div>
-                  <div className="mt-0.5 truncate text-[11px] text-[var(--color-ink-3)]">
-                    Created {inv.createdAt.toString().slice(0, 10)} · expires{" "}
-                    {inv.expiresAt.toString().slice(0, 10)}
+              // The row stacks on phones and lays out as a single line on
+              // tablet/desktop. At &lt; 480px the email + meta block sits
+              // above the badge + revoke action, so a long invitee email
+              // ("priya.long.name@example.com") doesn't get squeezed by
+              // the right-aligned controls. `title` exposes the full
+              // email for desktop hover.
+              <li
+                key={inv.id}
+                className="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-center sm:gap-3"
+              >
+                <div className="flex min-w-0 flex-1 items-center gap-3">
+                  <Mail
+                    size={14}
+                    strokeWidth={1.5}
+                    aria-hidden="true"
+                    className="shrink-0 text-[var(--color-ink-3)]"
+                  />
+                  <div className="min-w-0 flex-1 text-[13px]">
+                    <div
+                      className="truncate text-[var(--color-ink)]"
+                      title={inv.email ?? undefined}
+                    >
+                      {inv.email ?? "open invitation"}
+                    </div>
+                    <div className="mt-0.5 truncate text-[11px] text-[var(--color-ink-3)]">
+                      Created {inv.createdAt.toString().slice(0, 10)} · expires{" "}
+                      {inv.expiresAt.toString().slice(0, 10)}
+                    </div>
                   </div>
                 </div>
-                <Badge tone={badge.tone}>{badge.label}</Badge>
-                {isLive ? (
-                  <Button size="sm" variant="secondary" onClick={() => setConfirming(entry)}>
-                    Revoke
-                  </Button>
-                ) : null}
+                <div className="flex items-center justify-end gap-2">
+                  <Badge tone={badge.tone}>{badge.label}</Badge>
+                  {isLive ? (
+                    <Button size="sm" variant="secondary" onClick={() => setConfirming(entry)}>
+                      Revoke
+                    </Button>
+                  ) : null}
+                </div>
               </li>
             );
           })}
