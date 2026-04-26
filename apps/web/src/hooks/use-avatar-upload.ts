@@ -65,3 +65,26 @@ export function useUploadAvatar(groupId: string) {
     },
   });
 }
+
+/**
+ * Clear the actor's own avatar in this group via PATCH /profile with
+ * `{ avatarUrl: null }`. The use case best-effort deletes the prior R2
+ * object so storage doesn't bloat across set → remove → set cycles.
+ */
+export function useRemoveAvatar(groupId: string, userId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (): Promise<GroupMembership> => {
+      const res = await api.g[":groupId"].members[":userId"].profile.$patch({
+        param: { groupId, userId },
+        json: { avatarUrl: null },
+      });
+      await assertOk(res);
+      return (await res.json()) as GroupMembership;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["groups", "members", groupId] });
+      qc.invalidateQueries({ queryKey: ["groups", "detail", groupId] });
+    },
+  });
+}

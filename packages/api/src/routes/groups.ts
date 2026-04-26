@@ -70,9 +70,16 @@ const updateProfileBody = z
   .object({
     nickname: z.union([z.string().trim().min(1).max(60), z.null()]).optional(),
     bio: z.union([z.string().max(800), z.null()]).optional(),
+    // Only `null` is accepted here. Setting an avatar goes through the
+    // upload-request → finalize chain, which mints a server-controlled
+    // R2 key shaped `avatars/{userId}/{groupId}/{cuid2}` and verifies
+    // ownership on finalize. Allowing arbitrary strings would let an
+    // actor repoint their avatar at any R2 key — including someone
+    // else's — which the upload pipeline is designed to prevent.
+    avatarUrl: z.null().optional(),
   })
-  .refine((v) => v.nickname !== undefined || v.bio !== undefined, {
-    message: "Provide a nickname or bio to update.",
+  .refine((v) => v.nickname !== undefined || v.bio !== undefined || v.avatarUrl !== undefined, {
+    message: "Provide nickname, bio, or avatarUrl to update.",
     path: ["nickname"],
   });
 
