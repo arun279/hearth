@@ -89,7 +89,7 @@ function SignedInHome({
   return (
     <div className="mx-auto max-w-3xl px-5 py-8 md:px-8">
       <header className="space-y-2">
-        <h1 className="font-serif text-[28px] leading-tight text-[var(--color-ink)]">
+        <h1 className="font-serif text-[28px] text-[var(--color-ink)] leading-tight">
           Your groups
         </h1>
         <p className="text-[13px] text-[var(--color-ink-2)]">

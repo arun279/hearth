@@ -154,7 +154,7 @@ function GroupHomeBody({
       <section className="mt-6 space-y-2" aria-labelledby="tracks-heading">
         <h2
           id="tracks-heading"
-          className="font-medium text-[11px] uppercase tracking-wide text-[var(--color-ink-3)]"
+          className="font-medium text-[11px] text-[var(--color-ink-3)] uppercase tracking-wide"
         >
           Learning Tracks · {counts.trackCount}
         </h2>
@@ -172,7 +172,7 @@ function GroupHomeBody({
         <div className="flex items-center gap-3">
           <h2
             id="people-heading"
-            className="font-medium text-[11px] uppercase tracking-wide text-[var(--color-ink-3)]"
+            className="font-medium text-[11px] text-[var(--color-ink-3)] uppercase tracking-wide"
           >
             People · {counts.memberCount}
           </h2>
@@ -215,7 +215,7 @@ function GroupHomeBody({
       <section className="mt-6 space-y-2" aria-labelledby="library-heading">
         <h2
           id="library-heading"
-          className="font-medium text-[11px] uppercase tracking-wide text-[var(--color-ink-3)]"
+          className="font-medium text-[11px] text-[var(--color-ink-3)] uppercase tracking-wide"
         >
           Library · {counts.libraryItemCount}
         </h2>

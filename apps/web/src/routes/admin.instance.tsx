@@ -59,10 +59,10 @@ function InstanceAdminPage() {
     <AppShell sidebar={<Sidebar me={ctx.data?.data ?? me} />} mobileTitle={instanceName}>
       <div className="mx-auto max-w-3xl space-y-6 px-5 py-8 md:px-8">
         <header className="space-y-2">
-          <div className="text-[11px] font-medium uppercase tracking-wide text-[var(--color-ink-3)]">
+          <div className="font-medium text-[11px] text-[var(--color-ink-3)] uppercase tracking-wide">
             Admin
           </div>
-          <h1 className="font-serif text-[28px] leading-tight text-[var(--color-ink)]">
+          <h1 className="font-serif text-[28px] text-[var(--color-ink)] leading-tight">
             Instance settings
           </h1>
           <p className="text-[13px] text-[var(--color-ink-2)]">

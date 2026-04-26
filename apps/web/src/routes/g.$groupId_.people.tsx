@@ -137,7 +137,7 @@ function PeoplePage() {
                 <section className="mt-6" aria-labelledby="profile-heading">
                   <h2
                     id="profile-heading"
-                    className="font-medium text-[11px] uppercase tracking-wide text-[var(--color-ink-3)]"
+                    className="font-medium text-[11px] text-[var(--color-ink-3)] uppercase tracking-wide"
                   >
                     Your profile in this group
                   </h2>
@@ -157,7 +157,7 @@ function PeoplePage() {
               <section className="mt-6 space-y-2" aria-labelledby="members-heading">
                 <h2
                   id="members-heading"
-                  className="font-medium text-[11px] uppercase tracking-wide text-[var(--color-ink-3)]"
+                  className="font-medium text-[11px] text-[var(--color-ink-3)] uppercase tracking-wide"
                 >
                   Members · {members.data?.entries.length ?? 0}
                 </h2>

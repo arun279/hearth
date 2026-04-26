@@ -66,7 +66,7 @@ export function Modal({
         )}
       >
         <div className="space-y-1 border-[var(--color-rule)] border-b px-5 py-4">
-          <h2 id={titleId} className="font-serif text-[20px] leading-tight text-[var(--color-ink)]">
+          <h2 id={titleId} className="font-serif text-[20px] text-[var(--color-ink)] leading-tight">
             {title}
           </h2>
           {description ? (

@@ -53,7 +53,7 @@ export function InvitationsPanel({ group, enabled, onInvite }: Props) {
       <div className="flex flex-wrap items-center gap-3">
         <h2
           id="invitations-heading"
-          className="font-medium text-[11px] uppercase tracking-wide text-[var(--color-ink-3)]"
+          className="font-medium text-[11px] text-[var(--color-ink-3)] uppercase tracking-wide"
         >
           Pending invitations ·{" "}
           {entries.filter((e) => e.status === "pending" || e.status === "pending_approval").length}

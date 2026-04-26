@@ -80,7 +80,7 @@ function InviteLanding() {
           <a
             href={`/api/auth/sign-in/social?provider=google&callbackURL=${encodeURIComponent(`/invite/${token}`)}`}
             data-external-nav
-            className="inline-flex items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-rule)] bg-[var(--color-surface)] px-3 py-2 text-[13px] font-medium text-[var(--color-ink)] hover:bg-[var(--color-surface-2)]"
+            className="inline-flex items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-rule)] bg-[var(--color-surface)] px-3 py-2 font-medium text-[13px] text-[var(--color-ink)] hover:bg-[var(--color-surface-2)]"
           >
             Sign in with Google
           </a>
@@ -167,7 +167,7 @@ function InviteLanding() {
           <a
             href="/api/auth/sign-out"
             data-external-nav
-            className="inline-flex items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-rule)] bg-[var(--color-surface)] px-3 py-1.5 text-[13px] font-medium text-[var(--color-ink)] hover:bg-[var(--color-surface-2)]"
+            className="inline-flex items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-rule)] bg-[var(--color-surface)] px-3 py-1.5 font-medium text-[13px] text-[var(--color-ink)] hover:bg-[var(--color-surface-2)]"
           >
             Sign out
           </a>
@@ -259,7 +259,7 @@ function Centered({
         </Link>
         {instanceName ? (
           <div className="ml-2 rounded-[var(--radius-sm)] border border-[var(--color-rule)] bg-[var(--color-surface)] px-2 py-0.5 text-[11px] text-[var(--color-ink-2)]">
-            <span className="font-medium text-[10px] uppercase tracking-wide text-[var(--color-ink-3)]">
+            <span className="font-medium text-[10px] text-[var(--color-ink-3)] uppercase tracking-wide">
               Hearth Instance ·{" "}
             </span>
             {instanceName}

@@ -20,7 +20,7 @@ export function isCurrentMembership(
 }
 
 export function isCurrentAdmin(membership: GroupMembership | null, groupId: StudyGroupId): boolean {
-  return isCurrentMembership(membership, groupId) && membership!.role === "admin";
+  return isCurrentMembership(membership, groupId) && membership?.role === "admin";
 }
 
 /**

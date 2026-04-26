@@ -81,7 +81,14 @@ export function useInvitationPreview(token: string | null) {
     // landing always shows current copy.
     refetchOnWindowFocus: true,
     queryFn: async (): Promise<InvitationPreview> => {
-      const res = await api.invitations["by-token"][":token"].$get({ param: { token: token! } });
+      // `enabled` above guarantees this never runs with a null/empty
+      // token, but TS can't see across React Query's boundary. The
+      // explicit narrow keeps the type system honest without resorting
+      // to `!`.
+      if (token === null || token.length === 0) {
+        throw new Error("token required");
+      }
+      const res = await api.invitations["by-token"][":token"].$get({ param: { token } });
       await assertOk(res);
       return (await res.json()) as InvitationPreview;
     },
