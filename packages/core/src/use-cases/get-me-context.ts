@@ -9,6 +9,15 @@ import type {
 export type GetMeContextInput = {
   /** null for anonymous/unauthenticated requests */
   readonly userId: UserId | null;
+  /**
+   * Worker-resolved public read origin for R2-stored assets. Plumbed in
+   * from the route handler (which reads `env.R2_PUBLIC_ORIGIN`) rather
+   * than being a use-case dep, because it's a runtime config string,
+   * not a port. Threaded through `MeContext.instance` so the SPA reads
+   * server-side truth instead of a build-time `import.meta.env` value
+   * that can drift from the worker's configured bucket.
+   */
+  readonly r2PublicOrigin: string;
 };
 
 export type GetMeContextDeps = {
@@ -46,6 +55,7 @@ export async function getMeContext(
   const instance: MeContextInstance = {
     name: settings?.name ?? "Hearth",
     needsBootstrap: activeOperatorCount === 0,
+    r2PublicOrigin: input.r2PublicOrigin,
   };
 
   const meUser: MeContextUser | null =

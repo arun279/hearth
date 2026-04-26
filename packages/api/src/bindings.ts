@@ -55,6 +55,15 @@ export type AppBindings = {
     /** Cloudflare Rate Limiting bindings (edge counter; no D1/KV/DO writes). */
     readonly writeLimiter: RateLimitHandle;
     readonly authLimiter: RateLimitHandle;
+    /**
+     * Server-side runtime config surfaced to routes. Today this is just
+     * the R2 public read origin (joined with stored avatar / library
+     * keys to render `<img src>`); future config strings the SPA needs
+     * to know about land here too rather than as build-time env vars.
+     */
+    readonly config: {
+      readonly r2PublicOrigin: string;
+    };
     readonly ports: {
       readonly policy: InstanceAccessPolicyRepository;
       readonly settings: InstanceSettingsRepository;

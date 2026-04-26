@@ -10,6 +10,9 @@ import { getMeContext } from "../src/use-cases/get-me-context.ts";
 
 const uid = "u_1" as UserId;
 const now = new Date("2026-04-22T00:00:00.000Z");
+// Stand-in public origin — the use case is plumb-through; a placeholder
+// is fine for shape assertions.
+const TEST_R2_ORIGIN = "https://pub-test.r2.dev";
 
 function makePolicy(
   overrides: Partial<InstanceAccessPolicyRepository> = {},
@@ -83,7 +86,7 @@ const user: User = {
 describe("getMeContext", () => {
   it("returns anonymous envelope when userId is null", async () => {
     const ctx = await getMeContext(
-      { userId: null },
+      { userId: null, r2PublicOrigin: TEST_R2_ORIGIN },
       {
         users: makeUsers(null),
         policy: makePolicy({ countActiveOperators: vi.fn(async () => 0) }),
@@ -94,12 +97,16 @@ describe("getMeContext", () => {
     expect(ctx.v).toBe(1);
     expect(ctx.data.user).toBeNull();
     expect(ctx.data.isOperator).toBe(false);
-    expect(ctx.data.instance).toEqual({ name: "Hearth", needsBootstrap: true });
+    expect(ctx.data.instance).toEqual({
+      name: "Hearth",
+      needsBootstrap: true,
+      r2PublicOrigin: TEST_R2_ORIGIN,
+    });
   });
 
   it("marks needsBootstrap=false once at least one operator exists", async () => {
     const ctx = await getMeContext(
-      { userId: null },
+      { userId: null, r2PublicOrigin: TEST_R2_ORIGIN },
       {
         users: makeUsers(null),
         policy: makePolicy({ countActiveOperators: vi.fn(async () => 1) }),
@@ -109,12 +116,16 @@ describe("getMeContext", () => {
         groups: makeGroups(),
       },
     );
-    expect(ctx.data.instance).toEqual({ name: "Jolene's Hearth", needsBootstrap: false });
+    expect(ctx.data.instance).toEqual({
+      name: "Jolene's Hearth",
+      needsBootstrap: false,
+      r2PublicOrigin: TEST_R2_ORIGIN,
+    });
   });
 
   it("exposes isOperator=true when the authenticated user is an operator", async () => {
     const ctx = await getMeContext(
-      { userId: uid },
+      { userId: uid, r2PublicOrigin: TEST_R2_ORIGIN },
       {
         users: makeUsers(user),
         policy: makePolicy({
@@ -136,7 +147,7 @@ describe("getMeContext", () => {
 
   it("returns user=null when the stored email was scrubbed (defensive)", async () => {
     const ctx = await getMeContext(
-      { userId: uid },
+      { userId: uid, r2PublicOrigin: TEST_R2_ORIGIN },
       {
         users: makeUsers({ ...user, email: null }),
         policy: makePolicy({ countActiveOperators: vi.fn(async () => 1) }),
@@ -162,7 +173,7 @@ describe("getMeContext", () => {
       removedAt: null,
     };
     const ctx = await getMeContext(
-      { userId: uid },
+      { userId: uid, r2PublicOrigin: TEST_R2_ORIGIN },
       {
         users: makeUsers(user),
         policy: makePolicy({ countActiveOperators: vi.fn(async () => 1) }),
