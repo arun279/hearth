@@ -10,6 +10,7 @@ import { InvitationsPanel } from "../components/groups/invitations-panel.tsx";
 import { InviteDialog } from "../components/groups/invite-dialog.tsx";
 import { LeaveGroupDialog } from "../components/groups/leave-group-dialog.tsx";
 import { MemberRow } from "../components/groups/member-row.tsx";
+import { useDocumentTitle } from "../hooks/use-document-title.ts";
 import { useGroupMembers } from "../hooks/use-group-members.ts";
 import { useGroup } from "../hooks/use-groups.ts";
 import { useMeContext } from "../hooks/use-me-context.ts";
@@ -41,6 +42,8 @@ function PeoplePage() {
   const group = useGroup(params.groupId, signedIn);
   const members = useGroupMembers(params.groupId, signedIn && group.data !== undefined);
 
+  useDocumentTitle(["People", group.data?.group.name]);
+
   const [membersDialogOpen, setMembersDialogOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
@@ -66,7 +69,14 @@ function PeoplePage() {
       {(detail) => {
         const { group: g, myMembership, caps } = detail;
         const archived = g.status === "archived";
-        const canManage = caps.canUpdateMetadata;
+        // The admin-side affordances are gated on `canManageMembership`
+        // (and `canCreateInvitation`, which has identical authority
+        // shape today) rather than `canUpdateMetadata`. The latter
+        // requires Group Admin membership; the former includes Instance
+        // Operators acting as the recovery path the policy was written
+        // for.
+        const canManage = caps.canManageMembership;
+        const canInvite = caps.canCreateInvitation;
         const myEntry: GroupMembership | null =
           members.data?.entries.find((e) => e.membership.userId === myUserId)?.membership ??
           myMembership ??
@@ -109,7 +119,7 @@ function PeoplePage() {
                       <Settings size={12} aria-hidden /> Manage members
                     </Button>
                   ) : null}
-                  {canManage ? (
+                  {canInvite ? (
                     <Button size="sm" variant="primary" onClick={() => setInviteOpen(true)}>
                       + Invite
                     </Button>
@@ -179,7 +189,7 @@ function PeoplePage() {
                 )}
               </section>
 
-              {canManage ? (
+              {canInvite ? (
                 <div className="mt-6">
                   <InvitationsPanel
                     group={g}
