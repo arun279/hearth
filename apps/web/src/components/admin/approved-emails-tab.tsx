@@ -105,7 +105,7 @@ export function ApprovedEmailsTab() {
   return (
     <div className="space-y-5">
       <section className="space-y-3 rounded-[var(--radius-md)] border border-[var(--color-rule)] bg-[var(--color-surface)] p-3.5">
-        <div className="text-[11px] font-medium uppercase tracking-wide text-[var(--color-ink-3)]">
+        <div className="font-medium text-[11px] text-[var(--color-ink-3)] uppercase tracking-wide">
           Add an email
         </div>
         <form className="space-y-3" noValidate onSubmit={onAdd}>
@@ -149,7 +149,7 @@ export function ApprovedEmailsTab() {
         <details className="rounded-[var(--radius-md)] border border-[var(--color-rule)] bg-[var(--color-bg)] p-3">
           <summary
             id={bulkSummaryId}
-            className="cursor-pointer text-[12px] font-medium text-[var(--color-ink-2)]"
+            className="cursor-pointer font-medium text-[12px] text-[var(--color-ink-2)]"
           >
             Paste a list (one email per line)
           </summary>

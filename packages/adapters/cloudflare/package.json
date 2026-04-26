@@ -19,6 +19,7 @@
     "@hearth/domain": "workspace:*",
     "@hearth/ports": "workspace:*",
     "@paralleldrive/cuid2": "catalog:",
+    "aws4fetch": "catalog:",
     "better-auth": "catalog:",
     "drizzle-orm": "catalog:"
   },

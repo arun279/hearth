@@ -1,14 +1,22 @@
 export { canAddApprovedEmail } from "./can-add-approved-email.ts";
 export { canArchiveGroup } from "./can-archive-group.ts";
+export { canAssignGroupAdmin } from "./can-assign-group-admin.ts";
 export { canAssignInstanceOperator } from "./can-assign-instance-operator.ts";
+export { canConsumeInvitation } from "./can-consume-invitation.ts";
+export { canCreateGroupInvitation } from "./can-create-group-invitation.ts";
 export { canCreateStudyGroup } from "./can-create-study-group.ts";
 export { canCreateTrack } from "./can-create-track.ts";
 export { canEnrollInTrack } from "./can-enroll-in-track.ts";
+export { canLeaveGroup } from "./can-leave-group.ts";
+export { canManageGroupMembership } from "./can-manage-group-membership.ts";
 export { canRemoveApprovedEmail } from "./can-remove-approved-email.ts";
+export { canRemoveGroupMember } from "./can-remove-group-member.ts";
 export { canRenameInstance } from "./can-rename-instance.ts";
+export { canRevokeGroupInvitation } from "./can-revoke-group-invitation.ts";
 export { canRevokeInstanceOperator } from "./can-revoke-instance-operator.ts";
 export { canUnarchiveGroup } from "./can-unarchive-group.ts";
 export { canUpdateGroupMetadata } from "./can-update-group-metadata.ts";
+export { canUpdateOwnGroupProfile } from "./can-update-own-group-profile.ts";
 export { canViewGroup } from "./can-view-group.ts";
 export {
   isActiveOperator,

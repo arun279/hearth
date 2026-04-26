@@ -23,7 +23,7 @@ export function GroupCard({ group, myRole }: Props) {
     >
       <div className="flex items-center gap-2">
         <div className="min-w-0 flex-1">
-          <div className="truncate font-serif font-medium text-[15px] text-[var(--color-ink)]">
+          <div className="truncate font-medium font-serif text-[15px] text-[var(--color-ink)]">
             {group.name}
           </div>
           {group.description ? (

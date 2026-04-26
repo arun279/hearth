@@ -101,6 +101,9 @@ export const pendingUploads = sqliteTable(
   },
   (t) => [
     index("pending_uploads_expires_at_idx").on(t.expiresAt),
-    check("pending_uploads_context", sql`${t.context} IN ('library', 'pending_contribution')`),
+    check(
+      "pending_uploads_context",
+      sql`${t.context} IN ('library', 'pending_contribution', 'avatar')`,
+    ),
   ],
 );

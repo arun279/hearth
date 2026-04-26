@@ -9,6 +9,7 @@ import { CreateGroupDialog } from "../components/groups/create-group-dialog.tsx"
 import { GroupCard } from "../components/groups/group-card.tsx";
 import { Sidebar } from "../components/sidebar.tsx";
 import { SignInScreen } from "../components/sign-in-screen.tsx";
+import { useDocumentTitle } from "../hooks/use-document-title.ts";
 import { useCreateGroup, useMyGroups } from "../hooks/use-groups.ts";
 import { useMeContext } from "../hooks/use-me-context.ts";
 
@@ -24,6 +25,9 @@ export const Route = createFileRoute("/")({
 function HomeComponent() {
   const search = Route.useSearch();
   const { data, isLoading, isError } = useMeContext();
+
+  // Signed-out → "Hearth"; signed-in → "Your groups — Hearth".
+  useDocumentTitle([data?.data.user ? "Your groups" : null]);
 
   if (isLoading) {
     return (
@@ -85,7 +89,7 @@ function SignedInHome({
   return (
     <div className="mx-auto max-w-3xl px-5 py-8 md:px-8">
       <header className="space-y-2">
-        <h1 className="font-serif text-[28px] leading-tight text-[var(--color-ink)]">
+        <h1 className="font-serif text-[28px] text-[var(--color-ink)] leading-tight">
           Your groups
         </h1>
         <p className="text-[13px] text-[var(--color-ink-2)]">

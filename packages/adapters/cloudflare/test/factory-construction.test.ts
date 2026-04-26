@@ -14,6 +14,7 @@ import {
   createStudyGroupRepository,
   createStudySessionRepository,
   createSystemFlagRepository,
+  createUploadCoordinationRepository,
   createUserRepository,
 } from "../src/index.ts";
 
@@ -48,7 +49,18 @@ describe("adapter factory construction", () => {
     ["createActivityRecordRepository", () => createActivityRecordRepository({ db, gate })],
     ["createStudySessionRepository", () => createStudySessionRepository({ db, gate })],
     ["createSystemFlagRepository", () => createSystemFlagRepository({ db })],
-    ["createObjectStorage", () => createObjectStorage(storage, gate)],
+    ["createUploadCoordinationRepository", () => createUploadCoordinationRepository({ db, gate })],
+    [
+      "createObjectStorage",
+      () =>
+        createObjectStorage(storage, gate, {
+          endpoint: "https://example.r2.cloudflarestorage.com",
+          accessKeyId: "test",
+          secretAccessKey: "test",
+          bucket: "hearth-storage",
+          maxExpirySeconds: 900,
+        }),
+    ],
     ["createClock", () => createClock()],
     ["createIdGenerator", () => createIdGenerator()],
     ["createScheduler", () => createScheduler()],

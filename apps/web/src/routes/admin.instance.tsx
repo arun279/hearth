@@ -6,8 +6,15 @@ import { ApprovedEmailsTab } from "../components/admin/approved-emails-tab.tsx";
 import { OperatorsTab } from "../components/admin/operators-tab.tsx";
 import { SettingsTab } from "../components/admin/settings-tab.tsx";
 import { Sidebar } from "../components/sidebar.tsx";
+import { useDocumentTitle } from "../hooks/use-document-title.ts";
 import { useMeContext } from "../hooks/use-me-context.ts";
 import { loadMeContext } from "../lib/me-context.ts";
+
+const TAB_TITLES: Record<"settings" | "operators" | "emails", string> = {
+  settings: "Instance settings",
+  operators: "Operators",
+  emails: "Approved emails",
+};
 
 const searchSchema = z.object({
   tab: z.enum(["settings", "operators", "emails"]).optional(),
@@ -46,14 +53,16 @@ function InstanceAdminPage() {
 
   const active = search.tab ?? "settings";
 
+  useDocumentTitle([TAB_TITLES[active], "Admin"]);
+
   return (
     <AppShell sidebar={<Sidebar me={ctx.data?.data ?? me} />} mobileTitle={instanceName}>
       <div className="mx-auto max-w-3xl space-y-6 px-5 py-8 md:px-8">
         <header className="space-y-2">
-          <div className="text-[11px] font-medium uppercase tracking-wide text-[var(--color-ink-3)]">
+          <div className="font-medium text-[11px] text-[var(--color-ink-3)] uppercase tracking-wide">
             Admin
           </div>
-          <h1 className="font-serif text-[28px] leading-tight text-[var(--color-ink)]">
+          <h1 className="font-serif text-[28px] text-[var(--color-ink)] leading-tight">
             Instance settings
           </h1>
           <p className="text-[13px] text-[var(--color-ink-2)]">

@@ -48,6 +48,10 @@ const adminMembership: GroupMembership = {
   role: "admin",
   joinedAt: now,
   removedAt: null,
+  removedBy: null,
+  attributionOnLeave: null,
+  displayNameSnapshot: null,
+  profile: { nickname: null, avatarUrl: null, bio: null, updatedAt: null },
 };
 
 const operator: InstanceOperator = {
@@ -99,7 +103,19 @@ function makeGroups(overrides: Partial<StudyGroupRepository>): StudyGroupReposit
     updateMetadata: vi.fn(),
     membership: vi.fn(async () => adminMembership),
     membershipsForUser: vi.fn(async () => []),
+    listMemberships: vi.fn(async () => []),
+    listAdmins: vi.fn(async () => []),
     countAdmins: vi.fn(async () => 1),
+    addMembership: vi.fn(),
+    removeMembership: vi.fn(),
+    setMembershipRole: vi.fn(),
+    updateProfile: vi.fn(),
+    createInvitation: vi.fn(),
+    invitationByToken: vi.fn(),
+    invitationById: vi.fn(),
+    listPendingInvitations: vi.fn(async () => []),
+    revokeInvitation: vi.fn(),
+    consumeInvitation: vi.fn(),
     counts: vi.fn(async () => ({ memberCount: 3, trackCount: 1, libraryItemCount: 4 })),
     ...overrides,
   };
@@ -118,6 +134,8 @@ describe("getGroup", () => {
       canArchive: true,
       canUnarchive: true,
       canUpdateMetadata: true,
+      canManageMembership: true,
+      canCreateInvitation: true,
     });
   });
 
@@ -160,9 +178,16 @@ describe("getGroup", () => {
     );
     expect(out.group).toEqual(activeGroup);
     expect(out.myMembership).toBeNull();
-    // Operator who is not a member cannot mutate; caps reflect that.
+    // The metadata-edit + archive caps require Group Admin membership;
+    // a non-member operator does not satisfy them.
     expect(out.caps.canUpdateMetadata).toBe(false);
     expect(out.caps.canArchive).toBe(false);
+    // But manage-membership / create-invitation extend authority to
+    // operators (recovery path) — without these caps the People page
+    // hides admin affordances even for the operator the policy was
+    // written for. This is the CR#1 regression test.
+    expect(out.caps.canManageMembership).toBe(true);
+    expect(out.caps.canCreateInvitation).toBe(true);
   });
 
   it("returns NOT_FOUND when group does not exist", async () => {

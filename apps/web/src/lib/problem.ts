@@ -60,6 +60,26 @@ const policyDenialMessages: Record<string, string> = {
   invalid_instance_name: "The instance name must be 1–80 characters.",
   email_revoked: "That email's access was revoked. Re-approve it to re-grant entry.",
   unauthenticated: "Please sign in to continue.",
+  not_group_admin: "Only a Group Admin can do that.",
+  not_group_member: "You aren't a member of this group.",
+  group_archived: "This group is archived. Unarchive it first to make changes.",
+  would_orphan_admin:
+    "Active groups must keep at least one Group Admin. Promote another admin first.",
+  not_self: "You can only edit your own profile in this group.",
+  invalid_nickname: "Nickname must be 1–60 characters.",
+  invalid_bio: "Bio must be 800 characters or fewer.",
+  invitation_expired: "This invitation expired. Ask a Group Admin for a new one.",
+  invitation_revoked: "This invitation was revoked.",
+  invitation_consumed: "This invitation has already been used.",
+  invitation_email_mismatch: "This invitation was issued to a different email address.",
+  email_not_approved_yet:
+    "Your email isn't on the Approved list for this Hearth Instance yet. Ask an Instance Operator to approve it, then try again.",
+  invitation_not_found: "This invitation is no longer valid.",
+  invalid_avatar_size: "Avatars must be 512 KB or smaller.",
+  invalid_avatar_mime: "Avatars must be PNG, JPEG, or WebP.",
+  upload_missing: "The upload didn't complete. Try again.",
+  upload_size_mismatch: "The uploaded file's size didn't match. Try again.",
+  pending_upload_not_found: "Upload session expired. Start a new one.",
 };
 
 function problemMessage(problem: ApiProblem): string {

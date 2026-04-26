@@ -46,6 +46,15 @@
         "noConsole": { "level": "error", "options": { "allow": ["error", "warn"] } },
         "noFocusedTests": "error"
       },
+      "complexity": {
+        // TS strictness in `packages/tsconfig/base.json` enables
+        // `noPropertyAccessFromIndexSignature`, which makes dot-syntax
+        // access on index-signature types (process.env, import.meta.env)
+        // a typecheck error. Biome's `useLiteralKeys` would have us
+        // rewrite `process.env["CI"]` to `process.env.CI` — TS would
+        // then reject it. Disable the rule rather than fight TS.
+        "useLiteralKeys": "off"
+      },
       "nursery": {
         "noFloatingPromises": "error",
         "useExhaustiveSwitchCases": "error",

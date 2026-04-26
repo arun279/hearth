@@ -121,7 +121,7 @@ export function OperatorsTab({ currentUserId }: Props) {
 
       {revoked.length > 0 ? (
         <section className="space-y-2">
-          <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wide text-[var(--color-ink-3)]">
+          <div className="flex items-center gap-2 font-medium text-[11px] text-[var(--color-ink-3)] uppercase tracking-wide">
             Revoked — audit trail
           </div>
           <ul

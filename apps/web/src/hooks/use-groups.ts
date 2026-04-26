@@ -10,6 +10,9 @@ export type GroupCaps = {
   readonly canArchive: boolean;
   readonly canUnarchive: boolean;
   readonly canUpdateMetadata: boolean;
+  /** Includes Instance Operators (recovery path), not just Group Admins. */
+  readonly canManageMembership: boolean;
+  readonly canCreateInvitation: boolean;
 };
 
 type GroupCounts = {
@@ -18,7 +21,7 @@ type GroupCounts = {
   readonly libraryItemCount: number;
 };
 
-type GroupDetail = {
+export type GroupDetail = {
   readonly group: StudyGroup;
   readonly myMembership: GroupMembership | null;
   readonly counts: GroupCounts;
