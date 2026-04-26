@@ -127,6 +127,12 @@ const rules = [
     excludePathSuffixes: [
       "scripts/check-conventions.mjs",
       "packages/core/src/use-cases/_lib/load-viewable-group.ts",
+      // load-viewable-track is the parallel helper for tracks — it
+      // legitimately calls groups.byId to load the parent group as part
+      // of the bundled canViewTrack check, mirroring loadViewableGroup
+      // exactly. The visibility gate is enforced by canViewTrack, not
+      // bypassed.
+      "packages/core/src/use-cases/_lib/load-viewable-track.ts",
       // Invitation preview is unauthenticated by design — the token is the
       // credential, the actor has no membership yet, and the response
       // contract intentionally exposes group + instance name to the
