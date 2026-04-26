@@ -106,7 +106,25 @@ Two Google accounts and two browsers (or one normal + one Incognito) make it pos
 
 Removing an Approved Email while the matching user is signed in is the only action that hard-deletes live sessions. Watch the second browser: the next API call returns 401 and the SPA redirects to the sign-in screen.
 
-## 9. Resetting local state
+## 9. Inspecting R2 (avatars and library uploads)
+
+The Worker writes uploaded avatars to the R2 binding named `STORAGE` under keys shaped `avatars/<userId>/<groupId>/<sha>`. To see what's in the local bucket while the dev Worker is running, pass `--local` so Wrangler reads the Miniflare-backed bucket rather than the production R2 namespace:
+
+```bash
+# Newest objects first, capped at 50 — `--local` is load-bearing.
+pnpm exec wrangler r2 object list hearth-storage --local --limit 50
+
+# Inspect a specific avatar.
+pnpm exec wrangler r2 object get hearth-storage avatars/<userId>/<groupId>/<sha> --local --pipe | file -
+```
+
+If a `pending_uploads` row sticks around past its `expiresAt` even after the cron has fired, look at the corresponding R2 key here — if R2 has the object but the row is gone, the sweep didn't run; if neither, both halves cleaned up.
+
+The `<groupId>` segment is what `finalizeAvatarUpload` asserts against — see also the killswitch coverage test (`packages/adapters/cloudflare/test/killswitch-coverage.test.ts`) for the resilience invariant that `gate.assertWritable()` runs before any R2 write.
+
+> **Deferred scope.** M3 ships only avatar uploads through this pipeline. The admin direct-add member endpoint (`POST /api/v1/g/:groupId/members`) and the generic library `<UploadDialog>` are deferred to later milestones. Today, members enter a group via `POST /g/:groupId/invitations` → `POST /invitations/consume`; library uploads do not exist yet.
+
+## 10. Resetting local state
 
 If you want a clean database:
 
@@ -117,7 +135,7 @@ pnpm db:migrate:dev
 
 That wipes the Miniflare D1 store; your next Worker start reseeds the singleton `instance_settings` row via migration `0002`.
 
-## 10. Troubleshooting
+## 11. Troubleshooting
 
 - **`pnpm db:migrate:dev` says "wrangler: not found"** — run `pnpm install` first; wrangler is a dev dependency of `apps/worker` and pnpm links it into place on install.
 - **Sign-in succeeds but the SPA shows "Hearth is unreachable"** — the SPA hit `/api/v1/me/context` before the Worker was up. Refresh; Vite's proxy is lazy.
