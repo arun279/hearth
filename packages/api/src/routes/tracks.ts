@@ -94,8 +94,9 @@ export const tracksRoutes = new Hono<AppBindings>()
         );
         return c.json(result);
       } catch (err) {
-        // canViewTrack denial → DomainError(NOT_FOUND) so the route returns
-        // 404, not 403. Existence is not leaked.
+        // canViewGroup denial (via loadViewableTrack → loadViewableGroup)
+        // → DomainError(NOT_FOUND) so the route returns 404, not 403.
+        // Existence is not leaked.
         return problemResponse(c, mapUnknown(err));
       }
     },

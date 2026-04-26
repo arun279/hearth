@@ -8,13 +8,13 @@ import {
   type User,
   type UserId,
 } from "@hearth/domain";
-import { canViewTrack } from "@hearth/domain/policy/can-view-track";
 import type {
   InstanceAccessPolicyRepository,
   LearningTrackRepository,
   StudyGroupRepository,
   UserRepository,
 } from "@hearth/ports";
+import { loadViewableGroup } from "./load-viewable-group.ts";
 
 export type ViewableTrackContext = {
   readonly actor: User;
@@ -32,50 +32,45 @@ export type LoadViewableTrackDeps = {
 };
 
 /**
- * Load a Learning Track + the actor's group membership, track enrollment,
- * and operator status, then run `canViewTrack`. Throws
+ * Load a Learning Track and its parent group + actor context, with
+ * visibility gated through the group's wrapper. Throws
  * `DomainError("NOT_FOUND", …)` for a missing actor / track / group OR a
  * view-denied actor — never `FORBIDDEN`. Routes map `NOT_FOUND` → 404 so a
- * non-member probing by id sees the same status as a non-existent track:
- * existence is not leaked through the 403/404 distinction.
+ * non-member probing by id sees the same status as a non-existent track.
  *
- * Use cases that mutate or read a hideable track MUST load it through this
- * helper rather than calling `tracks.byId` directly. Mirrors
- * `loadViewableGroup` exactly so reviewers reading either side recognize
- * the shape; see `AGENTS.md` § Viewability before authorization.
+ * The parent-group load delegates to `loadViewableGroup` rather than
+ * calling `groups.byId` here directly: that helper IS the safe path, and
+ * the visibility check it bundles (`canViewGroup`) is exactly the gate we
+ * need — group membership (or operator status) is what authorizes seeing
+ * a track inside the group.
  */
 export async function loadViewableTrack(
   actorId: UserId,
   trackId: LearningTrackId,
   deps: LoadViewableTrackDeps,
 ): Promise<ViewableTrackContext> {
-  // First fetch the track so we can derive its groupId — without it we'd
-  // need a second pass to load membership/enrollment, doubling round-trips
-  // on the hot path.
   const track = await deps.tracks.byId(trackId);
   if (!track) {
     throw new DomainError("NOT_FOUND", "Track not found.", "not_found");
   }
 
-  const [actor, group, groupMembership, trackEnrollment, operator] = await Promise.all([
-    deps.users.byId(actorId),
-    deps.groups.byId(track.groupId),
-    deps.groups.membership(track.groupId, actorId),
-    deps.tracks.enrollment(trackId, actorId),
-    deps.policy.getOperator(actorId),
-  ]);
+  const {
+    actor,
+    group,
+    membership: groupMembership,
+  } = await loadViewableGroup(actorId, track.groupId, deps);
 
-  if (!actor) throw new DomainError("NOT_FOUND", "Actor not found.");
-  if (!group) {
-    // Orphaned track row — should be impossible given the FK, but treat as
-    // hidden rather than 500 so probing by id still returns 404.
+  // The port contract for `byId(id)` does not formally declare
+  // `result.id === id`. Guards against test-fake drift, memoizing
+  // wrappers, or future bulk-load helpers that violate the implicit
+  // invariant — NOT_FOUND collapses to the same response shape as a
+  // non-existent track, preserving the helper's enumeration-oracle
+  // protection.
+  if (track.groupId !== group.id) {
     throw new DomainError("NOT_FOUND", "Track not found.", "not_found");
   }
 
-  const view = canViewTrack(actor, group, track, groupMembership, operator);
-  if (!view.ok) {
-    throw new DomainError("NOT_FOUND", view.reason.message, view.reason.code);
-  }
+  const trackEnrollment = await deps.tracks.enrollment(trackId, actorId);
 
   return { actor, group, track, groupMembership, trackEnrollment };
 }

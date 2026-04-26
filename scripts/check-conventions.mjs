@@ -125,14 +125,7 @@ const rules = [
     regex: /\bgroups\.byId\(/,
     includePathPrefixes: ["packages/core/src/use-cases/"],
     excludePathSuffixes: [
-      "scripts/check-conventions.mjs",
       "packages/core/src/use-cases/_lib/load-viewable-group.ts",
-      // load-viewable-track is the parallel helper for tracks — it
-      // legitimately calls groups.byId to load the parent group as part
-      // of the bundled canViewTrack check, mirroring loadViewableGroup
-      // exactly. The visibility gate is enforced by canViewTrack, not
-      // bypassed.
-      "packages/core/src/use-cases/_lib/load-viewable-track.ts",
       // Invitation preview is unauthenticated by design — the token is the
       // credential, the actor has no membership yet, and the response
       // contract intentionally exposes group + instance name to the
@@ -141,7 +134,7 @@ const rules = [
       "packages/core/src/use-cases/preview-invitation.ts",
     ],
     reason:
-      "Use cases must load Study Groups via loadViewableGroup() — direct `groups.byId(` skips canViewGroup and creates a 403/404 enumeration oracle (AGENTS.md § Viewability before authorization).",
+      "Use cases must load Study Groups via loadViewableGroup() — direct repository-byId calls skip canViewGroup and create a 403/404 enumeration oracle (AGENTS.md § Viewability before authorization).",
   },
   {
     name: "no-bespoke-dialog-role",

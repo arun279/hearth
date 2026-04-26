@@ -124,7 +124,8 @@ test.describe("M4 — Track lifecycle", () => {
     await ctxA.close();
 
     // Member B is signed in but not in the group AND not an operator —
-    // operators can view any track via `canViewTrack`'s operator carve-out,
+    // operators can view any track via canViewGroup's operator carve-out
+    // (loadViewableTrack delegates to loadViewableGroup for visibility),
     // so without demoting we'd be exercising the wrong path.
     const memberB = await seedOperator({
       userId: "u_e2e_member_b",

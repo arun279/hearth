@@ -24,7 +24,6 @@ export { canUnarchiveGroup } from "./can-unarchive-group.ts";
 export { canUpdateGroupMetadata } from "./can-update-group-metadata.ts";
 export { canUpdateOwnGroupProfile } from "./can-update-own-group-profile.ts";
 export { canViewGroup } from "./can-view-group.ts";
-export { canViewTrack } from "./can-view-track.ts";
 export {
   isActiveOperator,
   isCurrentEnrollment,
