@@ -1,5 +1,10 @@
 export { AppShell, type AppShellProps } from "./app-shell.tsx";
 export { Avatar, type AvatarProps } from "./avatar.tsx";
+export {
+  AvatarStack,
+  type AvatarStackEntry,
+  type AvatarStackProps,
+} from "./avatar-stack.tsx";
 export { Badge, type BadgeProps, type BadgeTone } from "./badge.tsx";
 export { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from "./button.tsx";
 export { Callout, type CalloutProps, type CalloutTone } from "./callout.tsx";

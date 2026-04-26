@@ -5,6 +5,7 @@ import { groupsRoutes } from "./routes/groups.ts";
 import { instanceRoutes } from "./routes/instance.ts";
 import { invitationsRoutes } from "./routes/invitations.ts";
 import { meRoutes } from "./routes/me.ts";
+import { tracksRoutes } from "./routes/tracks.ts";
 
 /**
  * Builds the Hono app under `/api/v1/*`. apps/worker is the composition root —
@@ -19,6 +20,7 @@ export function createApiRouter() {
     .route("/me", meRoutes)
     .route("/instance", instanceRoutes)
     .route("/g", groupsRoutes)
+    .route("/tracks", tracksRoutes)
     .route("/invitations", invitationsRoutes)
     .route("/admin", adminRoutes);
   return app;

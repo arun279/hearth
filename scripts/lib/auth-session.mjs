@@ -176,9 +176,20 @@ function seedOperator({ userId, email, name, now = Date.now() }) {
  * @param {string} userId
  */
 function resetUserState(userId) {
+  // Cascade order: children → parents so SQLite's FK enforcement never
+  // rejects the parent delete. Every dependent table that FKs into
+  // `groups` has to drop its rows for orphaned groups before we can
+  // drop the groups themselves. The "orphaned group" definition is
+  // identical at every step so the dependent deletes target the same
+  // set of groups the final delete will remove.
+  const orphanedGroups = `(SELECT g.id FROM groups g WHERE NOT EXISTS (SELECT 1 FROM group_memberships m WHERE m.group_id = g.id))`;
   executeSql([
     `DELETE FROM sessions WHERE user_id = '${q(userId)}'`,
     `DELETE FROM group_memberships WHERE user_id = '${q(userId)}'`,
+    `DELETE FROM track_enrollments WHERE user_id = '${q(userId)}' OR track_id IN (SELECT t.id FROM tracks t WHERE t.group_id IN ${orphanedGroups})`,
+    `DELETE FROM tracks WHERE group_id IN ${orphanedGroups}`,
+    `DELETE FROM group_invitations WHERE group_id IN ${orphanedGroups} OR created_by = '${q(userId)}' OR consumed_by = '${q(userId)}' OR revoked_by = '${q(userId)}'`,
+    `DELETE FROM pending_uploads WHERE group_id IN ${orphanedGroups} OR uploader_user_id = '${q(userId)}'`,
     `DELETE FROM groups WHERE id NOT IN (SELECT DISTINCT group_id FROM group_memberships)`,
   ]);
 }

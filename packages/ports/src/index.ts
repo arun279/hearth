@@ -11,7 +11,11 @@ export type {
 export type { InstanceSettingsRepository } from "./instance-settings-repository.ts";
 export type { KillswitchGate, KillswitchMode } from "./killswitch-gate.ts";
 export type { LearningActivityRepository } from "./learning-activity-repository.ts";
-export type { LearningTrackRepository } from "./learning-track-repository.ts";
+export type {
+  LearningTrackMetadataPatch,
+  LearningTrackRepository,
+  LearningTrackSummaryCounts,
+} from "./learning-track-repository.ts";
 export type { LibraryItemRepository } from "./library-item-repository.ts";
 export type {
   ObjectHead,

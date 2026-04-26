@@ -2,12 +2,15 @@ import {
   archiveGroup,
   createGroupInvitation,
   createStudyGroup,
+  createTrack,
   finalizeAvatarUpload,
   getGroup,
+  getTrackSummary,
   leaveGroup,
   listGroupInvitations,
   listGroupMembers,
   listMyGroups,
+  listTracksInGroup,
   removeGroupMember,
   requestAvatarUpload,
   revokeGroupInvitation,
@@ -49,6 +52,16 @@ const userIdParam = z.object({
 const invitationIdParam = z.object({
   groupId: z.string().min(1).max(64),
   invitationId: z.string().min(1).max(64),
+});
+
+const trackInGroupParam = z.object({
+  groupId: z.string().min(1).max(64),
+  trackId: z.string().min(1).max(64),
+});
+
+const createTrackBody = z.object({
+  name: z.string().trim().min(1).max(120),
+  description: z.string().trim().max(2000).optional(),
 });
 
 const emailField = z
@@ -490,6 +503,99 @@ export const groupsRoutes = new Hono<AppBindings>()
           { users: c.var.ports.users, groups: c.var.ports.groups, policy: c.var.ports.policy },
         );
         return c.body(null, 204);
+      } catch (err) {
+        return problemResponse(c, mapUnknown(err));
+      }
+    },
+  )
+
+  // ── Tracks (group-scoped surface) ─────────────────────────────────────
+  // The single-track surface (`/api/v1/tracks/:trackId/*`) lives in
+  // `tracks.ts`; this section owns the create/list/summary endpoints that
+  // are naturally group-scoped because the group id is meaningful in the
+  // URL (lists, creation context, breadcrumb scoping).
+
+  // POST /g/:groupId/tracks — Group Admin creates a Learning Track.
+  .post(
+    "/:groupId/tracks",
+    zValidator("param", groupIdParam, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    zValidator("json", createTrackBody, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    async (c) => {
+      const { groupId } = c.req.valid("param");
+      const body = c.req.valid("json");
+      try {
+        const track = await createTrack(
+          {
+            actor: getUserId(c),
+            groupId: groupId as StudyGroupId,
+            name: body.name,
+            ...(body.description !== undefined ? { description: body.description } : {}),
+          },
+          {
+            users: c.var.ports.users,
+            groups: c.var.ports.groups,
+            tracks: c.var.ports.tracks,
+            policy: c.var.ports.policy,
+          },
+        );
+        return c.json(track, 201);
+      } catch (err) {
+        return problemResponse(c, mapUnknown(err));
+      }
+    },
+  )
+
+  // GET /g/:groupId/tracks — list Learning Tracks visible to the actor.
+  .get(
+    "/:groupId/tracks",
+    zValidator("param", groupIdParam, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    async (c) => {
+      const { groupId } = c.req.valid("param");
+      try {
+        const entries = await listTracksInGroup(
+          { actor: getUserId(c), groupId: groupId as StudyGroupId },
+          {
+            users: c.var.ports.users,
+            groups: c.var.ports.groups,
+            tracks: c.var.ports.tracks,
+            policy: c.var.ports.policy,
+          },
+        );
+        return c.json({ entries });
+      } catch (err) {
+        return problemResponse(c, mapUnknown(err));
+      }
+    },
+  )
+
+  // GET /g/:groupId/t/:trackId/summary — composite tab counts for the
+  // track home. Each count hits an indexed column; M8/M13/M6/M15 fill in
+  // the now-zero fields. Lives under the group-scoped path because the
+  // SPA's react-query invalidation keys nest by group.
+  .get(
+    "/:groupId/t/:trackId/summary",
+    zValidator("param", trackInGroupParam, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    async (c) => {
+      const { trackId } = c.req.valid("param");
+      try {
+        const counts = await getTrackSummary(
+          { actor: getUserId(c), trackId: trackId as LearningTrackId },
+          {
+            users: c.var.ports.users,
+            groups: c.var.ports.groups,
+            tracks: c.var.ports.tracks,
+            policy: c.var.ports.policy,
+          },
+        );
+        return c.json(counts);
       } catch (err) {
         return problemResponse(c, mapUnknown(err));
       }

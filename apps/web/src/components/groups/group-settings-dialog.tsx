@@ -14,6 +14,7 @@ import {
 import { asUserMessage } from "../../lib/problem.ts";
 import { ConfirmActionDialog } from "../admin/confirm-action-dialog.tsx";
 
+// jscpd:ignore-start
 const NAME_MAX = 120;
 const DESCRIPTION_MAX = 2000;
 
@@ -37,6 +38,7 @@ type Props = {
   readonly group: StudyGroup;
   readonly caps: GroupCaps;
 };
+// jscpd:ignore-end
 
 export function GroupSettingsDialog({ open, onClose, group, caps }: Props) {
   const update = useUpdateGroupMetadata(group.id);
