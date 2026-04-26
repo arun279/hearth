@@ -21,6 +21,14 @@ export type MeContextInstance = {
    * configured operator knows what to expect.
    */
   readonly needsBootstrap: boolean;
+  /**
+   * Public read origin for R2-stored assets (avatars in M3, library
+   * objects in M5). Either the bucket's `pub-…r2.dev` dev URL or a
+   * custom domain. Server-controlled config, surfaced here so the SPA
+   * doesn't need a parallel build-time env var that can drift from the
+   * worker's truth — see `docs/dev-runbook.md` § "R2 bucket setup".
+   */
+  readonly r2PublicOrigin: string;
 };
 
 /**

@@ -9,7 +9,7 @@ export const meRoutes = new Hono<AppBindings>()
     const userId = c.var.userId as UserId | null;
     try {
       const ctx = await getMeContext(
-        { userId },
+        { userId, r2PublicOrigin: c.var.config.r2PublicOrigin },
         {
           users: c.var.ports.users,
           policy: c.var.ports.policy,

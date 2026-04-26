@@ -98,6 +98,7 @@ app.use("*", async (c, next) => {
   c.set("adminToken", env.KILLSWITCH_TOKEN);
   c.set("writeLimiter", c.env.WRITE_LIMITER);
   c.set("authLimiter", c.env.AUTH_LIMITER);
+  c.set("config", { r2PublicOrigin: env.R2_PUBLIC_ORIGIN });
   c.set("ports", {
     policy,
     settings,

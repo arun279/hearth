@@ -32,8 +32,67 @@ Edit `apps/worker/.dev.vars`:
 - `BETTER_AUTH_TRUSTED_ORIGINS` — leave as `http://localhost:5173,http://localhost:8787`.
 - `KILLSWITCH_TOKEN` — generate with `openssl rand -hex 32`.
 - `HEARTH_BOOTSTRAP_OPERATOR_EMAIL` — the Google account you'll sign in with during bootstrap. This is the one email that can sign in before any Approved Email list exists.
+- `R2_ACCOUNT_ID` — your Cloudflare account ID (the 32-char hex in the dashboard URL).
+- `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` — generated below in § "R2 bucket setup". Required: the worker presigns avatar / library PUT URLs against R2's S3-compatible API on every request, so missing keys fail at boot via Zod validation in `@hearth/config`.
+- `R2_PUBLIC_ORIGIN` — the bucket's public read origin (`https://pub-…r2.dev` or your custom domain). Surfaced to the SPA via `/api/v1/me/context` so client bundles don't need to be rebuilt when the origin changes.
 
 `SENTRY_DSN` and `DISCORD_WEBHOOK_URL` stay commented; the Worker skips those channels gracefully when they're absent.
+
+### R2 bucket setup
+
+A fresh deploy of Hearth needs three R2-side configuration steps before avatars (and, in M5, library uploads) work end-to-end. None of them are version-controlled — they live in Cloudflare account state — so they're easy to forget on a clean install. Run through this list before the first deploy or when bringing up a new dev bucket.
+
+1. **Create the bucket** (if you haven't):
+
+   ```bash
+   pnpm exec wrangler r2 bucket create hearth-storage
+   ```
+
+2. **Mint S3-compatible credentials** scoped to the bucket. In the Cloudflare dashboard: R2 → Manage R2 API Tokens → Create Account API Token → permission **"Object Read & Write"** → **Apply to specific buckets only** → select `hearth-storage`. Copy the **Access Key ID** and **Secret Access Key** immediately (the secret is only shown once). Use those values for `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY`.
+
+3. **Enable public read** so the SPA can render `<img src="${R2_PUBLIC_ORIGIN}/avatars/…">` without authentication. In the bucket → Settings → **Public access** → enable the **R2.dev subdomain** (or attach a custom domain). Copy the resulting URL (no trailing slash) into `R2_PUBLIC_ORIGIN`.
+
+4. **Set the bucket CORS policy** so the SPA can `PUT` directly to the presigned URL the worker mints. Save this as `r2-cors.json`:
+
+   ```json
+   [
+     {
+       "AllowedOrigins": [
+         "https://hearth.wiki",
+         "http://localhost:5173",
+         "http://localhost:8787"
+       ],
+       "AllowedMethods": ["PUT", "GET"],
+       "AllowedHeaders": ["Content-Type"],
+       "ExposeHeaders": [],
+       "MaxAgeSeconds": 3600
+     }
+   ]
+   ```
+
+   Then apply it (idempotent — safe to re-run on every deploy):
+
+   ```bash
+   pnpm exec wrangler r2 bucket cors put hearth-storage --file r2-cors.json
+   ```
+
+5. **In production**, set the four secrets via `wrangler secret put` from `apps/worker/`:
+
+   ```bash
+   cd apps/worker
+   pnpm exec wrangler secret put R2_ACCOUNT_ID
+   pnpm exec wrangler secret put R2_ACCESS_KEY_ID
+   pnpm exec wrangler secret put R2_SECRET_ACCESS_KEY
+   pnpm exec wrangler secret put R2_PUBLIC_ORIGIN
+   ```
+
+6. **Smoke-check** by uploading any object and curling its public URL:
+
+   ```bash
+   curl -I "${R2_PUBLIC_ORIGIN}/avatars/<some-known-key>"
+   ```
+
+   Expect `200 OK` with the right `Content-Type`. A 404 means public access wasn't enabled; a CORS-related browser error means step 4 was skipped.
 
 ## 3. Apply database migrations
 

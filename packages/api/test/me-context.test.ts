@@ -62,6 +62,7 @@ function harness(opts: {
     c.set("auth", { handler: async () => new Response(null) });
     c.set("gate", gate);
     c.set("adminToken", "a".repeat(64));
+    c.set("config", { r2PublicOrigin: "https://pub-test.r2.dev" });
     c.set("ports", buildPorts(opts.ports));
     await next();
   });
@@ -105,7 +106,11 @@ describe("GET /api/v1/me/context", () => {
       v: 1,
       data: {
         user: null,
-        instance: { name: "Hearth", needsBootstrap: true },
+        instance: {
+          name: "Hearth",
+          needsBootstrap: true,
+          r2PublicOrigin: "https://pub-test.r2.dev",
+        },
         isOperator: false,
         memberships: [],
         enrollments: [],
@@ -163,7 +168,11 @@ describe("GET /api/v1/me/context", () => {
     };
     expect(body.v).toBe(1);
     expect(body.data.user).toEqual({ id: "u_1", email: "op@example.com", name: "Op", image: null });
-    expect(body.data.instance).toEqual({ name: "Jolene's Hearth", needsBootstrap: false });
+    expect(body.data.instance).toEqual({
+      name: "Jolene's Hearth",
+      needsBootstrap: false,
+      r2PublicOrigin: "https://pub-test.r2.dev",
+    });
     expect(body.data.isOperator).toBe(true);
   });
 

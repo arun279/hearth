@@ -13,12 +13,6 @@ import { asUserMessage } from "../../lib/problem.ts";
 import { ConfirmActionDialog } from "../admin/confirm-action-dialog.tsx";
 import { MemberRow } from "./member-row.tsx";
 
-const PUBLIC_AVATAR_ORIGIN = (
-  (import.meta as unknown as { env: Record<string, string | undefined> }).env[
-    "VITE_R2_PUBLIC_ORIGIN"
-  ] ?? ""
-).replace(/\/$/, "");
-
 type Props = {
   readonly open: boolean;
   readonly onClose: () => void;
@@ -35,6 +29,11 @@ type Props = {
 export function GroupMembersDialog({ open, onClose, group }: Props) {
   const me = useMeContext();
   const myUserId = me.data?.data.user?.id ?? null;
+  // Server-side truth for the R2 read origin (joined with each row's
+  // stored avatar key). Empty string while /me/context is loading is
+  // fine — `MemberRow` falls back to initials when the joined URL is
+  // empty or invalid.
+  const avatarOrigin = (me.data?.data.instance.r2PublicOrigin ?? "").replace(/\/$/, "");
   const members = useGroupMembers(group.id, open);
   const setRole = useSetGroupAdmin(group.id);
   const remove = useRemoveGroupMember(group.id);
@@ -93,7 +92,7 @@ export function GroupMembersDialog({ open, onClose, group }: Props) {
                   membership={m}
                   displayName={row.displayName}
                   isMe={isMe}
-                  avatarOrigin={PUBLIC_AVATAR_ORIGIN}
+                  avatarOrigin={avatarOrigin}
                   avatarSize={28}
                   actions={
                     <>

@@ -51,8 +51,13 @@ pre-push:
     policy-purity:
       glob: "packages/domain/src/(policy|visibility)/**/*.ts"
       run: pnpm --filter @hearth/domain test -- --run policy-purity
-    db-check-auth:
-      run: pnpm db:check-auth
+    # `db-check-auth` (Better Auth schema-drift guard via `pnpm dlx
+    # @better-auth/cli`) is intentionally NOT in the pre-push pool. Under
+    # parallel-pool memory pressure on small dev VMs, the dlx-spawned Node
+    # + jiti TS-loader pipeline GC-thrashes on cold caches and never
+    # progresses (observed: 7+ min CPU time for a 1.7s standalone run).
+    # CI runs the same check on every PR via .github/workflows/ci.yml, so
+    # local removal is safe — the gate still enforces server-side.
     test-integration:
       run: pnpm test:integration
     coverage:

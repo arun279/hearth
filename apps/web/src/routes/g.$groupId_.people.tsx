@@ -16,15 +16,6 @@ import { useGroup } from "../hooks/use-groups.ts";
 import { useMeContext } from "../hooks/use-me-context.ts";
 import { loadMeContextOrNull } from "../lib/me-context.ts";
 
-// Build-time injection so the SPA renders public R2 asset URLs without
-// round-tripping the Worker. Vite reads `VITE_R2_PUBLIC_ORIGIN` from
-// `.env` / `.env.production`.
-const PUBLIC_AVATAR_ORIGIN = (
-  (import.meta as unknown as { env: Record<string, string | undefined> }).env[
-    "VITE_R2_PUBLIC_ORIGIN"
-  ] ?? ""
-).replace(/\/$/, "");
-
 export const Route = createFileRoute("/g/$groupId_/people")({
   beforeLoad: async ({ context }) => {
     const me = await loadMeContextOrNull(context.queryClient);
@@ -63,6 +54,10 @@ function PeoplePage() {
   }
   const myUserId = meUser.id;
   const myDisplayName = meUser.name ?? meUser.email;
+  // Server-side truth for R2 public reads, scrubbed of trailing slash so
+  // the join against the stored avatar key is well-formed regardless of
+  // whether the operator pasted the bucket URL with or without one.
+  const avatarOrigin = meData.instance.r2PublicOrigin.replace(/\/$/, "");
 
   return (
     <GroupPageShell me={meData} group={group}>
@@ -147,7 +142,7 @@ function PeoplePage() {
                       userId={myUserId}
                       currentAvatarUrl={myEntry.profile.avatarUrl}
                       name={myEntry.profile.nickname ?? myDisplayName}
-                      publicOrigin={PUBLIC_AVATAR_ORIGIN}
+                      publicOrigin={avatarOrigin}
                       disabled={archived}
                     />
                   </div>
@@ -182,7 +177,7 @@ function PeoplePage() {
                         membership={row.membership}
                         displayName={row.displayName}
                         isMe={row.membership.userId === myUserId}
-                        avatarOrigin={PUBLIC_AVATAR_ORIGIN}
+                        avatarOrigin={avatarOrigin}
                       />
                     ))}
                   </ul>
