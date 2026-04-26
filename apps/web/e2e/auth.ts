@@ -37,6 +37,14 @@ export function resetInstanceState(): void {
     // the e2e-only groups. A group that still has any non-e2e member
     // survives.
     "DELETE FROM group_memberships WHERE user_id LIKE 'u_e2e_%'",
+    // M3 dependents that FK into groups/users — drop them before the
+    // owning rows so SQLite's FK enforcement doesn't reject the cascade.
+    // Each clause is scoped to e2e-only data (orphan groups, or rows
+    // authored/touched by an e2e user) so a developer signed in to the
+    // dev DB never has their real invitations or in-flight uploads
+    // wiped between specs.
+    "DELETE FROM group_invitations WHERE group_id IN (SELECT g.id FROM groups g WHERE NOT EXISTS (SELECT 1 FROM group_memberships m WHERE m.group_id = g.id)) OR created_by LIKE 'u_e2e_%' OR consumed_by LIKE 'u_e2e_%' OR revoked_by LIKE 'u_e2e_%'",
+    "DELETE FROM pending_uploads WHERE group_id IN (SELECT g.id FROM groups g WHERE NOT EXISTS (SELECT 1 FROM group_memberships m WHERE m.group_id = g.id)) OR uploader_user_id LIKE 'u_e2e_%'",
     "DELETE FROM groups WHERE id NOT IN (SELECT DISTINCT group_id FROM group_memberships)",
     "DELETE FROM users WHERE id LIKE 'u_e2e_%'",
   ]);
@@ -79,6 +87,17 @@ export async function seedOperator(args: {
  */
 export function demoteToMember(userId: string): void {
   executeSql(`DELETE FROM instance_operators WHERE user_id = '${userId}'`);
+}
+
+/**
+ * Drops the approved-emails row for an e2e address. The shared session
+ * helper auto-seeds an approved-emails row for every minted user (mirrors
+ * the OAuth-callback path); some specs need the row gone to exercise the
+ * "email not approved yet" branches without going through the full
+ * approve/revoke API dance.
+ */
+export function unapproveEmail(email: string): void {
+  executeSql(`DELETE FROM approved_emails WHERE email = '${email.toLowerCase()}'`);
 }
 
 /**
