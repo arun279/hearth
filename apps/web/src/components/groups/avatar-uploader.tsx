@@ -85,9 +85,6 @@ export function AvatarUploader({
       await remove.mutateAsync();
       toast.success("Avatar removed.");
     } catch (err) {
-      // Surface the message inline instead of a toast so the failure
-      // sits next to the affordance the user just operated on, matching
-      // the upload error pattern.
       setError(asUserMessage(err, "Couldn't remove."));
     }
   }, [remove]);
@@ -110,10 +107,6 @@ export function AvatarUploader({
             variant="secondary"
             onClick={() => void onRemove()}
             disabled={disabled || busy}
-            // The action is trivially reversible (re-upload the same
-            // image), so no type-to-confirm dialog. Keeping the
-            // affordance state-aware — visible only when an avatar is
-            // set — lets a first-time uploader's flow stay one-click.
           >
             {remove.isPending ? (
               <>

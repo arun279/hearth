@@ -1,7 +1,12 @@
 import type { GroupMembership } from "@hearth/domain";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { type QueryClient, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api-client.ts";
 import { assertOk } from "../lib/problem.ts";
+
+function invalidateGroupAvatarQueries(qc: QueryClient, groupId: string) {
+  qc.invalidateQueries({ queryKey: ["groups", "members", groupId] });
+  qc.invalidateQueries({ queryKey: ["groups", "detail", groupId] });
+}
 
 type RequestAvatarResult = {
   readonly uploadId: string;
@@ -59,18 +64,10 @@ export function useUploadAvatar(groupId: string) {
       await assertOk(finRes);
       return (await finRes.json()) as GroupMembership;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["groups", "members", groupId] });
-      qc.invalidateQueries({ queryKey: ["groups", "detail", groupId] });
-    },
+    onSuccess: () => invalidateGroupAvatarQueries(qc, groupId),
   });
 }
 
-/**
- * Clear the actor's own avatar in this group via PATCH /profile with
- * `{ avatarUrl: null }`. The use case best-effort deletes the prior R2
- * object so storage doesn't bloat across set → remove → set cycles.
- */
 export function useRemoveAvatar(groupId: string, userId: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -82,9 +79,6 @@ export function useRemoveAvatar(groupId: string, userId: string) {
       await assertOk(res);
       return (await res.json()) as GroupMembership;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["groups", "members", groupId] });
-      qc.invalidateQueries({ queryKey: ["groups", "detail", groupId] });
-    },
+    onSuccess: () => invalidateGroupAvatarQueries(qc, groupId),
   });
 }

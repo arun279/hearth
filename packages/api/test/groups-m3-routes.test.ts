@@ -586,9 +586,6 @@ describe("M3 avatar finalize + profile", () => {
   });
 
   it("PATCH profile rejects a non-null avatarUrl with 400", async () => {
-    // Setting an avatar must go through upload-request → finalize so the
-    // server controls the R2 key shape and verifies ownership. Allowing
-    // a string here would let an actor repoint their avatar at any key.
     const updateProfile = vi.fn(async () => baseMembership());
     const app = harness({
       userId: adminId,
