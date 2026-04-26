@@ -6,7 +6,9 @@ import {
   createInstanceAccessPolicyRepository,
   createInstanceSettingsRepository,
   createKillswitchGate,
+  createLearningTrackRepository,
   createObjectStorage,
+  createPendingUploadsSweep,
   createStudyGroupRepository,
   createUploadCoordinationRepository,
   createUserRepository,
@@ -72,7 +74,9 @@ describe("killswitch coverage (resilience invariant 2 + 3)", () => {
   const policy = createInstanceAccessPolicyRepository({ db, gate });
   const settings = createInstanceSettingsRepository({ db, gate });
   const groups = createStudyGroupRepository({ db, gate });
+  const tracks = createLearningTrackRepository({ db, gate });
   const uploads = createUploadCoordinationRepository({ db, gate });
+  const sweep = createPendingUploadsSweep({ db, storage, gate });
   const object = createObjectStorage(storage, gate, {
     endpoint: "https://example.r2.cloudflarestorage.com",
     accessKeyId: "test",
@@ -169,6 +173,17 @@ describe("killswitch coverage (resilience invariant 2 + 3)", () => {
 
     ["ObjectStorage.putUpload", () => object.putUpload("k", new Blob([]).stream(), undefined)],
     ["ObjectStorage.delete", () => object.delete("k")],
+
+    [
+      "LearningTrackRepository.endAllEnrollmentsForUser",
+      () => tracks.endAllEnrollmentsForUser({ groupId: gid, userId: uid, by: uid }),
+    ],
+
+    // The hourly cron-driven sweep is not a *port* method, but it
+    // calls `gate.assertWritable()` on entry and is the only path
+    // through which the killswitch can stop the cron from mutating
+    // R2 + D1. Treat it as a write method for invariant 2 + 3.
+    ["PendingUploadsSweep", () => sweep(new Date())],
   ];
 
   for (const [label, run] of CASES) {

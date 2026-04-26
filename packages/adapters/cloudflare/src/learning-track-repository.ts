@@ -2,15 +2,15 @@ import type { LearningTrackRepository } from "@hearth/ports";
 import type { CloudflareAdapterDeps } from "./deps.ts";
 import { stubRepository } from "./stub.ts";
 
-/**
- * Skeleton adapter — most methods throw "Not implemented" stubs that the
- * track aggregate's milestone replaces in full. The one real method is
- * `endAllEnrollmentsForUser`, which is exercised by the membership-removal
- * cascade today: with no enrollments table populated yet there is nothing
- * to end, so the method returns 0 unconditionally. The contract is locked
- * in here so the remove-member use case can call it without an aggregate-
- * presence flag.
- */
+// TODO(scaffolding-tracks): replace the throwing stubs below with real
+// adapter implementations once the LearningTrack aggregate ships. Only
+// `endAllEnrollmentsForUser` is real today (the membership-removal
+// cascade contract). Every other method on this repo is a `stubRepository`
+// proxy that throws "Not implemented" on call. When this file's
+// scaffolding is fully retired, drop the prefix from the comment, and
+// remove the corresponding row from the `AGENTS.md § Scaffolding-temporary
+// exceptions` table. Replace before the first track-creating feature
+// ships.
 export function createLearningTrackRepository(
   deps: Pick<CloudflareAdapterDeps, "db" | "gate">,
 ): LearningTrackRepository {
