@@ -70,9 +70,14 @@ const updateProfileBody = z
   .object({
     nickname: z.union([z.string().trim().min(1).max(60), z.null()]).optional(),
     bio: z.union([z.string().max(800), z.null()]).optional(),
+    // Only `null` is accepted; setting an avatar must go through the
+    // upload-request → finalize pipeline so the server controls the R2
+    // key. Allowing a string here would let an actor repoint their
+    // avatar at any key.
+    avatarUrl: z.null().optional(),
   })
-  .refine((v) => v.nickname !== undefined || v.bio !== undefined, {
-    message: "Provide a nickname or bio to update.",
+  .refine((v) => v.nickname !== undefined || v.bio !== undefined || v.avatarUrl !== undefined, {
+    message: "Provide nickname, bio, or avatarUrl to update.",
     path: ["nickname"],
   });
 

@@ -1,9 +1,9 @@
 import type { StudyGroup, UserId } from "@hearth/domain";
 import { Avatar, Button, Callout } from "@hearth/ui";
-import { ImagePlus, Loader2 } from "lucide-react";
+import { ImagePlus, Loader2, Trash2 } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
-import { useUploadAvatar } from "../../hooks/use-avatar-upload.ts";
+import { useRemoveAvatar, useUploadAvatar } from "../../hooks/use-avatar-upload.ts";
 import { asUserMessage } from "../../lib/problem.ts";
 
 type Props = {
@@ -48,12 +48,12 @@ export function AvatarUploader({
 }: Props) {
   const input = useRef<HTMLInputElement | null>(null);
   const upload = useUploadAvatar(group.id);
+  const remove = useRemoveAvatar(group.id, userId);
   const [error, setError] = useState<string | null>(null);
 
-  const renderedSrc =
-    currentAvatarUrl !== null && currentAvatarUrl.length > 0
-      ? `${publicOrigin}/${currentAvatarUrl}`
-      : null;
+  const hasAvatar = currentAvatarUrl !== null && currentAvatarUrl.length > 0;
+  const renderedSrc = hasAvatar ? `${publicOrigin}/${currentAvatarUrl}` : null;
+  const busy = upload.isPending || remove.isPending;
 
   const onPick = useCallback(
     async (file: File | null) => {
@@ -79,9 +79,19 @@ export function AvatarUploader({
     [upload],
   );
 
+  const onRemove = useCallback(async () => {
+    setError(null);
+    try {
+      await remove.mutateAsync();
+      toast.success("Avatar removed.");
+    } catch (err) {
+      setError(asUserMessage(err, "Couldn't remove."));
+    }
+  }, [remove]);
+
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <Avatar name={name} src={renderedSrc} size={48} />
         <div className="min-w-0 flex-1">
           <div className="text-[13px] text-[var(--color-ink)]" data-user-id={userId}>
@@ -91,11 +101,30 @@ export function AvatarUploader({
             PNG, JPEG, or WebP. Auto-resized to 256×256.
           </div>
         </div>
+        {hasAvatar ? (
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => void onRemove()}
+            disabled={disabled || busy}
+          >
+            {remove.isPending ? (
+              <>
+                <Loader2 size={12} aria-hidden className="animate-spin" />
+                Removing…
+              </>
+            ) : (
+              <>
+                <Trash2 size={12} aria-hidden /> Remove
+              </>
+            )}
+          </Button>
+        ) : null}
         <Button
           size="sm"
           variant="secondary"
           onClick={() => input.current?.click()}
-          disabled={disabled || upload.isPending}
+          disabled={disabled || busy}
         >
           {upload.isPending ? (
             <>
@@ -128,7 +157,7 @@ export function AvatarUploader({
         />
       </div>
       {error ? (
-        <Callout tone="warn" title="Couldn't upload">
+        <Callout tone="warn" title="Avatar action failed">
           {error}
         </Callout>
       ) : null}

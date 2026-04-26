@@ -550,6 +550,64 @@ describe("M3 avatar finalize + profile", () => {
     expect(updateProfile).toHaveBeenCalled();
   });
 
+  it("PATCH profile clears the avatar via { avatarUrl: null }", async () => {
+    const updateProfile = vi.fn(async () => baseMembership());
+    const app = harness({
+      userId: adminId,
+      ports: {
+        users: makeUsersPort(adminUser),
+        groups: makeGroupsPort({
+          membership: vi.fn(async () =>
+            baseMembership({
+              role: "participant",
+              profile: {
+                nickname: null,
+                avatarUrl: `avatars/${adminId}/${gid}/old-key`,
+                bio: null,
+                updatedAt: now,
+              },
+            }),
+          ),
+          updateProfile,
+        }),
+        policy: makePolicyPort(),
+        storage: { delete: vi.fn() } as unknown as ObjectStorage,
+      },
+    });
+    const res = await app.request(`/api/v1/g/${gid}/members/${adminId}/profile`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ avatarUrl: null }),
+    });
+    expect(res.status).toBe(200);
+    expect(updateProfile).toHaveBeenCalledWith(
+      expect.objectContaining({ patch: { avatarUrl: null } }),
+    );
+  });
+
+  it("PATCH profile rejects a non-null avatarUrl with 400", async () => {
+    const updateProfile = vi.fn(async () => baseMembership());
+    const app = harness({
+      userId: adminId,
+      ports: {
+        users: makeUsersPort(adminUser),
+        groups: makeGroupsPort({
+          membership: vi.fn(async () => baseMembership({ role: "participant" })),
+          updateProfile,
+        }),
+        policy: makePolicyPort(),
+        storage: { delete: vi.fn() } as unknown as ObjectStorage,
+      },
+    });
+    const res = await app.request(`/api/v1/g/${gid}/members/${adminId}/profile`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ avatarUrl: "avatars/someone-else/key" }),
+    });
+    expect(res.status).toBe(400);
+    expect(updateProfile).not.toHaveBeenCalled();
+  });
+
   it("POST avatar/finalize verifies size and returns 200", async () => {
     const updateProfile = vi.fn(async () => baseMembership());
     const headObject = vi.fn(async () => ({ size: 1000, uploadedAt: now }));

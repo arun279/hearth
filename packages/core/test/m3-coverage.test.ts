@@ -330,6 +330,104 @@ describe("updateGroupProfile", () => {
       ),
     ).rejects.toMatchObject({ code: "INVARIANT_VIOLATION", reason: "invalid_bio" });
   });
+
+  it("clears the avatar (avatarUrl: null) and best-effort deletes the prior R2 key", async () => {
+    const updateProfile = vi.fn(async () =>
+      membership({
+        profile: { nickname: null, avatarUrl: null, bio: null, updatedAt: TEST_NOW },
+      }),
+    );
+    const deleteKey = vi.fn();
+    const result = await updateGroupProfile(
+      {
+        actor: ACTOR_ID,
+        groupId: GROUP_ID,
+        target: ACTOR_ID,
+        patch: { avatarUrl: null },
+      },
+      {
+        users: makeUsers(ACTOR),
+        groups: makeGroups({
+          byId: vi.fn(async () => ACTIVE_GROUP),
+          membership: vi.fn(async () =>
+            membership({
+              profile: { nickname: null, avatarUrl: "old-key", bio: null, updatedAt: TEST_NOW },
+            }),
+          ),
+          updateProfile,
+        }),
+        policy: makePolicy(),
+        storage: makeStorage({ delete: deleteKey }),
+      },
+    );
+    expect(updateProfile).toHaveBeenCalledWith(
+      expect.objectContaining({ patch: { avatarUrl: null } }),
+    );
+    expect(deleteKey).toHaveBeenCalledWith("old-key");
+    expect(result.profile.avatarUrl).toBeNull();
+  });
+
+  it("clearing an already-null avatar does not call storage.delete", async () => {
+    const deleteKey = vi.fn();
+    await updateGroupProfile(
+      {
+        actor: ACTOR_ID,
+        groupId: GROUP_ID,
+        target: ACTOR_ID,
+        patch: { avatarUrl: null },
+      },
+      {
+        users: makeUsers(ACTOR),
+        groups: makeGroups({
+          byId: vi.fn(async () => ACTIVE_GROUP),
+          membership: vi.fn(async () => membership()), // profile.avatarUrl already null
+          updateProfile: vi.fn(async () => membership()),
+        }),
+        policy: makePolicy(),
+        storage: makeStorage({ delete: deleteKey }),
+      },
+    );
+    expect(deleteKey).not.toHaveBeenCalled();
+  });
+
+  it("swallows R2 delete failures so the DB write is not rolled back", async () => {
+    // Resilience contract from the use-case doc: a transient R2 outage
+    // must not undo a successful profile update. The orphan key is
+    // wasted bytes, not a correctness violation.
+    const updateProfile = vi.fn(async () =>
+      membership({
+        profile: { nickname: null, avatarUrl: null, bio: null, updatedAt: TEST_NOW },
+      }),
+    );
+    const result = await updateGroupProfile(
+      {
+        actor: ACTOR_ID,
+        groupId: GROUP_ID,
+        target: ACTOR_ID,
+        patch: { avatarUrl: null },
+      },
+      {
+        users: makeUsers(ACTOR),
+        groups: makeGroups({
+          byId: vi.fn(async () => ACTIVE_GROUP),
+          membership: vi.fn(async () =>
+            membership({
+              profile: { nickname: null, avatarUrl: "old-key", bio: null, updatedAt: TEST_NOW },
+            }),
+          ),
+          updateProfile,
+        }),
+        policy: makePolicy(),
+        storage: makeStorage({
+          delete: vi.fn(async () => {
+            throw new Error("R2 transient failure");
+          }),
+        }),
+      },
+    );
+    expect(updateProfile).toHaveBeenCalled();
+    expect(result.profile.avatarUrl).toBeNull();
+  });
 });
 
 describe("previewInvitation", () => {

@@ -1,7 +1,12 @@
 import type { GroupMembership } from "@hearth/domain";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { type QueryClient, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api-client.ts";
 import { assertOk } from "../lib/problem.ts";
+
+function invalidateGroupAvatarQueries(qc: QueryClient, groupId: string) {
+  qc.invalidateQueries({ queryKey: ["groups", "members", groupId] });
+  qc.invalidateQueries({ queryKey: ["groups", "detail", groupId] });
+}
 
 type RequestAvatarResult = {
   readonly uploadId: string;
@@ -59,9 +64,21 @@ export function useUploadAvatar(groupId: string) {
       await assertOk(finRes);
       return (await finRes.json()) as GroupMembership;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["groups", "members", groupId] });
-      qc.invalidateQueries({ queryKey: ["groups", "detail", groupId] });
+    onSuccess: () => invalidateGroupAvatarQueries(qc, groupId),
+  });
+}
+
+export function useRemoveAvatar(groupId: string, userId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (): Promise<GroupMembership> => {
+      const res = await api.g[":groupId"].members[":userId"].profile.$patch({
+        param: { groupId, userId },
+        json: { avatarUrl: null },
+      });
+      await assertOk(res);
+      return (await res.json()) as GroupMembership;
     },
+    onSuccess: () => invalidateGroupAvatarQueries(qc, groupId),
   });
 }
