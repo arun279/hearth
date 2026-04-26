@@ -44,7 +44,14 @@ export function LeaveGroupDialog({
     onClose();
   };
 
-  const canConfirm = confirmText.trim() === group.name && !leave.isPending;
+  // Case-insensitive comparison. The Field's label renders the group
+  // name in uppercase via `text-transform`, which would otherwise mislead
+  // a user typing "SPANISH CONVERSATION CLUB" into a case-sensitive
+  // gate. Trim handles trailing-space slips. Both inputs are normalized
+  // before comparison so internal whitespace remains significant.
+  const canConfirm =
+    confirmText.trim().toLocaleLowerCase() === group.name.trim().toLocaleLowerCase() &&
+    !leave.isPending;
 
   return (
     <Modal

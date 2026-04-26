@@ -6,8 +6,15 @@ import { ApprovedEmailsTab } from "../components/admin/approved-emails-tab.tsx";
 import { OperatorsTab } from "../components/admin/operators-tab.tsx";
 import { SettingsTab } from "../components/admin/settings-tab.tsx";
 import { Sidebar } from "../components/sidebar.tsx";
+import { useDocumentTitle } from "../hooks/use-document-title.ts";
 import { useMeContext } from "../hooks/use-me-context.ts";
 import { loadMeContext } from "../lib/me-context.ts";
+
+const TAB_TITLES: Record<"settings" | "operators" | "emails", string> = {
+  settings: "Instance settings",
+  operators: "Operators",
+  emails: "Approved emails",
+};
 
 const searchSchema = z.object({
   tab: z.enum(["settings", "operators", "emails"]).optional(),
@@ -45,6 +52,8 @@ function InstanceAdminPage() {
   const instanceName = ctx.data?.data.instance.name ?? me.instance.name;
 
   const active = search.tab ?? "settings";
+
+  useDocumentTitle([TAB_TITLES[active], "Admin"]);
 
   return (
     <AppShell sidebar={<Sidebar me={ctx.data?.data ?? me} />} mobileTitle={instanceName}>

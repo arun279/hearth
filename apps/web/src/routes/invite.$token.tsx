@@ -1,6 +1,7 @@
 import { Button, Callout, Skeleton } from "@hearth/ui";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
+import { useDocumentTitle } from "../hooks/use-document-title.ts";
 import { useConsumeInvitation, useInvitationPreview } from "../hooks/use-group-invitations.ts";
 import { useMeContext } from "../hooks/use-me-context.ts";
 import { asUserMessage } from "../lib/problem.ts";
@@ -23,6 +24,8 @@ function InviteLanding() {
   const consume = useConsumeInvitation();
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
+
+  useDocumentTitle(["Invitation", preview.data?.groupName]);
 
   const meUser = me.data?.data.user ?? null;
 
@@ -131,6 +134,15 @@ function InviteLanding() {
       <Centered title="This invitation has expired" instanceName={inv.instanceName}>
         <p className="text-[13px] text-[var(--color-ink-2)]">
           Invitations are valid for 14 days. Ask the Group Admin for a fresh link.
+        </p>
+        <p className="mt-4">
+          <Link
+            to="/"
+            search={{}}
+            className="text-[13px] text-[var(--color-accent)] underline-offset-2 hover:underline"
+          >
+            Go to your groups
+          </Link>
         </p>
       </Centered>
     );

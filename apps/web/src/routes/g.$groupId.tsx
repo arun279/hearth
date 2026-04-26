@@ -6,6 +6,7 @@ import { useState } from "react";
 import { z } from "zod";
 import { GroupPageShell } from "../components/groups/group-page-shell.tsx";
 import { GroupSettingsDialog } from "../components/groups/group-settings-dialog.tsx";
+import { useDocumentTitle } from "../hooks/use-document-title.ts";
 import type { GroupCaps } from "../hooks/use-groups.ts";
 import { useGroup } from "../hooks/use-groups.ts";
 import { useMeContext } from "../hooks/use-me-context.ts";
@@ -33,6 +34,8 @@ function GroupHome() {
   const me = useMeContext();
   const signedIn = me.data?.data.user !== null && me.data?.data.user !== undefined;
   const group = useGroup(params.groupId, signedIn);
+
+  useDocumentTitle([group.data?.group.name]);
 
   const [settingsOpenLocal, setSettingsOpenLocal] = useState(false);
   // Allow `?settings=open` to deep-link the dialog open. Closing the dialog

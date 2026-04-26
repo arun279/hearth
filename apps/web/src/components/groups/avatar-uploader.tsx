@@ -114,6 +114,11 @@ export function AvatarUploader({
           accept={ACCEPTED}
           className="sr-only"
           aria-label="Choose avatar image"
+          // The visible "Change" Button forwards Enter/Space to this
+          // input via `.click()`, so the input itself never needs to be
+          // a Tab stop. Without `tabindex={-1}`, the sr-only input was
+          // a ghost stop with no visible focus ring (WCAG 2.4.7).
+          tabIndex={-1}
           onChange={(e) => {
             const file = e.target.files?.[0] ?? null;
             void onPick(file);

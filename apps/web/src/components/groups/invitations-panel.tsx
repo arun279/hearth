@@ -8,6 +8,7 @@ import {
   useGroupInvitations,
   useRevokeGroupInvitation,
 } from "../../hooks/use-group-invitations.ts";
+import { formatRelative, formatShortDate } from "../../lib/format.ts";
 import { asUserMessage } from "../../lib/problem.ts";
 import { ConfirmActionDialog } from "../admin/confirm-action-dialog.tsx";
 
@@ -58,13 +59,9 @@ export function InvitationsPanel({ group, enabled, onInvite }: Props) {
           {entries.filter((e) => e.status === "pending" || e.status === "pending_approval").length}
         </h2>
         {onInvite ? (
-          <button
-            type="button"
-            onClick={onInvite}
-            className="ml-auto text-[12px] text-[var(--color-accent)] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
-          >
-            Send another invitation →
-          </button>
+          <Button size="sm" variant="secondary" onClick={onInvite} className="ml-auto">
+            Send another invitation
+          </Button>
         ) : null}
       </div>
 
@@ -110,9 +107,12 @@ export function InvitationsPanel({ group, enabled, onInvite }: Props) {
                     >
                       {inv.email ?? "open invitation"}
                     </div>
-                    <div className="mt-0.5 truncate text-[11px] text-[var(--color-ink-3)]">
-                      Created {inv.createdAt.toString().slice(0, 10)} · expires{" "}
-                      {inv.expiresAt.toString().slice(0, 10)}
+                    <div
+                      className="mt-0.5 truncate text-[11px] text-[var(--color-ink-3)]"
+                      title={`Created ${formatShortDate(inv.createdAt)} · expires ${formatShortDate(inv.expiresAt)}`}
+                    >
+                      Created {formatShortDate(inv.createdAt)} · expires{" "}
+                      {formatRelative(inv.expiresAt)}
                     </div>
                   </div>
                 </div>
