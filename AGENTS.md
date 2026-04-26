@@ -68,6 +68,40 @@ Additional:
 - **Mobile overflow at 375px.** Buttons must not wrap their label across lines — the shared `Button` primitive sets `whitespace-nowrap` for that reason. When a section header puts a `<p>` next to a `<Button>`, give the paragraph `min-w-0 flex-1` so it shrinks before the button collapses; or stack the row with `flex-col sm:flex-row`. The `mobile-overflow.spec.ts` e2e guards this at 375px across home, group home, dialogs, drawer, and admin tabs — when adding a new screen with interactive controls, extend that spec rather than relying on visual-only review.
 - **Viewability before authorization on mutation routes.** A mutation or read use case for a hideable resource (anything with `canViewGroup`-shaped visibility) MUST run the viewability check first and surface its denial as `DomainError("NOT_FOUND", …)`, then run the role/permission check. The shape: `viewability → 404` (hides existence), then `authorization → 403` (acknowledges existence to authorized viewers). Skipping viewability leaks group/track/etc. existence to non-members via the 403-vs-404 status-code distinction — the enumeration oracle pattern flagged on PR #8. **Use `loadViewableGroup`** (`packages/core/src/use-cases/_lib/load-viewable-group.ts`) as the only entry point for loading a hideable group in a use case; it bundles `byId` + `membership` + `getOperator` + `canViewGroup` into one call, throws `NOT_FOUND` on view denial, and is enforced by the `no-direct-group-byid-in-use-cases` convention check. Canonical example: `packages/core/src/use-cases/archive-group.ts`.
 
+## Authoring discipline
+
+- **Default to no comments.** Add one only when the WHY is non-obvious (a hidden constraint, a workaround for a specific bug, behavior that would surprise a reader). Don't narrate WHAT — well-named identifiers do that.
+- **Never add TODO comments unless the user asks.** Finish or delete; don't narrate.
+- **Existing `TODO(...)` comments are load-bearing.** Do NOT remove a TODO, rename it, or rewrite the comment to lose its `TODO(` prefix unless you actually completed the work or the user confirmed it's obsolete. A "cosmetic" rewrite that loses `TODO(` disappears from `grep` / PR sweeps and from the § Scaffolding-temporary exceptions table — that's a regression in tracking, not a cleanup. When in doubt, ask.
+- **Don't bypass hooks.** Lefthook's pre-commit and pre-push run the DoD gates; if you bypass them you must run the gates manually. Checks that sit and rot are worse than no checks — if a check is ever noise you can't fix, remove the check or fix the code. Do not silently `|| true` past it. Ask before adding an exception (ignore list, `passWithNoTests`, `eslint-disable`); prefer fixing the code or removing the check, and if an exception is genuinely warranted, comment why and (if temporary) add a TODO with a clear removal trigger.
+
+## Research before writing
+
+- Before adding a dependency, check it's in the catalog (`pnpm-workspace.yaml`). If yes, use `"catalog:"` as the version.
+- Before adding a route, skim `packages/api/src/routes/` to match the existing pattern.
+- Before adding a policy predicate, skim `packages/domain/src/policy/` — its files must stay pure (no async, no `Date.now()`, no `crypto`, no Node globals).
+
+## Local dev auth — use `pnpm local-session`
+
+Whenever a task needs an authenticated session against the local stack (driving a Playwright script, hitting the worker via curl, running a design review), use `scripts/local-session.mjs` instead of re-deriving the Better Auth HMAC dance. The script is the canonical seam — a cookie minted by it is byte-identical to one minted by an e2e test or a real OAuth sign-in (modulo the user-id prefix).
+
+```sh
+# Defaults: seed-operator@local.dev, "Local Operator", instance operator.
+pnpm local-session --seed                           # human-readable hint
+pnpm -s local-session --seed --cookie-only          # just the cookie value
+pnpm local-session --seed --json                    # machine-readable
+pnpm local-session --reset --seed                   # drop user's groups+sessions, re-seed
+pnpm local-session --email me@x.com --seed          # different identity
+```
+
+Three things to know:
+
+1. **`--seed` is idempotent.** It uses `INSERT OR IGNORE`, so re-running never errors and never bumps `granted_at`. Pass it freely.
+2. **`--reset` scrubs only the named user's state** (sessions, group memberships, tracks/enrollments orphaned by the membership delete, and groups whose only member was that user). It will not touch other users — safe to use against the dev DB you're signed into via OAuth.
+3. **`pnpm` is cwd-sensitive.** Running `pnpm local-session` from `apps/web/` fails because the script lives in the root `package.json`. Run from the repo root, or have your script `spawnSync` with `cwd: REPO_ROOT`.
+
+Implementation lives at `scripts/lib/auth-session.mjs` (shared module, JSDoc-typed via `auth-session.d.mts`); `apps/web/e2e/auth.ts` and `scripts/local-session.mjs` both import from it. Do not re-implement HMAC signing or session-row inserts in a third place — extend that module instead.
+
 ## When each check runs
 
 | Check                            | IDE on save        | Pre-commit (lefthook)            | Pre-push (lefthook)             | CI (GitHub Actions)                        |
@@ -101,6 +135,5 @@ These exist because the scaffold is skeletal. **Remove each when its trigger fir
 | `vitest run --passWithNoTests` in `test` scripts                                                                                                                                                                                                                                                              | `@hearth/web` (all other packages now run real tests)                                                                                                                 | the package gets its first test                             |
 | `knip.ignoreDependencies` for v1-expected-but-unused deps (`react-dom`, `tailwindcss`, `@cloudflare/vitest-pool-workers`, `@types/react-dom`, `@hono-rate-limiter/cloudflare`, `@sentry/cloudflare`, `@hookform/resolvers`, `react-hook-form`, `@tanstack/react-query-devtools`, `@tanstack/router-devtools`) | `knip.jsonc`                                                                                                                                                          | the first real import of each dep — remove that dep's entry |
 | Skeleton stubs throwing `"Not implemented"` in repository adapters                                                                                                                                                                                                                                            | `packages/adapters/cloudflare/src/*-repository.ts` (library-item, learning-activity, activity-record, study-session; plus `user.deleteIdentity`, R2 `getDownloadUrl`) | the first use case calling that method                      |
-| Partial scaffolding on `learning-track-repository.ts` — only `endAllEnrollmentsForUser` is real (the membership-removal cascade contract); all other methods are still `stubRepository` throws. Marked with `TODO(scaffolding-tracks):`                                                                       | `packages/adapters/cloudflare/src/learning-track-repository.ts`                                                                                                       | the first real `LearningTrack` use case lands               |
 
 New exceptions should be added to this table and the maintainer should be told before merging.
