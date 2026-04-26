@@ -701,64 +701,85 @@ export function createStudyGroupRepository(
       const now = new Date();
       const membershipId = ids.generate();
 
-      // Single batch — three atomic statements:
-      //   1. Add membership (no-op on existing active row).
-      //   2. Conditional UPDATE on the invitation that races a parallel
-      //      consume: only mark `consumedAt` if it is still NULL. Two
-      //      racing consumers will see at most one row updated; we
-      //      detect the loser via a follow-up read.
+      // Two-phase claim → admit. Phase 1 atomically claims the
+      // invitation row by issuing a conditional UPDATE that only
+      // matches if the row is still consumable (not consumed, not
+      // revoked, not expired) right now. RETURNING tells us whether we
+      // won. Phase 2 only runs if we won, so the membership insert
+      // can never land for a race-loser — closing the "two consumers
+      // racing on a generic token both end up as members" hole.
+      //
       // Track enrollment lands when the M5 aggregate ships; here it's
       // skipped (returned as `enrollment: null`).
-      await deps.db.batch([
-        deps.db
-          .insert(groupMemberships)
-          .values({
-            id: membershipId,
-            groupId: inv.groupId as StudyGroupId,
-            userId: input.userId,
+      const claimed = await deps.db
+        .update(groupInvitations)
+        .set({ consumedAt: now, consumedBy: input.userId })
+        .where(
+          and(
+            eq(groupInvitations.id, input.invitationId),
+            isNull(groupInvitations.consumedAt),
+            isNull(groupInvitations.revokedAt),
+            gt(groupInvitations.expiresAt, input.now),
+          ),
+        )
+        .returning({ id: groupInvitations.id });
+
+      if (claimed.length === 0) {
+        // Race-loss. Re-read the row to give the caller the precise
+        // reason — without this, a concurrent revoke landing between
+        // our pre-flight read and this UPDATE would surface as
+        // `invitation_consumed` even though the truth is `revoked`.
+        const after = await deps.db
+          .select({
+            consumedAt: groupInvitations.consumedAt,
+            revokedAt: groupInvitations.revokedAt,
+            expiresAt: groupInvitations.expiresAt,
+          })
+          .from(groupInvitations)
+          .where(eq(groupInvitations.id, input.invitationId))
+          .limit(1);
+        const row = after[0];
+        if (!row) {
+          throw new DomainError("NOT_FOUND", "Invitation not found.", "invitation_not_found");
+        }
+        if (row.revokedAt !== null) {
+          throw new DomainError("CONFLICT", "Invitation revoked.", "invitation_revoked");
+        }
+        if (row.expiresAt.getTime() <= input.now.getTime()) {
+          throw new DomainError("CONFLICT", "Invitation expired.", "invitation_expired");
+        }
+        throw new DomainError("CONFLICT", "Invitation already consumed.", "invitation_consumed");
+      }
+
+      // We won the claim — safe to admit. The upsert revives a
+      // previously-removed membership; resetting `role: "participant"`
+      // on conflict prevents a returning admin who consumes a fresh
+      // (necessarily participant-level) invitation from silently
+      // re-acquiring admin powers — that promotion is a separate
+      // operator-driven path.
+      await deps.db
+        .insert(groupMemberships)
+        .values({
+          id: membershipId,
+          groupId: inv.groupId as StudyGroupId,
+          userId: input.userId,
+          role: "participant",
+          joinedAt: now,
+          removedAt: null,
+          removedBy: null,
+          attributionOnLeave: null,
+          displayNameSnapshot: null,
+        })
+        .onConflictDoUpdate({
+          target: [groupMemberships.groupId, groupMemberships.userId],
+          set: {
             role: "participant",
-            joinedAt: now,
             removedAt: null,
             removedBy: null,
             attributionOnLeave: null,
             displayNameSnapshot: null,
-          })
-          .onConflictDoUpdate({
-            target: [groupMemberships.groupId, groupMemberships.userId],
-            set: {
-              // Re-activate a previously-removed membership so consuming
-              // a fresh invitation lets a returning user back in. Role
-              // is conservatively reset to participant; admin promotion
-              // is a separate operation.
-              removedAt: null,
-              removedBy: null,
-              attributionOnLeave: null,
-              displayNameSnapshot: null,
-            },
-          }),
-        deps.db
-          .update(groupInvitations)
-          .set({ consumedAt: now, consumedBy: input.userId })
-          .where(
-            and(
-              eq(groupInvitations.id, input.invitationId),
-              isNull(groupInvitations.consumedAt),
-              isNull(groupInvitations.revokedAt),
-            ),
-          ),
-      ]);
-
-      // Race detection: if the conditional UPDATE matched no row, a
-      // concurrent consume already finalized the invitation. Reject the
-      // loser deterministically.
-      const after = await deps.db
-        .select({ consumedBy: groupInvitations.consumedBy })
-        .from(groupInvitations)
-        .where(eq(groupInvitations.id, input.invitationId))
-        .limit(1);
-      if (!after[0] || after[0].consumedBy !== input.userId) {
-        throw new DomainError("CONFLICT", "Invitation already consumed.", "invitation_consumed");
-      }
+          },
+        });
 
       const memRows = await deps.db
         .select()

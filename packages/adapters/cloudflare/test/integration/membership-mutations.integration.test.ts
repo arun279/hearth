@@ -192,6 +192,119 @@ describe("membership mutations (real D1)", () => {
     ).rejects.toMatchObject({ code: "CONFLICT" });
   });
 
+  it("consumeInvitation does NOT silently re-promote a previously-removed admin", async () => {
+    // CR#2 regression. A user who was once admin is removed → returns
+    // via a fresh invitation. Their membership row still has `role:
+    // "admin"`. Without the role reset on conflict, the upsert revived
+    // them as admin without anyone granting it.
+    const { db, groups } = buildRepo();
+    const owner = await seedUser(db, "u_ret_owner", "ret-o@x.com");
+    const returnee = await seedUser(db, "u_ret_user", "ret-u@x.com");
+    const g = await groups.create({ name: "Returnee", createdBy: owner });
+
+    await groups.addMembership({
+      groupId: g.id,
+      userId: returnee,
+      role: "admin",
+      by: owner,
+    });
+    expect(await groups.countAdmins(g.id)).toBe(2);
+
+    await groups.removeMembership({
+      groupId: g.id,
+      userId: returnee,
+      by: returnee,
+      attribution: "preserve_name",
+      displayNameSnapshot: "Returnee",
+    });
+    expect(await groups.countAdmins(g.id)).toBe(1);
+
+    const inv = await groups.createInvitation({
+      groupId: g.id,
+      trackId: null,
+      token: "tok-return",
+      email: "ret-u@x.com",
+      createdBy: owner,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    const result = await groups.consumeInvitation({
+      invitationId: inv.id,
+      userId: returnee,
+      now: new Date(),
+    });
+    expect(result.membership.role).toBe("participant");
+    expect(await groups.countAdmins(g.id)).toBe(1);
+  });
+
+  it("consumeInvitation surfaces invitation_revoked (not _consumed) when revoked between read and claim", async () => {
+    // Race A regression. Pre-fix: a concurrent revoke landing between
+    // the pre-flight read and the conditional UPDATE caused the
+    // post-batch detection to throw `invitation_consumed` even though
+    // the actual reason was `revoked`.
+    const { db, groups } = buildRepo();
+    const owner = await seedUser(db, "u_race_owner", "race-o@x.com");
+    const target = await seedUser(db, "u_race_target", "race-t@x.com");
+    const g = await groups.create({ name: "Race", createdBy: owner });
+
+    const inv = await groups.createInvitation({
+      groupId: g.id,
+      trackId: null,
+      token: "tok-revoke-race",
+      email: "race-t@x.com",
+      createdBy: owner,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    // Revoke first → consume sees the row already terminal and must
+    // emit `invitation_revoked`, not `invitation_consumed`.
+    await groups.revokeInvitation({ id: inv.id, by: owner, now: new Date() });
+
+    await expect(
+      groups.consumeInvitation({
+        invitationId: inv.id,
+        userId: target,
+        now: new Date(),
+      }),
+    ).rejects.toMatchObject({ code: "CONFLICT", reason: "invitation_revoked" });
+  });
+
+  it("consumeInvitation does not admit the race-loser when two consumers race a generic token", async () => {
+    // Race B regression. Pre-fix: the membership upsert was
+    // unconditional in the same batch as the invitation update, so
+    // both consumers landed memberships even though only one won the
+    // invitation claim.
+    const { db, groups } = buildRepo();
+    const owner = await seedUser(db, "u_open_owner", "open-o@x.com");
+    const a = await seedUser(db, "u_open_a", "open-a@x.com");
+    const b = await seedUser(db, "u_open_b", "open-b@x.com");
+    const g = await groups.create({ name: "Open", createdBy: owner });
+
+    const inv = await groups.createInvitation({
+      groupId: g.id,
+      trackId: null,
+      token: "tok-open",
+      email: null, // open invitation — both users may attempt
+      createdBy: owner,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+
+    const [r1, r2] = await Promise.allSettled([
+      groups.consumeInvitation({ invitationId: inv.id, userId: a, now: new Date() }),
+      groups.consumeInvitation({ invitationId: inv.id, userId: b, now: new Date() }),
+    ]);
+
+    const fulfilled = [r1, r2].filter((r) => r.status === "fulfilled");
+    const rejected = [r1, r2].filter((r) => r.status === "rejected");
+    expect(fulfilled.length).toBe(1);
+    expect(rejected.length).toBe(1);
+
+    // Only the winner ends up with an active membership.
+    const memA = await groups.membership(g.id, a);
+    const memB = await groups.membership(g.id, b);
+    const activeA = memA !== null && memA.removedAt === null;
+    const activeB = memB !== null && memB.removedAt === null;
+    expect([activeA, activeB].filter(Boolean).length).toBe(1);
+  });
+
   it("revokeInvitation is idempotent on already-revoked rows", async () => {
     const { db, groups } = buildRepo();
     const u = await seedUser(db, "u_rev", "rv@x.com");
