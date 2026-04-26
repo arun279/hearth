@@ -6,6 +6,7 @@ import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { useCreateGroupInvitation } from "../../hooks/use-group-invitations.ts";
+import { copyTextToClipboard } from "../../lib/clipboard.ts";
 import { asUserMessage } from "../../lib/problem.ts";
 
 type Props = {
@@ -71,11 +72,11 @@ export function InviteDialog({ open, onClose, group }: Props) {
 
   const copy = async () => {
     if (!result) return;
-    try {
-      await navigator.clipboard.writeText(result.url);
+    const ok = await copyTextToClipboard(result.url);
+    if (ok) {
       toast.success("Invitation link copied.");
-    } catch {
-      toast.error("Couldn't copy. Select and copy manually.");
+    } else {
+      toast.error("Couldn't copy. Select the link in the field and copy manually.");
     }
   };
 
