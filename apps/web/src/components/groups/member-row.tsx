@@ -5,6 +5,12 @@ import type { ReactNode } from "react";
 
 type Props = {
   readonly membership: GroupMembership;
+  /**
+   * Server-resolved label (nickname ?? user.name ?? user.email ??
+   * displayNameSnapshot). The membership row alone cannot supply this —
+   * `users` is joined in `listGroupMembers`.
+   */
+  readonly displayName: string;
   readonly isMe: boolean;
   readonly avatarOrigin: string;
   /** Right-aligned actions slot (e.g. promote/remove buttons in the admin dialog). */
@@ -19,8 +25,14 @@ type Props = {
  * locked together and avoids the kind of "almost-identical block"
  * jscpd flags as a clone.
  */
-export function MemberRow({ membership, isMe, avatarOrigin, actions, avatarSize = 32 }: Props) {
-  const displayName = membership.profile.nickname ?? membership.displayNameSnapshot ?? "Member";
+export function MemberRow({
+  membership,
+  displayName,
+  isMe,
+  avatarOrigin,
+  actions,
+  avatarSize = 32,
+}: Props) {
   const avatarSrc =
     membership.profile.avatarUrl !== null && membership.profile.avatarUrl !== ""
       ? `${avatarOrigin}/${membership.profile.avatarUrl}`

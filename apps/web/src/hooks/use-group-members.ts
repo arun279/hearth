@@ -13,6 +13,8 @@ export type GroupMemberCapabilities = {
 
 export type GroupMemberRow = {
   readonly membership: GroupMembership;
+  /** Pre-resolved label — server projects nickname ?? user.name ?? user.email. */
+  readonly displayName: string;
   readonly capabilities: GroupMemberCapabilities;
 };
 

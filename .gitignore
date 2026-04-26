@@ -10,6 +10,8 @@ build/
 
 # TanStack Router generated routes drift guard — committed, not ignored:
 # apps/web/src/routeTree.gen.ts is intentionally tracked
+# But its dev-time temp scratch dir (file-based router HMR cache) is local-only.
+.tanstack/
 
 # Testing
 coverage/

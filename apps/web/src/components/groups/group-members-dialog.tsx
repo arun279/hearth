@@ -91,12 +91,12 @@ export function GroupMembersDialog({ open, onClose, group }: Props) {
                 <MemberRow
                   key={m.userId}
                   membership={m}
+                  displayName={row.displayName}
                   isMe={isMe}
                   avatarOrigin={PUBLIC_AVATAR_ORIGIN}
                   avatarSize={28}
                   actions={
                     <>
-                      <Badge tone={m.role === "admin" ? "accent" : "neutral"}>{m.role}</Badge>
                       {row.capabilities.canPromote ? (
                         <Button
                           size="sm"
@@ -207,7 +207,7 @@ export function GroupMembersDialog({ open, onClose, group }: Props) {
 }
 
 function labelOf(row: GroupMemberRow): string {
-  return row.membership.profile.nickname ?? row.membership.displayNameSnapshot ?? "This member";
+  return row.displayName;
 }
 
 async function runRoleChange(

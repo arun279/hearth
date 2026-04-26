@@ -24,7 +24,7 @@ const PUBLIC_AVATAR_ORIGIN = (
   ] ?? ""
 ).replace(/\/$/, "");
 
-export const Route = createFileRoute("/g/$groupId/people")({
+export const Route = createFileRoute("/g/$groupId_/people")({
   beforeLoad: async ({ context }) => {
     const me = await loadMeContextOrNull(context.queryClient);
     if (!me?.user) {
@@ -170,6 +170,7 @@ function PeoplePage() {
                       <MemberRow
                         key={row.membership.userId}
                         membership={row.membership}
+                        displayName={row.displayName}
                         isMe={row.membership.userId === myUserId}
                         avatarOrigin={PUBLIC_AVATAR_ORIGIN}
                       />

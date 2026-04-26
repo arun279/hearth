@@ -453,11 +453,16 @@ describe("invitations routes", () => {
           })),
         }),
         policy: makePolicyPort(),
+        settings: {
+          get: vi.fn(async () => ({ name: "Hearth", updatedAt: now, updatedBy: null })),
+          update: vi.fn(),
+        } as unknown as AppBindings["Variables"]["ports"]["settings"],
       },
     });
     const res = await app.request("/api/v1/invitations/by-token/tok");
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { groupName: string; status: string };
+    const body = (await res.json()) as { instanceName: string; groupName: string; status: string };
+    expect(body.instanceName).toBe("Hearth");
     expect(body.groupName).toBe("G");
     expect(body.status).toBe("pending");
   });

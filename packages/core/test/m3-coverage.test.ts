@@ -333,6 +333,11 @@ describe("updateGroupProfile", () => {
 });
 
 describe("previewInvitation", () => {
+  const settings = {
+    get: vi.fn(async () => ({ name: "Hearth", updatedAt: TEST_NOW, updatedBy: null })),
+    update: vi.fn(),
+  } as unknown as Parameters<typeof previewInvitation>[1]["settings"];
+
   it("renders the projection for a live invitation", async () => {
     const result = await previewInvitation(
       { token: "tok-test", now: TEST_NOW },
@@ -342,8 +347,10 @@ describe("previewInvitation", () => {
           byId: vi.fn(async () => ACTIVE_GROUP),
         }),
         policy: makePolicy({ isEmailApproved: vi.fn(async () => true) }),
+        settings,
       },
     );
+    expect(result.instanceName).toBe("Hearth");
     expect(result.groupName).toBe(ACTIVE_GROUP.name);
     expect(result.status).toBe("pending");
     expect(result.targetEmail).toBe("target@example.com");
@@ -357,6 +364,7 @@ describe("previewInvitation", () => {
         {
           groups: makeGroups({ invitationByToken: vi.fn(async () => null) }),
           policy: makePolicy(),
+          settings,
         },
       ),
     ).rejects.toMatchObject({ code: "NOT_FOUND", reason: "invitation_not_found" });

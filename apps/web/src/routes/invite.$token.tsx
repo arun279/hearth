@@ -28,7 +28,7 @@ function InviteLanding() {
 
   if (me.isLoading || preview.isLoading) {
     return (
-      <Centered>
+      <Centered instanceName={preview.data?.instanceName ?? null}>
         <Skeleton className="mx-auto h-6 w-40" />
         <Skeleton className="mx-auto mt-3 h-4 w-64" />
       </Centered>
@@ -37,7 +37,7 @@ function InviteLanding() {
 
   if (preview.isError || !preview.data) {
     return (
-      <Centered title="Invitation not found">
+      <Centered title="Invitation not found" instanceName={null}>
         <p className="text-[13px] text-[var(--color-ink-2)]">
           This invitation link is no longer valid. It may have been revoked, expired, or never
           existed.
@@ -62,7 +62,7 @@ function InviteLanding() {
     // come back here automatically. The home route handles the rejection
     // search param the auth layer attaches if Approved Email blocks them.
     return (
-      <Centered title="Sign in to continue">
+      <Centered title="Sign in to continue" instanceName={inv.instanceName}>
         <p className="text-[13px] text-[var(--color-ink-2)]">
           You've been invited to join <strong>{inv.groupName}</strong>
           {inv.targetEmail ? (
@@ -88,7 +88,7 @@ function InviteLanding() {
 
   if (inv.status === "consumed") {
     return (
-      <Centered title="This invitation has already been used">
+      <Centered title="This invitation has already been used" instanceName={inv.instanceName}>
         <p className="text-[13px] text-[var(--color-ink-2)]">
           Each invitation is single-use. Ask the Group Admin for a new link if you still need access
           to {inv.groupName}.
@@ -108,7 +108,7 @@ function InviteLanding() {
 
   if (inv.status === "revoked") {
     return (
-      <Centered title="This invitation was revoked">
+      <Centered title="This invitation was revoked" instanceName={inv.instanceName}>
         <p className="text-[13px] text-[var(--color-ink-2)]">
           The Group Admin pulled this invitation. If you think that's a mistake, ask them to send a
           new one.
@@ -128,7 +128,7 @@ function InviteLanding() {
 
   if (inv.status === "expired") {
     return (
-      <Centered title="This invitation has expired">
+      <Centered title="This invitation has expired" instanceName={inv.instanceName}>
         <p className="text-[13px] text-[var(--color-ink-2)]">
           Invitations are valid for 14 days. Ask the Group Admin for a fresh link.
         </p>
@@ -145,7 +145,7 @@ function InviteLanding() {
 
   if (emailMismatch) {
     return (
-      <Centered title="Wrong account?">
+      <Centered title="Wrong account?" instanceName={inv.instanceName}>
         <p className="text-[13px] text-[var(--color-ink-2)]">
           This invitation was issued to <strong>{inv.targetEmail}</strong>, but you're signed in as{" "}
           <strong>{meUser.email}</strong>. Sign out and back in with the right Google account, or
@@ -178,7 +178,7 @@ function InviteLanding() {
   };
 
   return (
-    <Centered title={`Join ${inv.groupName}?`}>
+    <Centered title={`Join ${inv.groupName}?`} instanceName={inv.instanceName}>
       <p className="text-[13px] text-[var(--color-ink-2)]">
         You'll become a member of <strong>{inv.groupName}</strong> on this Hearth Instance.
       </p>
@@ -212,17 +212,49 @@ function InviteLanding() {
 
 function Centered({
   title,
+  instanceName,
   children,
 }: {
   readonly title?: string;
+  /**
+   * Shown in the masthead pill so the invitee sees whose Hearth they're
+   * being invited into. Defaults to "Hearth" while the preview is still
+   * loading; once the by-token preview lands the real name swaps in.
+   */
+  readonly instanceName?: string | null;
   readonly children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen items-center justify-center px-6">
-      <div className="w-full max-w-md text-center">
-        {title ? <h1 className="font-serif text-[22px] text-[var(--color-ink)]">{title}</h1> : null}
-        <div className="mt-2">{children}</div>
-      </div>
+    <div className="flex min-h-screen flex-col bg-[var(--color-bg)]">
+      <header className="flex items-center gap-2 px-5 py-4">
+        <Link
+          to="/"
+          search={{}}
+          aria-label="Hearth — home"
+          className="flex items-center gap-2 rounded-[var(--radius-sm)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg)]"
+        >
+          <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--color-ink)] font-bold text-[11px] text-[var(--color-bg)]">
+            H
+          </div>
+          <div className="font-semibold font-serif text-[15px] text-[var(--color-ink)]">Hearth</div>
+        </Link>
+        {instanceName ? (
+          <div className="ml-2 rounded-[var(--radius-sm)] border border-[var(--color-rule)] bg-[var(--color-surface)] px-2 py-0.5 text-[11px] text-[var(--color-ink-2)]">
+            <span className="font-medium text-[10px] uppercase tracking-wide text-[var(--color-ink-3)]">
+              Hearth Instance ·{" "}
+            </span>
+            {instanceName}
+          </div>
+        ) : null}
+      </header>
+      <main className="flex flex-1 items-center justify-center px-6">
+        <div className="w-full max-w-md text-center">
+          {title ? (
+            <h1 className="font-serif text-[22px] text-[var(--color-ink)]">{title}</h1>
+          ) : null}
+          <div className="mt-2">{children}</div>
+        </div>
+      </main>
     </div>
   );
 }

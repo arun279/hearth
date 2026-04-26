@@ -127,6 +127,12 @@ const rules = [
     excludePathSuffixes: [
       "scripts/check-conventions.mjs",
       "packages/core/src/use-cases/_lib/load-viewable-group.ts",
+      // Invitation preview is unauthenticated by design — the token is the
+      // credential, the actor has no membership yet, and the response
+      // contract intentionally exposes group + instance name to the
+      // token holder. canViewGroup would universally deny here, so
+      // loadViewableGroup is the wrong tool. Documented carve-out.
+      "packages/core/src/use-cases/preview-invitation.ts",
     ],
     reason:
       "Use cases must load Study Groups via loadViewableGroup() — direct `groups.byId(` skips canViewGroup and creates a 403/404 enumeration oracle (AGENTS.md § Viewability before authorization).",

@@ -1,5 +1,5 @@
 import type { StudyGroup } from "@hearth/domain";
-import { Badge, Button, Callout, Field, Input, Modal } from "@hearth/ui";
+import { Button, Callout, Field, Input, Modal } from "@hearth/ui";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -45,7 +45,10 @@ export function InviteDialog({ open, onClose, group }: Props) {
   const form = useForm<InviteForm>({
     resolver: zodResolver(inviteSchema),
     defaultValues: { email: "" },
-    mode: "onTouched",
+    // `onChange` lets `formState.isValid` track every keystroke so the
+    // primary submit button stays disabled until the email is a well-
+    // formed address — prevention over post-submit error recovery.
+    mode: "onChange",
   });
 
   const close = () => {
@@ -102,7 +105,7 @@ export function InviteDialog({ open, onClose, group }: Props) {
               type="submit"
               variant="primary"
               form="invite-form"
-              disabled={form.formState.isSubmitting}
+              disabled={form.formState.isSubmitting || !form.formState.isValid}
             >
               {form.formState.isSubmitting ? "Creating…" : "Create invitation"}
             </Button>
@@ -133,9 +136,8 @@ export function InviteDialog({ open, onClose, group }: Props) {
               Operator before sign-in will succeed.
             </Callout>
           )}
-          <div className="flex items-center gap-2 text-[11px] text-[var(--color-ink-3)]">
-            <Badge tone="accent">single-use</Badge>
-            <span>Expires in 14 days · revoke from the invitations list</span>
+          <div className="text-[11px] text-[var(--color-ink-3)]">
+            Single-use · expires in 14 days · revoke from the invitations list.
           </div>
         </div>
       ) : (

@@ -1,5 +1,9 @@
 import { DomainError, type GroupInvitationStatus, invitationStatus } from "@hearth/domain";
-import type { InstanceAccessPolicyRepository, StudyGroupRepository } from "@hearth/ports";
+import type {
+  InstanceAccessPolicyRepository,
+  InstanceSettingsRepository,
+  StudyGroupRepository,
+} from "@hearth/ports";
 
 export type PreviewInvitationInput = {
   readonly token: string;
@@ -9,9 +13,17 @@ export type PreviewInvitationInput = {
 export type PreviewInvitationDeps = {
   readonly groups: StudyGroupRepository;
   readonly policy: InstanceAccessPolicyRepository;
+  readonly settings: InstanceSettingsRepository;
 };
 
 export type PreviewInvitationResult = {
+  /**
+   * The instance name is included so the unauthenticated landing can
+   * render the "you're being invited to {groupName} on {instanceName}"
+   * framing — without it, the SPA's invite landing pages have no
+   * context, which feels like the user has left the product entirely.
+   */
+  readonly instanceName: string;
   readonly groupName: string;
   readonly inviterDisplayName: string | null;
   readonly targetEmail: string | null;
@@ -38,11 +50,12 @@ export async function previewInvitation(
     throw new DomainError("NOT_FOUND", "Invitation not found.", "invitation_not_found");
   }
 
-  const [group, isEmailApproved] = await Promise.all([
+  const [group, isEmailApproved, settings] = await Promise.all([
     deps.groups.byId(invitation.groupId),
     invitation.email === null
       ? Promise.resolve(true)
       : deps.policy.isEmailApproved(invitation.email),
+    deps.settings.get(),
   ]);
   if (!group) {
     // Should not happen — the invitation has an FK to the group — but
@@ -51,6 +64,7 @@ export async function previewInvitation(
   }
 
   return {
+    instanceName: settings?.name ?? "Hearth",
     groupName: group.name,
     // The preview is unauthenticated, so we deliberately do NOT join in
     // the inviter's user record. Rendering "an admin" is sufficient and

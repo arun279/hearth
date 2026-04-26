@@ -17,6 +17,7 @@ type CreateGroupInvitationResponse = {
 };
 
 type InvitationPreview = {
+  readonly instanceName: string;
   readonly groupName: string;
   readonly inviterDisplayName: string | null;
   readonly targetEmail: string | null;

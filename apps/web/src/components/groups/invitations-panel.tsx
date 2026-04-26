@@ -14,7 +14,13 @@ import { ConfirmActionDialog } from "../admin/confirm-action-dialog.tsx";
 type Props = {
   readonly group: StudyGroup;
   readonly enabled: boolean;
-  readonly onInvite: () => void;
+  /**
+   * Optional inline "Send another invitation" affordance. The page header
+   * carries the canonical `+ Invite` primary; this panel offers a
+   * lower-weight link so an admin scrolled down to the invitations list
+   * doesn't have to scroll back up.
+   */
+  readonly onInvite?: () => void;
 };
 
 const STATUS_BADGE: Record<
@@ -51,9 +57,15 @@ export function InvitationsPanel({ group, enabled, onInvite }: Props) {
           Pending invitations ·{" "}
           {entries.filter((e) => e.status === "pending" || e.status === "pending_approval").length}
         </h2>
-        <Button size="sm" variant="primary" onClick={onInvite} className="ml-auto">
-          + Invite
-        </Button>
+        {onInvite ? (
+          <button
+            type="button"
+            onClick={onInvite}
+            className="ml-auto text-[12px] text-[var(--color-accent)] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
+          >
+            Send another invitation →
+          </button>
+        ) : null}
       </div>
 
       {isLoading ? (

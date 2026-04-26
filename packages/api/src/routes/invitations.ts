@@ -34,7 +34,11 @@ export const invitationsRoutes = new Hono<AppBindings>()
       try {
         const result = await previewInvitation(
           { token, now: new Date() },
-          { groups: c.var.ports.groups, policy: c.var.ports.policy },
+          {
+            groups: c.var.ports.groups,
+            policy: c.var.ports.policy,
+            settings: c.var.ports.settings,
+          },
         );
         return c.json(result);
       } catch (err) {

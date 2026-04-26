@@ -28,6 +28,22 @@ wrangler secret put GOOGLE_OAUTH_CLIENT_SECRET
 wrangler secret put BETTER_AUTH_SECRET          # openssl rand -base64 32
 wrangler secret put KILLSWITCH_TOKEN            # openssl rand -hex 32
 wrangler secret put HEARTH_BOOTSTRAP_OPERATOR_EMAIL
+
+# R2 S3-compatibility credentials (for direct-to-R2 presigned uploads).
+# Mint via the Cloudflare dashboard: R2 → Manage API Tokens → Create User
+# API Token, scoped Object Read/Write on hearth-storage. R2_ACCOUNT_ID is
+# your Cloudflare account id. R2_PUBLIC_ORIGIN is the bucket's public dev
+# URL (`https://pub-…r2.dev`) or a custom domain bound to the bucket.
+wrangler secret put R2_ACCOUNT_ID
+wrangler secret put R2_ACCESS_KEY_ID
+wrangler secret put R2_SECRET_ACCESS_KEY
+wrangler secret put R2_PUBLIC_ORIGIN
+
+# Hourly cron sweeps `pending_uploads` rows whose presigned-PUT window
+# expired without a finalize call — best-effort deletes the orphan R2
+# object then drops the row. Idempotent. Runs against the same Worker
+# isolate as the API; no extra setup beyond the `triggers.crons` entry
+# in wrangler.jsonc.
 ```
 
 Optional:
