@@ -540,10 +540,15 @@ export const groupsRoutes = new Hono<AppBindings>()
       if (!result.success) return problemFromInvalid(c, result.error);
     }),
     async (c) => {
+      const { groupId } = c.req.valid("param");
       const body = c.req.valid("json");
       try {
         const membership = await finalizeAvatarUpload(
-          { actor: getUserId(c), uploadId: body.uploadId },
+          {
+            actor: getUserId(c),
+            groupId: groupId as StudyGroupId,
+            uploadId: body.uploadId,
+          },
           {
             users: c.var.ports.users,
             groups: c.var.ports.groups,

@@ -1,4 +1,4 @@
-import { DomainError, type GroupMembership, type UserId } from "@hearth/domain";
+import { DomainError, type GroupMembership, type StudyGroupId, type UserId } from "@hearth/domain";
 import type {
   InstanceAccessPolicyRepository,
   ObjectStorage,
@@ -10,6 +10,13 @@ import { updateGroupProfile } from "./update-group-profile.ts";
 
 export type FinalizeAvatarUploadInput = {
   readonly actor: UserId;
+  /**
+   * The group whose avatar surface this finalize call is bound to.
+   * Asserted against the pending-upload row's `groupId` so that
+   * `POST /g/WRONG_GROUP/avatar/finalize { uploadId }` cannot apply
+   * an avatar to a different group than the URL claims.
+   */
+  readonly groupId: StudyGroupId;
   readonly uploadId: string;
 };
 
@@ -42,7 +49,15 @@ export async function finalizeAvatarUpload(
   deps: FinalizeAvatarUploadDeps,
 ): Promise<GroupMembership> {
   const pending = await deps.uploads.getPending(input.uploadId);
-  if (!pending || pending.uploaderUserId !== input.actor || pending.context !== "avatar") {
+  if (
+    !pending ||
+    pending.uploaderUserId !== input.actor ||
+    pending.context !== "avatar" ||
+    // URL groupId must match the pending row's groupId. Without this
+    // assert, the URL is decorative and a user could finalize an
+    // avatar against any group whose path they happen to type.
+    pending.groupId !== input.groupId
+  ) {
     throw new DomainError("NOT_FOUND", "Pending upload not found.", "pending_upload_not_found");
   }
 

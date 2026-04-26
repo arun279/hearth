@@ -34,7 +34,7 @@ describe("finalizeAvatarUpload", () => {
     const headObject = vi.fn(async () => ({ size: 1234, uploadedAt: TEST_NOW }));
     const deletePending = vi.fn();
     await finalizeAvatarUpload(
-      { actor: ACTOR_ID, uploadId: "upload-id-1" },
+      { actor: ACTOR_ID, groupId: GROUP_ID, uploadId: "upload-id-1" },
       {
         users: makeUsers(ACTOR),
         groups: makeGroups({
@@ -57,10 +57,33 @@ describe("finalizeAvatarUpload", () => {
     expect(deletePending).toHaveBeenCalledWith("upload-id-1");
   });
 
+  it("rejects when the URL groupId does not match the pending row's groupId", async () => {
+    // CR#7 regression. Pre-fix the URL groupId was validated by zod
+    // but never compared to the pending row, so finalize would happily
+    // apply the avatar to whatever group the upload was created
+    // against — the URL was decorative.
+    await expect(
+      finalizeAvatarUpload(
+        {
+          actor: ACTOR_ID,
+          groupId: "g_different" as typeof GROUP_ID,
+          uploadId: "upload-id-1",
+        },
+        {
+          users: makeUsers(ACTOR),
+          groups: makeGroups(),
+          policy: makePolicy(),
+          storage: makeStorage(),
+          uploads: makeUploads({ getPending: vi.fn(async () => pendingRow) }),
+        },
+      ),
+    ).rejects.toMatchObject({ code: "NOT_FOUND", reason: "pending_upload_not_found" });
+  });
+
   it("rejects when the pending row belongs to another user", async () => {
     await expect(
       finalizeAvatarUpload(
-        { actor: ACTOR_ID, uploadId: "upload-id-1" },
+        { actor: ACTOR_ID, groupId: GROUP_ID, uploadId: "upload-id-1" },
         {
           users: makeUsers(ACTOR),
           groups: makeGroups(),
@@ -80,7 +103,7 @@ describe("finalizeAvatarUpload", () => {
   it("rejects when the R2 object is missing", async () => {
     await expect(
       finalizeAvatarUpload(
-        { actor: ACTOR_ID, uploadId: "upload-id-1" },
+        { actor: ACTOR_ID, groupId: GROUP_ID, uploadId: "upload-id-1" },
         {
           users: makeUsers(ACTOR),
           groups: makeGroups(),
@@ -97,7 +120,7 @@ describe("finalizeAvatarUpload", () => {
     const deleteKey = vi.fn();
     await expect(
       finalizeAvatarUpload(
-        { actor: ACTOR_ID, uploadId: "upload-id-1" },
+        { actor: ACTOR_ID, groupId: GROUP_ID, uploadId: "upload-id-1" },
         {
           users: makeUsers(ACTOR),
           groups: makeGroups(),
