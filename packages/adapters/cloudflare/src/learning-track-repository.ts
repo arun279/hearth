@@ -68,7 +68,7 @@ function parseStructureEnvelope(raw: string, trackId: string): TrackStructureEnv
   try {
     parsed = JSON.parse(raw);
   } catch (err) {
-    throw new Error(`Track ${trackId} has unparseable structure JSON: ${(err as Error).message}`);
+    throw new Error(`Track ${trackId} has unparsable structure JSON: ${(err as Error).message}`);
   }
   if (!parsed || typeof parsed !== "object") {
     throw new Error(`Track ${trackId} structure envelope is not an object.`);
@@ -139,7 +139,7 @@ function parseContributionPolicyEnvelope(raw: string, trackId: string): Contribu
     parsed = JSON.parse(raw);
   } catch (err) {
     throw new Error(
-      `Track ${trackId} has unparseable contribution-policy JSON: ${(err as Error).message}`,
+      `Track ${trackId} has unparsable contribution-policy JSON: ${(err as Error).message}`,
     );
   }
   if (!parsed || typeof parsed !== "object") {

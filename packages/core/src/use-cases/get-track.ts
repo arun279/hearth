@@ -104,7 +104,7 @@ export async function getTrack(input: GetTrackInput, deps: GetTrackDeps): Promis
 
   if (!structure || !contributionPolicy) {
     // The adapter returns null only when the row exists but the JSON
-    // column is unparseable — schema-shim drift the operator must fix.
+    // column is unparsable — schema-shim drift the operator must fix.
     // We surface as INVARIANT_VIOLATION rather than NOT_FOUND so a routine
     // reader of this code can find the broken envelope on a search.
     throw new Error("Track row found but JSON envelopes failed to parse — schema-shim drift?");

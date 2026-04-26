@@ -306,7 +306,7 @@ describe("learning-track adapter (real D1)", () => {
 
     it("throws CONFLICT track_status_changed when expectedFromStatus mismatches", async () => {
       const repos = buildRepos();
-      const { creator, track } = await setupTrack(repos, "tc_mis");
+      const { creator, track } = await setupTrack(repos, "tc_mismatch");
       await repos.tracksRepo.updateStatus({
         id: track.id,
         to: "paused",
