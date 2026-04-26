@@ -163,7 +163,7 @@ function InviteLanding() {
           <strong>{meUser.email}</strong>. Sign out and back in with the right Google account, or
           ask the Group Admin to re-issue the invitation.
         </p>
-        <div className="mt-4 flex justify-center gap-2">
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
           <a
             href="/api/auth/sign-out"
             data-external-nav
@@ -171,6 +171,13 @@ function InviteLanding() {
           >
             Sign out
           </a>
+          <Link
+            to="/"
+            search={{}}
+            className="text-[13px] text-[var(--color-accent)] underline-offset-2 hover:underline"
+          >
+            Go to your groups
+          </Link>
         </div>
       </Centered>
     );
