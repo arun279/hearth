@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import { cn } from "./cn.ts";
 
 export type TabItem<Value extends string> = {
@@ -37,6 +37,12 @@ export function panelIdFor(idPrefix: string): string {
  * roles with full `aria-controls` wiring. The consumer renders the panel
  * separately with `id={panelIdFor(idPrefix)}` and
  * `aria-labelledby={tabIdFor(idPrefix, activeValue)}`.
+ *
+ * Keyboard model — automatic-activation per W3C ARIA Authoring Practices:
+ * ArrowRight/ArrowLeft wrap, Home/End jump to the ends. Each navigation
+ * also moves DOM focus to the newly-selected tab so focus and the visible
+ * underline stay coincident for keyboard / screen-reader users. External
+ * value changes (URL navigation, click) intentionally do NOT move focus.
  */
 export function TabBar<Value extends string>({
   items,
@@ -47,6 +53,25 @@ export function TabBar<Value extends string>({
   idPrefix,
 }: TabBarProps<Value>) {
   const panelId = panelIdFor(idPrefix);
+  const tabRefs = useRef<Map<Value, HTMLButtonElement>>(new Map());
+  // Only re-focus the selected tab when the change came from a keyboard
+  // navigation inside this component — not when the value changed for an
+  // external reason (route navigation, click bubbling). The flag is set
+  // by the keydown handler and consumed by the effect below.
+  const moveFocusOnNextChange = useRef(false);
+
+  useEffect(() => {
+    if (moveFocusOnNextChange.current) {
+      tabRefs.current.get(value)?.focus();
+      moveFocusOnNextChange.current = false;
+    }
+  }, [value]);
+
+  const navigate = (nextValue: Value) => {
+    moveFocusOnNextChange.current = true;
+    onChange(nextValue);
+  };
+
   return (
     <div
       role="tablist"
@@ -61,6 +86,10 @@ export function TabBar<Value extends string>({
         return (
           <button
             key={item.value}
+            ref={(node) => {
+              if (node) tabRefs.current.set(item.value, node);
+              else tabRefs.current.delete(item.value);
+            }}
             id={tabIdFor(idPrefix, item.value)}
             type="button"
             role="tab"
@@ -69,13 +98,21 @@ export function TabBar<Value extends string>({
             tabIndex={active ? 0 : -1}
             onClick={() => onChange(item.value)}
             onKeyDown={(e) => {
+              const idx = items.findIndex((it) => it.value === value);
               if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
                 e.preventDefault();
-                const idx = items.findIndex((it) => it.value === value);
                 const next = e.key === "ArrowRight" ? idx + 1 : idx - 1;
                 const wrapped = (next + items.length) % items.length;
                 const target = items[wrapped];
-                if (target) onChange(target.value);
+                if (target) navigate(target.value);
+              } else if (e.key === "Home") {
+                e.preventDefault();
+                const target = items[0];
+                if (target) navigate(target.value);
+              } else if (e.key === "End") {
+                e.preventDefault();
+                const target = items[items.length - 1];
+                if (target) navigate(target.value);
               }
             }}
             className={cn(

@@ -75,7 +75,9 @@ export function Modal({
             </p>
           ) : null}
         </div>
-        <div className="space-y-4 px-5 py-4 text-[13px]">{children}</div>
+        {children !== undefined && children !== null && children !== false ? (
+          <div className="space-y-4 px-5 py-4 text-[13px]">{children}</div>
+        ) : null}
         {footer ? (
           <div className="flex items-center justify-end gap-2 border-[var(--color-rule)] border-t px-5 py-3">
             {footer}
