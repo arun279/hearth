@@ -5,10 +5,13 @@ import type { User } from "../user.ts";
 import { isAuthorityOverTrack } from "./is-authority-over-track.ts";
 
 /**
- * Authorization-only mirror of `canArchiveTrack`. Named separately so logs
- * and UX copy can tell pause from archive (different blast radius — pause
- * is reversible). Idempotence + transition legality live in the
- * `pause-track` use case.
+ * Returns whether the actor may pause the track. Denies on archived
+ * tracks because pause→archived would be the only legal transition from
+ * archived — i.e., pause itself is not (the use case's
+ * `transitions.ts` rejects it). Surfacing this in the policy keeps
+ * `caps.canPause` honest, so the SPA's settings affordance hides
+ * automatically on archived tracks rather than rendering a button that
+ * always errors on click.
  */
 export function canPauseTrack(
   actor: User,
@@ -22,6 +25,9 @@ export function canPauseTrack(
       "group_archived",
       "Tracks inside an archived group cannot be modified independently.",
     );
+  }
+  if (track.status === "archived") {
+    return policyDeny("track_archived", "Archived tracks cannot be paused.");
   }
   if (!isAuthorityOverTrack(track, groupMembership, trackEnrollment)) {
     return policyDeny(

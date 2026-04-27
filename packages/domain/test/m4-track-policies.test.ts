@@ -79,10 +79,13 @@ const facilitatorEnrollment: TrackEnrollment = {
 
 const leftFacilitator: TrackEnrollment = { ...facilitatorEnrollment, leftAt: now };
 
-// canArchiveTrack / canPauseTrack / canResumeTrack share the same authority
-// shape — same allow/deny matrix less the track-archived gate (an archived
-// track is still pause/resume/archive-no-op-able from the policy's view; the
-// use case handles idempotence).
+// All three policies share the authority shape (group active + track
+// authority). canPauseTrack and canResumeTrack additionally deny on
+// archived tracks — pausing or resuming an archived track is logically
+// invalid, so denying at the policy keeps `caps.canPause/Resume` honest
+// for SPA gating. canArchiveTrack stays authority-only because archive
+// is idempotent (re-archive = no-op success in the use case, matching
+// `canArchiveGroup`'s shape).
 describe.each([
   { name: "canArchiveTrack", fn: canArchiveTrack },
   { name: "canPauseTrack", fn: canPauseTrack },
@@ -121,6 +124,25 @@ describe.each([
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.reason.code).toBe("not_track_authority");
   });
+});
+
+// Pause and resume specifically deny archived tracks (the operation is
+// not idempotent on archived — the transitions table rejects, but the
+// policy denies first so the cap surface is honest). Archive does NOT
+// deny on archived because archive-on-archived is idempotent.
+describe.each([
+  { name: "canPauseTrack", fn: canPauseTrack },
+  { name: "canResumeTrack", fn: canResumeTrack },
+])("$name (track-archived gate)", ({ fn }) => {
+  it("denies on an archived track with track_archived", () => {
+    const r = fn(actor, activeGroup, archivedTrack, adminMembership, null);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason.code).toBe("track_archived");
+  });
+});
+
+it("canArchiveTrack allows re-archive on an archived track (idempotent path)", () => {
+  expect(canArchiveTrack(actor, activeGroup, archivedTrack, adminMembership, null).ok).toBe(true);
 });
 
 // canEditTrackMetadata / canEditTrackStructure / canEditContributionPolicy

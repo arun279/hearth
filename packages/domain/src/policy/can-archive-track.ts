@@ -27,6 +27,11 @@ export function canArchiveTrack(
       "Tracks inside an archived group cannot be modified independently.",
     );
   }
+  // Authority-only: archive-on-already-archived is idempotent in the
+  // `archive-track` use case (REST-DELETE semantics — re-archiving
+  // returns the existing track, no error). Mirrors `canArchiveGroup`.
+  // Pause/resume DON'T have this property, so their policies deny on
+  // archived; archive does, so it doesn't.
   if (!isAuthorityOverTrack(track, groupMembership, trackEnrollment)) {
     return policyDeny(
       "not_track_authority",

@@ -66,7 +66,7 @@ describe("resumeTrack", () => {
     expect(updateStatus).not.toHaveBeenCalled();
   });
 
-  it("rejects CONFLICT/track_status_transition_invalid for an archived track", async () => {
+  it("rejects FORBIDDEN/track_archived for an archived track (policy-level deny)", async () => {
     await expect(
       resumeTrack(
         { actor: ACTOR_ID, trackId: TRACK_ID },
@@ -78,8 +78,8 @@ describe("resumeTrack", () => {
         },
       ),
     ).rejects.toMatchObject({
-      code: "CONFLICT",
-      reason: "track_status_transition_invalid",
+      code: "FORBIDDEN",
+      reason: "track_archived",
     });
   });
 

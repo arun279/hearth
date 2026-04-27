@@ -22,6 +22,9 @@ export function canResumeTrack(
       "Tracks inside an archived group cannot be modified independently.",
     );
   }
+  if (track.status === "archived") {
+    return policyDeny("track_archived", "Archived tracks cannot be resumed.");
+  }
   if (!isAuthorityOverTrack(track, groupMembership, trackEnrollment)) {
     return policyDeny(
       "not_track_authority",
