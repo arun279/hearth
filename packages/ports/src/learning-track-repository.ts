@@ -86,9 +86,13 @@ export interface LearningTrackRepository {
   ): Promise<LearningTrack>;
 
   /**
-   * Replace the track-structure envelope. The repository re-parses through
-   * the domain Zod schema before persisting (defense in depth) so a caller
-   * that bypasses the use case still cannot persist a malformed envelope.
+   * Replace the track-structure envelope. The repository re-parses the
+   * envelope structurally before persisting (defense in depth) so a
+   * caller that bypasses the use case still cannot persist a malformed
+   * envelope. Implementations are free to use any validation mechanism
+   * (the cloudflare adapter hand-rolls one because zod isn't on its
+   * allowed-deps list); the contract is that a malformed envelope
+   * surfaces as a thrown Error rather than a silent write.
    */
   saveStructure(
     id: LearningTrackId,
@@ -97,8 +101,8 @@ export interface LearningTrackRepository {
   ): Promise<LearningTrack>;
 
   /**
-   * Replace the contribution-policy envelope. Same defense-in-depth parse as
-   * `saveStructure`.
+   * Replace the contribution-policy envelope. Same defense-in-depth
+   * structural re-parse as `saveStructure`.
    */
   saveContributionPolicy(
     id: LearningTrackId,
@@ -107,9 +111,10 @@ export interface LearningTrackRepository {
   ): Promise<LearningTrack>;
 
   /**
-   * Read the persisted envelopes (already validated through the domain Zod
-   * schemas at read time). Separate from `byId` so a list page that only
-   * needs name + status doesn't pay the JSON parse cost on every row.
+   * Read the persisted envelopes (re-validated structurally on read so a
+   * malformed JSON column surfaces loudly rather than as a silent type
+   * cast). Separate from `byId` so a list page that only needs name +
+   * status doesn't pay the JSON parse cost on every row.
    */
   loadStructure(id: LearningTrackId): Promise<TrackStructureEnvelope | null>;
   loadContributionPolicy(id: LearningTrackId): Promise<ContributionPolicyEnvelope | null>;
