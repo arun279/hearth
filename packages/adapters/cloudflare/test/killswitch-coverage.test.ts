@@ -1,4 +1,12 @@
-import type { AttributionPreference, InvitationId, StudyGroupId, UserId } from "@hearth/domain";
+import type {
+  AttributionPreference,
+  ContributionPolicyEnvelope,
+  InvitationId,
+  LearningTrackId,
+  StudyGroupId,
+  TrackStructureEnvelope,
+  UserId,
+} from "@hearth/domain";
 import type { SystemFlagRepository } from "@hearth/ports";
 import { describe, expect, it } from "vitest";
 import type { CloudflareAdapterDeps } from "../src/deps.ts";
@@ -174,6 +182,48 @@ describe("killswitch coverage (resilience invariant 2 + 3)", () => {
     ["ObjectStorage.putUpload", () => object.putUpload("k", new Blob([]).stream(), undefined)],
     ["ObjectStorage.delete", () => object.delete("k")],
 
+    [
+      "LearningTrackRepository.create",
+      () =>
+        tracks.create({
+          groupId: gid as StudyGroupId,
+          name: "T",
+          description: null,
+          createdBy: uid,
+        }),
+    ],
+    [
+      "LearningTrackRepository.updateStatus",
+      () =>
+        tracks.updateStatus({
+          id: "t_test" as LearningTrackId,
+          to: "paused",
+          expectedFromStatus: "active",
+          by: uid,
+        }),
+    ],
+    [
+      "LearningTrackRepository.updateMetadata",
+      () => tracks.updateMetadata("t_test" as LearningTrackId, { name: "T" }, uid),
+    ],
+    [
+      "LearningTrackRepository.saveStructure",
+      () =>
+        tracks.saveStructure(
+          "t_test" as LearningTrackId,
+          { v: 1, data: { mode: "free" } } satisfies TrackStructureEnvelope,
+          uid,
+        ),
+    ],
+    [
+      "LearningTrackRepository.saveContributionPolicy",
+      () =>
+        tracks.saveContributionPolicy(
+          "t_test" as LearningTrackId,
+          { v: 1, data: { mode: "direct" } } satisfies ContributionPolicyEnvelope,
+          uid,
+        ),
+    ],
     [
       "LearningTrackRepository.endAllEnrollmentsForUser",
       () => tracks.endAllEnrollmentsForUser({ groupId: gid, userId: uid, by: uid }),

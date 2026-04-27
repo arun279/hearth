@@ -45,6 +45,11 @@ export function resetInstanceState(): void {
     // wiped between specs.
     "DELETE FROM group_invitations WHERE group_id IN (SELECT g.id FROM groups g WHERE NOT EXISTS (SELECT 1 FROM group_memberships m WHERE m.group_id = g.id)) OR created_by LIKE 'u_e2e_%' OR consumed_by LIKE 'u_e2e_%' OR revoked_by LIKE 'u_e2e_%'",
     "DELETE FROM pending_uploads WHERE group_id IN (SELECT g.id FROM groups g WHERE NOT EXISTS (SELECT 1 FROM group_memberships m WHERE m.group_id = g.id)) OR uploader_user_id LIKE 'u_e2e_%'",
+    // M4 dependents: track enrollments FK into tracks + users; tracks FK
+    // into groups. Drop enrollments first, then orphaned tracks (whose
+    // parent group has no surviving members), then groups (orphans only).
+    "DELETE FROM track_enrollments WHERE user_id LIKE 'u_e2e_%' OR track_id IN (SELECT t.id FROM tracks t WHERE t.group_id IN (SELECT g.id FROM groups g WHERE NOT EXISTS (SELECT 1 FROM group_memberships m WHERE m.group_id = g.id)))",
+    "DELETE FROM tracks WHERE group_id IN (SELECT g.id FROM groups g WHERE NOT EXISTS (SELECT 1 FROM group_memberships m WHERE m.group_id = g.id))",
     "DELETE FROM groups WHERE id NOT IN (SELECT DISTINCT group_id FROM group_memberships)",
     "DELETE FROM users WHERE id LIKE 'u_e2e_%'",
   ]);

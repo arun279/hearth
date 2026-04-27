@@ -206,4 +206,35 @@ test.describe("M3 — invite, approve, consume, members list", () => {
     await opCtx.close();
     await inviteeCtx.close();
   });
+
+  test("admin can copy a pending invitation's link from the people page", async ({ browser }) => {
+    const op = await seedOperator(OPERATOR);
+    const ctx = await browser.newContext({ permissions: ["clipboard-read", "clipboard-write"] });
+    await attachSession(ctx, op.cookie);
+
+    const create = await ctx.request.post("/api/v1/g", {
+      data: { name: "Copy-link group" },
+      headers: { "content-type": "application/json" },
+    });
+    const { id: groupId } = (await create.json()) as { id: string };
+
+    await ctx.request.post(`/api/v1/g/${groupId}/invitations`, {
+      data: { email: INVITEE.email },
+      headers: { "content-type": "application/json" },
+    });
+
+    const page = await ctx.newPage();
+    await page.goto(`/g/${groupId}/people`);
+    const invitations = page.getByRole("list", { name: /Outstanding invitations/i });
+    await expect(invitations).toBeVisible();
+    const copyButton = invitations.getByRole("button", { name: /Copy invite link for/i });
+    await expect(copyButton).toBeVisible();
+    await copyButton.click();
+    await expect(page.getByText(/Invitation link copied/i)).toBeVisible();
+
+    const clipboardText = await page.evaluate(() => navigator.clipboard.readText());
+    expect(clipboardText).toMatch(/\/invite\/[A-Za-z0-9_-]+$/);
+
+    await ctx.close();
+  });
 });

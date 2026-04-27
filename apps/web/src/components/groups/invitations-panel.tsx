@@ -1,6 +1,6 @@
 import type { GroupInvitationStatus, StudyGroup } from "@hearth/domain";
 import { Badge, Button } from "@hearth/ui";
-import { Mail } from "lucide-react";
+import { Link2, Mail } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
@@ -8,6 +8,7 @@ import {
   useGroupInvitations,
   useRevokeGroupInvitation,
 } from "../../hooks/use-group-invitations.ts";
+import { copyTextToClipboard } from "../../lib/clipboard.ts";
 import { formatRelative, formatShortDate } from "../../lib/format.ts";
 import { asUserMessage } from "../../lib/problem.ts";
 import { ConfirmActionDialog } from "../admin/confirm-action-dialog.tsx";
@@ -45,6 +46,15 @@ export function InvitationsPanel({ group, enabled, onInvite }: Props) {
   const { data, isLoading } = useGroupInvitations(group.id, enabled);
   const revoke = useRevokeGroupInvitation(group.id);
   const [confirming, setConfirming] = useState<GroupInvitationView | null>(null);
+  const handleCopyInviteLink = async (token: string) => {
+    const url = `${window.location.origin}/invite/${token}`;
+    const ok = await copyTextToClipboard(url);
+    if (ok) {
+      toast.success("Invitation link copied.");
+    } else {
+      toast.error(`Couldn't copy. Long-press to select: ${url}`);
+    }
+  };
 
   const entries = data ?? [];
 
@@ -119,9 +129,20 @@ export function InvitationsPanel({ group, enabled, onInvite }: Props) {
                 <div className="flex items-center justify-end gap-2">
                   <Badge tone={badge.tone}>{badge.label}</Badge>
                   {isLive ? (
-                    <Button size="sm" variant="secondary" onClick={() => setConfirming(entry)}>
-                      Revoke
-                    </Button>
+                    <>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => handleCopyInviteLink(inv.token)}
+                        aria-label={`Copy invite link for ${inv.email ?? "open invitation"}`}
+                      >
+                        <Link2 size={12} strokeWidth={1.75} aria-hidden="true" />
+                        Copy link
+                      </Button>
+                      <Button size="sm" variant="secondary" onClick={() => setConfirming(entry)}>
+                        Revoke
+                      </Button>
+                    </>
                   ) : null}
                 </div>
               </li>

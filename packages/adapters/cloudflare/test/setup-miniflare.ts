@@ -47,6 +47,8 @@ beforeEach(async () => {
     env.DB.prepare("DELETE FROM pending_uploads"),
     env.DB.prepare("DELETE FROM group_invitations"),
     env.DB.prepare("DELETE FROM group_memberships"),
+    env.DB.prepare("DELETE FROM track_enrollments"),
+    env.DB.prepare("DELETE FROM tracks"),
     env.DB.prepare("DELETE FROM groups"),
     env.DB.prepare("DELETE FROM users"),
   ]);

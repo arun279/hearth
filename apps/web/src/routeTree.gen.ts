@@ -15,6 +15,7 @@ import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as GGroupIdRouteImport } from './routes/g.$groupId'
 import { Route as AdminInstanceRouteImport } from './routes/admin.instance'
 import { Route as GGroupIdPeopleRouteImport } from './routes/g.$groupId_.people'
+import { Route as GGroupIdTTrackIdRouteImport } from './routes/g.$groupId_.t.$trackId'
 
 const MeRoute = MeRouteImport.update({
   id: '/me',
@@ -46,6 +47,11 @@ const GGroupIdPeopleRoute = GGroupIdPeopleRouteImport.update({
   path: '/g/$groupId/people',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GGroupIdTTrackIdRoute = GGroupIdTTrackIdRouteImport.update({
+  id: '/g/$groupId_/t/$trackId',
+  path: '/g/$groupId/t/$trackId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -54,6 +60,7 @@ export interface FileRoutesByFullPath {
   '/g/$groupId': typeof GGroupIdRoute
   '/invite/$token': typeof InviteTokenRoute
   '/g/$groupId/people': typeof GGroupIdPeopleRoute
+  '/g/$groupId/t/$trackId': typeof GGroupIdTTrackIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -62,6 +69,7 @@ export interface FileRoutesByTo {
   '/g/$groupId': typeof GGroupIdRoute
   '/invite/$token': typeof InviteTokenRoute
   '/g/$groupId/people': typeof GGroupIdPeopleRoute
+  '/g/$groupId/t/$trackId': typeof GGroupIdTTrackIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -71,6 +79,7 @@ export interface FileRoutesById {
   '/g/$groupId': typeof GGroupIdRoute
   '/invite/$token': typeof InviteTokenRoute
   '/g/$groupId_/people': typeof GGroupIdPeopleRoute
+  '/g/$groupId_/t/$trackId': typeof GGroupIdTTrackIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -81,6 +90,7 @@ export interface FileRouteTypes {
     | '/g/$groupId'
     | '/invite/$token'
     | '/g/$groupId/people'
+    | '/g/$groupId/t/$trackId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -89,6 +99,7 @@ export interface FileRouteTypes {
     | '/g/$groupId'
     | '/invite/$token'
     | '/g/$groupId/people'
+    | '/g/$groupId/t/$trackId'
   id:
     | '__root__'
     | '/'
@@ -97,6 +108,7 @@ export interface FileRouteTypes {
     | '/g/$groupId'
     | '/invite/$token'
     | '/g/$groupId_/people'
+    | '/g/$groupId_/t/$trackId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -106,6 +118,7 @@ export interface RootRouteChildren {
   GGroupIdRoute: typeof GGroupIdRoute
   InviteTokenRoute: typeof InviteTokenRoute
   GGroupIdPeopleRoute: typeof GGroupIdPeopleRoute
+  GGroupIdTTrackIdRoute: typeof GGroupIdTTrackIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -152,6 +165,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GGroupIdPeopleRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/g/$groupId_/t/$trackId': {
+      id: '/g/$groupId_/t/$trackId'
+      path: '/g/$groupId/t/$trackId'
+      fullPath: '/g/$groupId/t/$trackId'
+      preLoaderRoute: typeof GGroupIdTTrackIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -162,6 +182,7 @@ const rootRouteChildren: RootRouteChildren = {
   GGroupIdRoute: GGroupIdRoute,
   InviteTokenRoute: InviteTokenRoute,
   GGroupIdPeopleRoute: GGroupIdPeopleRoute,
+  GGroupIdTTrackIdRoute: GGroupIdTTrackIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
