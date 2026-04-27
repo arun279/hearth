@@ -62,6 +62,33 @@ test.describe("M4 — Track lifecycle", () => {
     await expect(tabList.getByRole("tab", { name: /Pending/i })).toBeVisible();
     await expect(page.getByText(/No activities yet/i)).toBeVisible();
 
+    // WAI-ARIA tabs pattern regression: ArrowRight/Left/Home/End MUST move
+    // focus along with selection. A prior iteration moved aria-selected
+    // and the underline but left document.activeElement on the original
+    // tab — broke keyboard-only navigation. After each arrow press,
+    // assert the activeElement id matches the selected tab id.
+    const activeTabId = () => page.evaluate(() => document.activeElement?.id ?? null);
+    await tabList.getByRole("tab", { name: /Activities/i }).focus();
+    expect(await activeTabId()).toBe("track-home-tab-activities");
+    await page.keyboard.press("ArrowRight");
+    await expect(tabList.getByRole("tab", { name: /Sessions/i })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(await activeTabId()).toBe("track-home-tab-sessions");
+    await page.keyboard.press("End");
+    await expect(tabList.getByRole("tab", { name: /Pending/i })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(await activeTabId()).toBe("track-home-tab-pending");
+    await page.keyboard.press("Home");
+    await expect(tabList.getByRole("tab", { name: /Activities/i })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(await activeTabId()).toBe("track-home-tab-activities");
+
     // Pause via settings dialog: select the Paused radio, then commit with
     // Save changes — settings stage rather than auto-save so the user
     // controls when each change lands.
@@ -92,13 +119,21 @@ test.describe("M4 — Track lifecycle", () => {
     await settingsForArchive.getByRole("button", { name: /Archive track/i }).click();
     const confirmArchive = page.getByRole("dialog", { name: /Archive this Learning Track/i });
     await expect(confirmArchive).toBeVisible();
-    await confirmArchive.getByRole("button", { name: /^Archive track$/i }).click();
+    // Type-to-confirm gates the destructive action — the button stays
+    // disabled until the user types "archive" exactly. Confirms the
+    // friction is real and matches the Cloudscape pattern.
+    const archiveButton = confirmArchive.getByRole("button", { name: /^Archive track$/i });
+    await expect(archiveButton).toBeDisabled();
+    await confirmArchive.getByRole("textbox", { name: /Type archive to confirm/i }).fill("archive");
+    await expect(archiveButton).toBeEnabled();
+    await archiveButton.click();
     await expect(page.getByText(/Track archived/i)).toBeVisible();
     // Archived tracks render the neutral "Archived" callout above the hero
-    // and remove the editable affordances. The settings button stays
-    // visible (the dialog now opens read-only) so the operator can still
-    // inspect the track configuration.
+    // and remove the editable affordances entirely. The settings button is
+    // hidden because every state-changing cap collapses on an archived
+    // track — opening the dialog would land in an empty room.
     await expect(page.getByText(/^Archived$/).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: /Track settings/i })).toBeHidden();
 
     await context.close();
   });

@@ -355,7 +355,14 @@ export function TrackSettingsDialog({
         tone="destructive"
         open={confirmingArchive}
         title="Archive this Learning Track?"
-        description="Activities, sessions, and library items stay readable but can no longer be edited or added to. This is permanent."
+        description={
+          <>
+            You are about to permanently archive <strong>{track.name}</strong>. Activities,
+            sessions, and library items stay readable but can no longer be edited or added to. This
+            is terminal — there is no unarchive.
+          </>
+        }
+        confirmationPhrase="archive"
         confirmLabel="Archive track"
         pending={updateStatus.isPending}
         onClose={() => setConfirmingArchive(false)}

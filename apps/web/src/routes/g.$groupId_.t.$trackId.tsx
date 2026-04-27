@@ -165,12 +165,13 @@ function TrackHomeBody({
   const showPendingTab =
     policyMode !== "none" || caps.canEditContributionPolicy || caps.canEditMetadata;
 
+  // Settings affordance lights up when the dialog has at least one
+  // *state-changing* action available. `canArchive` is intentionally
+  // excluded — archive is idempotent (re-archiving an archived track is a
+  // no-op), so on an archived track every other cap collapses to false and
+  // showing the button alone would open an empty-room dialog.
   const settingsAffordance =
-    caps.canEditMetadata ||
-    caps.canEditContributionPolicy ||
-    caps.canPause ||
-    caps.canResume ||
-    caps.canArchive;
+    caps.canEditMetadata || caps.canEditContributionPolicy || caps.canPause || caps.canResume;
 
   const tabs: ReadonlyArray<{
     readonly value: TrackTab;
@@ -225,8 +226,13 @@ function TrackHomeBody({
         >
           {group.name}
         </Link>
-        <span aria-hidden="true">/</span>
-        <span className="truncate text-[var(--color-ink-2)]">{track.name}</span>
+        {/* Current-page entry hidden below md — the 28px serif title
+            renders the track name in full directly below the breadcrumb,
+            so showing it here too would force a redundant truncation. */}
+        <span aria-hidden="true" className="hidden md:inline">
+          /
+        </span>
+        <span className="hidden truncate text-[var(--color-ink-2)] md:inline">{track.name}</span>
       </nav>
 
       <header className="mt-3 space-y-3">
