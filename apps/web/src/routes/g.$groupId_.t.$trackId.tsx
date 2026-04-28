@@ -1,6 +1,5 @@
-import type { ContributionMode, LearningTrack, MeContext, TrackEnrollment } from "@hearth/domain";
+import type { ContributionMode, LearningTrack } from "@hearth/domain";
 import {
-  AvatarStack,
   Badge,
   type BadgeTone,
   Button,
@@ -62,7 +61,6 @@ function TrackHome() {
   // the URL-supplied one matches in the happy path. Gate behind signedIn
   // so we don't fire while logging in.
   const summaryQuery = useTrackSummary(params.groupId, params.trackId, signedIn);
-  const r2PublicOrigin = me.data?.data.instance.r2PublicOrigin ?? "";
 
   useDocumentTitle([trackQuery.data?.track.name, trackQuery.data?.group.name]);
 
@@ -84,8 +82,6 @@ function TrackHome() {
         <>
           <TrackHomeBody
             detail={detail}
-            meUser={me.data?.data.user ?? null}
-            r2PublicOrigin={r2PublicOrigin}
             activeTab={activeTab}
             counts={summaryQuery.data}
             onChangeTab={(tab) => {
@@ -121,37 +117,14 @@ function TrackHome() {
 
 type TrackHomeBodyProps = {
   readonly detail: TrackDetail;
-  readonly meUser: MeContext["data"]["user"];
-  readonly r2PublicOrigin: string;
   readonly activeTab: TrackTab;
   readonly counts: TrackSummaryCounts | undefined;
   readonly onChangeTab: (tab: TrackTab) => void;
   readonly onOpenSettings: () => void;
 };
 
-/**
- * Group-profile avatars are stored as bare R2 keys; OAuth-supplied user
- * images are already absolute URLs. Join the key with the public origin
- * (taken from `me.instance.r2PublicOrigin` so the SPA never has a parallel
- * env var that can drift) and fall back to the OAuth image only when no
- * group-profile avatar exists. Mirrors the join in `member-row.tsx`.
- */
-function resolveAvatarSrc(
-  storageKey: string | null,
-  oauthImage: string | null,
-  publicOrigin: string,
-): string | null {
-  if (storageKey !== null && storageKey.length > 0) {
-    const origin = publicOrigin.replace(/\/$/, "");
-    return origin.length > 0 ? `${origin}/${storageKey}` : storageKey;
-  }
-  return oauthImage;
-}
-
 function TrackHomeBody({
   detail,
-  meUser,
-  r2PublicOrigin,
   activeTab,
   counts,
   onChangeTab,
@@ -326,15 +299,6 @@ function TrackHomeBody({
         <FacilitatorBar
           enrollmentCount={counts?.enrollmentCount ?? 0}
           facilitatorCount={counts?.facilitatorCount ?? 0}
-          myEnrollment={detail.myEnrollment}
-          myDisplayName={
-            detail.myGroupMembership?.profile.nickname ?? meUser?.name ?? meUser?.email ?? null
-          }
-          myAvatarSrc={resolveAvatarSrc(
-            detail.myGroupMembership?.profile.avatarUrl ?? null,
-            meUser?.image ?? null,
-            r2PublicOrigin,
-          )}
         />
       </header>
 
@@ -407,42 +371,14 @@ function TabCounter({ count }: { readonly count: number }) {
 function FacilitatorBar({
   enrollmentCount,
   facilitatorCount,
-  myEnrollment,
-  myDisplayName,
-  myAvatarSrc,
 }: {
   readonly enrollmentCount: number;
   readonly facilitatorCount: number;
-  readonly myEnrollment: TrackEnrollment | null;
-  readonly myDisplayName: string | null;
-  readonly myAvatarSrc: string | null;
 }) {
-  // We render the viewer's own avatar when they hold an active facilitator
-  // enrollment — covers the M4 happy path (the creator is the only
-  // facilitator) without an extra round trip. M5 will lift the full
-  // roster into the response and this collapses into a one-liner that
-  // maps the entries through `AvatarStack`. Until then, a viewer who is
-  // not a facilitator sees only the count, which is honest about what we
-  // know.
-  const viewerIsFacilitator =
-    myEnrollment !== null && myEnrollment.leftAt === null && myEnrollment.role === "facilitator";
-
-  const entries =
-    viewerIsFacilitator && myDisplayName
-      ? [{ key: "me", name: myDisplayName, src: myAvatarSrc }]
-      : [];
-
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-[var(--color-ink-2)]">
       <div className="flex items-center gap-2">
         <span className="text-[var(--color-ink-3)]">Facilitators</span>
-        {entries.length > 0 ? (
-          <AvatarStack
-            entries={entries}
-            ariaLabel={`Facilitators: ${entries.map((e) => e.name).join(", ")}`}
-            size={20}
-          />
-        ) : null}
         <span className="font-mono tabular-nums">{facilitatorCount}</span>
       </div>
       <span aria-hidden="true" className="text-[var(--color-ink-3)]">

@@ -206,7 +206,7 @@ function TrackPeopleBody({
         avatarOrigin={avatarOrigin}
         onConfirm={setConfirming}
         emptyTitle="No participants yet"
-        emptyDescription="Members of the parent group can self-enroll, or a facilitator can pull them in."
+        emptyDescription="Members of the parent group can self-enroll from the track home."
       />
 
       {people.leftEntries.length > 0 ? (
@@ -376,26 +376,35 @@ function PeopleSection({
           aria-label={ariaLabel}
           className="divide-y divide-[var(--color-rule)] rounded-[var(--radius-md)] border border-[var(--color-rule)] bg-[var(--color-surface)]"
         >
-          {rows.map((row) => (
-            <TrackEnrolleeRow
-              key={row.enrollment.userId}
-              enrollment={row.enrollment}
-              displayName={row.displayName}
-              avatarUrl={row.avatarUrl}
-              avatarOrigin={avatarOrigin}
-              isMe={row.enrollment.userId === myUserId}
-              actions={
-                renderActions ? (
-                  <RowActions
-                    row={row}
-                    onPromote={() => onConfirm({ kind: "promote", row })}
-                    onDemote={() => onConfirm({ kind: "demote", row })}
-                    onRemove={() => onConfirm({ kind: "remove", row })}
-                  />
-                ) : undefined
-              }
-            />
-          ))}
+          {rows.map((row) => {
+            const isSelf = row.enrollment.userId === myUserId;
+            // Self-Remove deflects to leave-track at the use-case layer
+            // ("self_remove_via_leave"), so a click here would always 409.
+            // The page's Leave callout is the canonical exit affordance.
+            const effectiveCaps = isSelf
+              ? { ...row.capabilities, canRemove: false }
+              : row.capabilities;
+            return (
+              <TrackEnrolleeRow
+                key={row.enrollment.userId}
+                enrollment={row.enrollment}
+                displayName={row.displayName}
+                avatarUrl={row.avatarUrl}
+                avatarOrigin={avatarOrigin}
+                isMe={isSelf}
+                actions={
+                  renderActions ? (
+                    <RowActions
+                      capabilities={effectiveCaps}
+                      onPromote={() => onConfirm({ kind: "promote", row })}
+                      onDemote={() => onConfirm({ kind: "demote", row })}
+                      onRemove={() => onConfirm({ kind: "remove", row })}
+                    />
+                  ) : undefined
+                }
+              />
+            );
+          })}
         </ul>
       ) : emptyTitle ? (
         <EmptyState title={emptyTitle} description={emptyDescription} />
@@ -405,17 +414,16 @@ function PeopleSection({
 }
 
 function RowActions({
-  row,
+  capabilities,
   onPromote,
   onDemote,
   onRemove,
 }: {
-  readonly row: TrackEnrolleeRowData;
+  readonly capabilities: TrackEnrolleeRowData["capabilities"];
   readonly onPromote: () => void;
   readonly onDemote: () => void;
   readonly onRemove: () => void;
 }) {
-  const { capabilities } = row;
   return (
     <>
       {capabilities.canPromote ? (

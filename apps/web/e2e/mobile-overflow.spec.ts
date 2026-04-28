@@ -79,6 +79,70 @@ async function expectNoOverflow(page: Page, where: string) {
   ).toEqual([]);
 }
 
+/**
+ * Detect rows where the identity content (display-name span / heading)
+ * has been crushed to zero width by the row's action buttons stealing
+ * the available horizontal budget. Catches the failure mode where a
+ * sighted touch user sees only action buttons next to an empty space
+ * and can't tell which row they're about to mutate.
+ *
+ * Scope: any `<li>` that contains at least one interactive control
+ * (button / role=button / link). Within those, every non-empty,
+ * non-aria-hidden text span is required to render with `boundingRect.width > 0`.
+ * Runs in-page so it sees real layout.
+ */
+async function findCrushedRowIdentities(page: Page) {
+  return page.evaluate(() => {
+    const rows = Array.from(document.querySelectorAll<HTMLLIElement>("li"));
+    const crushed: Array<{ row: string; text: string; selector: string }> = [];
+    for (const row of rows) {
+      // `offsetParent === null` is the standard "not in the rendered
+      // layout" predicate — covers `display: none` ancestors (responsive
+      // sidebars hidden under sm) and `position: fixed` invisibles.
+      // Hidden rows aren't user-visible regressions; only skip them
+      // here, never lean on visibility for the check itself.
+      if (row.offsetParent === null) continue;
+      const rowRect = row.getBoundingClientRect();
+      if (rowRect.width === 0 || rowRect.height === 0) continue;
+
+      const interactive = row.querySelectorAll('button, [role="button"], a[href]');
+      if (interactive.length === 0) continue;
+
+      const candidates = row.querySelectorAll<HTMLElement>(
+        'span:not([aria-hidden="true"]), h1, h2, h3, h4',
+      );
+      for (const el of candidates) {
+        const text = (el.textContent ?? "").trim();
+        if (text.length === 0) continue;
+        // Visually-hidden / sr-only utilities collapse via clip-path; skip.
+        const styles = window.getComputedStyle(el);
+        if (styles.clipPath !== "none") continue;
+        const rect = el.getBoundingClientRect();
+        if (rect.width >= 1) continue;
+        const list = row.parentElement?.getAttribute("aria-label") ?? "";
+        crushed.push({
+          row: list,
+          text: text.slice(0, 60),
+          selector: el.tagName.toLowerCase(),
+        });
+      }
+    }
+    return crushed;
+  });
+}
+
+async function expectNoCrushedIdentities(page: Page, where: string) {
+  const crushed = await findCrushedRowIdentities(page);
+  expect(
+    crushed,
+    `${where} — list rows have crushed identity content at 375px (display-name shrunk to 0 width by adjacent actions):\n${JSON.stringify(
+      crushed,
+      null,
+      2,
+    )}`,
+  ).toEqual([]);
+}
+
 test.describe("Mobile (375px) overflow regression guard", () => {
   test.beforeEach(() => {
     resetInstanceState();
@@ -138,6 +202,23 @@ test.describe("Mobile (375px) overflow regression guard", () => {
 
     await page.getByRole("tab", { name: /Settings/i }).click();
     await expectNoOverflow(page, "/admin/instance — Settings tab");
+
+    // Track People page — admin viewing a roster with row-level Promote /
+    // Demote / Remove actions. The previous failure mode was the action
+    // cluster crushing the display-name span to zero width and clipping
+    // the role pill at 375px; both are now caught by
+    // expectNoCrushedIdentities and expectNoOverflow respectively.
+    const trackHostId = await create("Tuesday Crew");
+    const trackRes = await context.request.post(`/api/v1/g/${trackHostId}/tracks`, {
+      data: { name: "Beginner Spanish" },
+      headers: { "content-type": "application/json" },
+    });
+    expect(trackRes.status()).toBe(201);
+    const trackId = ((await trackRes.json()) as { id: string }).id;
+    await page.goto(`/g/${trackHostId}/t/${trackId}/people`);
+    await expect(page.getByRole("heading", { name: /^People$/i })).toBeVisible();
+    await expectNoOverflow(page, "/g/:id/t/:id/people");
+    await expectNoCrushedIdentities(page, "/g/:id/t/:id/people");
 
     await context.close();
   });

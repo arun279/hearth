@@ -30,7 +30,13 @@ if (args.help) {
 }
 
 const email = (args.email ?? "seed-operator@local.dev").trim().toLowerCase();
-const name = args.name ?? "Local Operator";
+// Derive the default display name from the email local-part so multiple
+// `--seed --email …` invocations produce distinguishable users in
+// rendered rosters. The literal "Local Operator" still applies when the
+// caller doesn't pass --email (the default seed identity).
+const defaultName =
+  email === "seed-operator@local.dev" ? "Local Operator" : (email.split("@")[0] ?? email);
+const name = args.name ?? defaultName;
 const userIdSlug = email.replace(/[^a-z0-9]/g, "_").slice(0, 40);
 const userId = args.userId ?? `u_local_${userIdSlug}`;
 
@@ -117,7 +123,7 @@ function printHelp() {
       "",
       "Options:",
       "  --email <addr>     Email to mint a session for (default seed-operator@local.dev)",
-      "  --name <str>       Display name when --seed creates the user (default 'Local Operator')",
+      "  --name <str>       Display name when --seed creates the user (default: 'Local Operator' for the seed identity, otherwise the email local-part)",
       "  --user-id <id>     Override the generated user id when seeding",
       "  --seed             Create the user, mark as operator, and approve the email",
       "  --reset            Delete the user's sessions, group memberships, and orphaned groups",
