@@ -1,11 +1,12 @@
 import type { GroupMembership } from "@hearth/domain";
 import { Button, Callout, EmptyState, Skeleton } from "@hearth/ui";
-import { createFileRoute, Link, redirect } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { LogOut, Settings } from "lucide-react";
 import { useState } from "react";
 import { AvatarUploader } from "../components/groups/avatar-uploader.tsx";
 import { GroupMembersDialog } from "../components/groups/group-members-dialog.tsx";
 import { GroupPageShell } from "../components/groups/group-page-shell.tsx";
+import { GroupSubpageBreadcrumb } from "../components/groups/group-subpage-breadcrumb.tsx";
 import { InvitationsPanel } from "../components/groups/invitations-panel.tsx";
 import { InviteDialog } from "../components/groups/invite-dialog.tsx";
 import { LeaveGroupDialog } from "../components/groups/leave-group-dialog.tsx";
@@ -80,25 +81,7 @@ function PeoplePage() {
         return (
           <>
             <div className="mx-auto max-w-3xl px-5 py-8 md:px-8">
-              <nav
-                aria-label="Breadcrumb"
-                className="flex items-center gap-2 text-[12px] text-[var(--color-ink-3)]"
-              >
-                <Link to="/" search={{}} className="hover:text-[var(--color-ink-2)]">
-                  Your groups
-                </Link>
-                <span aria-hidden="true">/</span>
-                <Link
-                  to="/g/$groupId"
-                  params={{ groupId: g.id }}
-                  search={{}}
-                  className="hover:text-[var(--color-ink-2)]"
-                >
-                  {g.name}
-                </Link>
-                <span aria-hidden="true">/</span>
-                <span className="text-[var(--color-ink-2)]">People</span>
-              </nav>
+              <GroupSubpageBreadcrumb groupId={g.id} groupName={g.name} currentLabel="People" />
 
               <header className="mt-3 flex flex-col items-start gap-2 md:flex-row md:items-center md:gap-3">
                 <h1 className="font-serif text-[28px] text-[var(--color-ink)] leading-tight">

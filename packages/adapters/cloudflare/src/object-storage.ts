@@ -1,5 +1,11 @@
 import { isAvatarKey, isLibraryKey } from "@hearth/domain";
-import type { ObjectHead, ObjectStorage, PresignedPut, PresignedPutInput } from "@hearth/ports";
+import type {
+  ObjectHead,
+  ObjectStorage,
+  PresignedGetInput,
+  PresignedPut,
+  PresignedPutInput,
+} from "@hearth/ports";
 import { AwsClient } from "aws4fetch";
 import type { KillswitchGate } from "./killswitch.ts";
 
@@ -102,12 +108,28 @@ export function createObjectStorage(
       };
     },
 
-    async getDownloadUrl(_key, _ttlSeconds) {
-      // Reads use the bucket's public origin (R2_PUBLIC_ORIGIN) — short-
-      // lived signed GETs are unnecessary for v1's public assets. When a
-      // private-asset use case lands, sign with `aws.sign(..., { signQuery:
-      // true })` here following the same shape as the PUT above.
-      throw new Error("Not implemented: signed GET URLs not yet wired");
+    async getDownloadUrl({ key, ttlSeconds, contentDisposition }: PresignedGetInput) {
+      // Avatars sit on the public read origin; private library bodies need
+      // a signed GET so the URL only works for the actor who requested it
+      // (within the TTL). Refuse anything that isn't a known prefix —
+      // matches the defensive check on the PUT side and stops a use-case
+      // bug from accidentally signing arbitrary keys.
+      if (!isAvatarKey(key) && !isLibraryKey(key)) {
+        throw new Error("Refusing to sign URL for unknown key prefix");
+      }
+      const expirySeconds = Math.min(Math.max(ttlSeconds, 1), config.maxExpirySeconds);
+
+      // R2 / S3 honour `response-content-disposition` on signed GETs to
+      // override the saved object's disposition for this download only.
+      const params = new URLSearchParams({ "X-Amz-Expires": String(expirySeconds) });
+      if (contentDisposition) {
+        params.set("response-content-disposition", contentDisposition);
+      }
+      const target = `${config.endpoint}/${config.bucket}/${encodeKey(key)}?${params.toString()}`;
+      const signed = await aws.sign(new Request(target, { method: "GET" }), {
+        aws: { signQuery: true },
+      });
+      return signed.url;
     },
 
     async headObject(key): Promise<ObjectHead | null> {

@@ -9,10 +9,12 @@ import {
   leaveGroup,
   listGroupInvitations,
   listGroupMembers,
+  listLibraryItems,
   listMyGroups,
   listTracksInGroup,
   removeGroupMember,
   requestAvatarUpload,
+  requestLibraryUpload,
   revokeGroupInvitation,
   setGroupAdmin,
   unarchiveGroup,
@@ -23,6 +25,7 @@ import type {
   GroupRole,
   InvitationId,
   LearningTrackId,
+  LibraryItemId,
   StudyGroupId,
   UserId,
 } from "@hearth/domain";
@@ -33,6 +36,7 @@ import { z } from "zod";
 import type { AppBindings } from "../bindings.ts";
 import { getUserId, sessionAuthMiddleware } from "../middleware/session-auth.ts";
 import { mapUnknown, problemFromZodError, problemResponse } from "../problem.ts";
+import { libraryRequestUploadBody } from "./library.ts";
 
 /**
  * Group ids are cuid2 — short, URL-safe, no separators. Bound the field so a
@@ -669,6 +673,75 @@ export const groupsRoutes = new Hono<AppBindings>()
           },
         );
         return c.json(membership);
+      } catch (err) {
+        return problemResponse(c, mapUnknown(err));
+      }
+    },
+  )
+
+  // ── Library (group-scoped reads + upload-request) ─────────────────────
+
+  // GET /g/:groupId/library — list of items + canUpload cap.
+  .get(
+    "/:groupId/library",
+    zValidator("param", groupIdParam, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    async (c) => {
+      const { groupId } = c.req.valid("param");
+      try {
+        const result = await listLibraryItems(
+          { actor: getUserId(c), groupId: groupId as StudyGroupId },
+          {
+            users: c.var.ports.users,
+            groups: c.var.ports.groups,
+            policy: c.var.ports.policy,
+            library: c.var.ports.libraryItems,
+          },
+        );
+        return c.json(result);
+      } catch (err) {
+        return problemResponse(c, mapUnknown(err));
+      }
+    },
+  )
+
+  // POST /g/:groupId/library/upload-request — mint presigned PUT URL.
+  .post(
+    "/:groupId/library/upload-request",
+    zValidator("param", groupIdParam, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    zValidator("json", libraryRequestUploadBody, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    async (c) => {
+      const { groupId } = c.req.valid("param");
+      const body = c.req.valid("json");
+      try {
+        const result = await requestLibraryUpload(
+          {
+            actor: getUserId(c),
+            groupId: groupId as StudyGroupId,
+            mimeType: body.mimeType,
+            sizeBytes: body.sizeBytes,
+            originalFilename: body.originalFilename ?? null,
+            ...(body.libraryItemId !== undefined
+              ? { libraryItemId: body.libraryItemId as LibraryItemId }
+              : {}),
+            now: new Date(),
+          },
+          {
+            users: c.var.ports.users,
+            groups: c.var.ports.groups,
+            policy: c.var.ports.policy,
+            library: c.var.ports.libraryItems,
+            storage: c.var.ports.storage,
+            uploads: c.var.ports.uploads,
+            ids: c.var.ports.ids,
+          },
+        );
+        return c.json(result, 201);
       } catch (err) {
         return problemResponse(c, mapUnknown(err));
       }

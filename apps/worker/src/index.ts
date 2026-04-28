@@ -105,7 +105,7 @@ app.use("*", async (c, next) => {
     users,
     groups: createStudyGroupRepository({ db, gate }),
     tracks: createLearningTrackRepository({ db, gate }),
-    libraryItems: createLibraryItemRepository({ db, storage, gate }),
+    libraryItems: createLibraryItemRepository({ db, gate }),
     activities: createLearningActivityRepository({ db, gate }),
     records: createActivityRecordRepository({ db, gate }),
     sessions: createStudySessionRepository({ db, gate }),

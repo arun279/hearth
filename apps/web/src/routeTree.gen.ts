@@ -15,6 +15,7 @@ import { Route as InviteTokenRouteImport } from './routes/invite.$token'
 import { Route as GGroupIdRouteImport } from './routes/g.$groupId'
 import { Route as AdminInstanceRouteImport } from './routes/admin.instance'
 import { Route as GGroupIdPeopleRouteImport } from './routes/g.$groupId_.people'
+import { Route as GGroupIdLibraryRouteImport } from './routes/g.$groupId_.library'
 import { Route as GGroupIdTTrackIdRouteImport } from './routes/g.$groupId_.t.$trackId'
 import { Route as GGroupIdTTrackIdPeopleRouteImport } from './routes/g.$groupId_.t.$trackId_.people'
 
@@ -48,6 +49,11 @@ const GGroupIdPeopleRoute = GGroupIdPeopleRouteImport.update({
   path: '/g/$groupId/people',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GGroupIdLibraryRoute = GGroupIdLibraryRouteImport.update({
+  id: '/g/$groupId_/library',
+  path: '/g/$groupId/library',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const GGroupIdTTrackIdRoute = GGroupIdTTrackIdRouteImport.update({
   id: '/g/$groupId_/t/$trackId',
   path: '/g/$groupId/t/$trackId',
@@ -65,6 +71,7 @@ export interface FileRoutesByFullPath {
   '/admin/instance': typeof AdminInstanceRoute
   '/g/$groupId': typeof GGroupIdRoute
   '/invite/$token': typeof InviteTokenRoute
+  '/g/$groupId/library': typeof GGroupIdLibraryRoute
   '/g/$groupId/people': typeof GGroupIdPeopleRoute
   '/g/$groupId/t/$trackId': typeof GGroupIdTTrackIdRoute
   '/g/$groupId/t/$trackId/people': typeof GGroupIdTTrackIdPeopleRoute
@@ -75,6 +82,7 @@ export interface FileRoutesByTo {
   '/admin/instance': typeof AdminInstanceRoute
   '/g/$groupId': typeof GGroupIdRoute
   '/invite/$token': typeof InviteTokenRoute
+  '/g/$groupId/library': typeof GGroupIdLibraryRoute
   '/g/$groupId/people': typeof GGroupIdPeopleRoute
   '/g/$groupId/t/$trackId': typeof GGroupIdTTrackIdRoute
   '/g/$groupId/t/$trackId/people': typeof GGroupIdTTrackIdPeopleRoute
@@ -86,6 +94,7 @@ export interface FileRoutesById {
   '/admin/instance': typeof AdminInstanceRoute
   '/g/$groupId': typeof GGroupIdRoute
   '/invite/$token': typeof InviteTokenRoute
+  '/g/$groupId_/library': typeof GGroupIdLibraryRoute
   '/g/$groupId_/people': typeof GGroupIdPeopleRoute
   '/g/$groupId_/t/$trackId': typeof GGroupIdTTrackIdRoute
   '/g/$groupId_/t/$trackId_/people': typeof GGroupIdTTrackIdPeopleRoute
@@ -98,6 +107,7 @@ export interface FileRouteTypes {
     | '/admin/instance'
     | '/g/$groupId'
     | '/invite/$token'
+    | '/g/$groupId/library'
     | '/g/$groupId/people'
     | '/g/$groupId/t/$trackId'
     | '/g/$groupId/t/$trackId/people'
@@ -108,6 +118,7 @@ export interface FileRouteTypes {
     | '/admin/instance'
     | '/g/$groupId'
     | '/invite/$token'
+    | '/g/$groupId/library'
     | '/g/$groupId/people'
     | '/g/$groupId/t/$trackId'
     | '/g/$groupId/t/$trackId/people'
@@ -118,6 +129,7 @@ export interface FileRouteTypes {
     | '/admin/instance'
     | '/g/$groupId'
     | '/invite/$token'
+    | '/g/$groupId_/library'
     | '/g/$groupId_/people'
     | '/g/$groupId_/t/$trackId'
     | '/g/$groupId_/t/$trackId_/people'
@@ -129,6 +141,7 @@ export interface RootRouteChildren {
   AdminInstanceRoute: typeof AdminInstanceRoute
   GGroupIdRoute: typeof GGroupIdRoute
   InviteTokenRoute: typeof InviteTokenRoute
+  GGroupIdLibraryRoute: typeof GGroupIdLibraryRoute
   GGroupIdPeopleRoute: typeof GGroupIdPeopleRoute
   GGroupIdTTrackIdRoute: typeof GGroupIdTTrackIdRoute
   GGroupIdTTrackIdPeopleRoute: typeof GGroupIdTTrackIdPeopleRoute
@@ -178,6 +191,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GGroupIdPeopleRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/g/$groupId_/library': {
+      id: '/g/$groupId_/library'
+      path: '/g/$groupId/library'
+      fullPath: '/g/$groupId/library'
+      preLoaderRoute: typeof GGroupIdLibraryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/g/$groupId_/t/$trackId': {
       id: '/g/$groupId_/t/$trackId'
       path: '/g/$groupId/t/$trackId'
@@ -201,6 +221,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminInstanceRoute: AdminInstanceRoute,
   GGroupIdRoute: GGroupIdRoute,
   InviteTokenRoute: InviteTokenRoute,
+  GGroupIdLibraryRoute: GGroupIdLibraryRoute,
   GGroupIdPeopleRoute: GGroupIdPeopleRoute,
   GGroupIdTTrackIdRoute: GGroupIdTTrackIdRoute,
   GGroupIdTTrackIdPeopleRoute: GGroupIdTTrackIdPeopleRoute,

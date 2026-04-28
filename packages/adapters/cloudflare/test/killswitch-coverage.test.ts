@@ -3,6 +3,8 @@ import type {
   ContributionPolicyEnvelope,
   InvitationId,
   LearningTrackId,
+  LibraryItemId,
+  LibraryRevisionId,
   StudyGroupId,
   TrackStructureEnvelope,
   UserId,
@@ -15,6 +17,7 @@ import {
   createInstanceSettingsRepository,
   createKillswitchGate,
   createLearningTrackRepository,
+  createLibraryItemRepository,
   createObjectStorage,
   createPendingUploadsSweep,
   createStudyGroupRepository,
@@ -83,6 +86,7 @@ describe("killswitch coverage (resilience invariant 2 + 3)", () => {
   const settings = createInstanceSettingsRepository({ db, gate });
   const groups = createStudyGroupRepository({ db, gate });
   const tracks = createLearningTrackRepository({ db, gate });
+  const library = createLibraryItemRepository({ db, gate });
   const uploads = createUploadCoordinationRepository({ db, gate });
   const sweep = createPendingUploadsSweep({ db, storage, gate });
   const object = createObjectStorage(storage, gate, {
@@ -244,6 +248,71 @@ describe("killswitch coverage (resilience invariant 2 + 3)", () => {
           userId: uid,
           role: "facilitator",
           by: uid,
+        }),
+    ],
+
+    [
+      "LibraryItemRepository.create",
+      () =>
+        library.create({
+          id: "li_test" as LibraryItemId,
+          groupId: gid as StudyGroupId,
+          title: "T",
+          description: null,
+          tags: [],
+          uploadedBy: uid,
+          firstRevision: {
+            id: "lr_test" as LibraryRevisionId,
+            storageKey: "library/g_test/li_test/lr_test",
+            mimeType: "application/pdf",
+            sizeBytes: 1,
+            originalFilename: null,
+            uploadedBy: uid,
+            uploadedAt: new Date(),
+          },
+          now: new Date(),
+        }),
+    ],
+    [
+      "LibraryItemRepository.updateMetadata",
+      () => library.updateMetadata("li_test" as LibraryItemId, { title: "T2" }),
+    ],
+    [
+      "LibraryItemRepository.markRetired",
+      () => library.markRetired("li_test" as LibraryItemId, uid, new Date()),
+    ],
+    [
+      "LibraryItemRepository.addRevision",
+      () =>
+        library.addRevision({
+          libraryItemId: "li_test" as LibraryItemId,
+          revision: {
+            id: "lr_test2" as LibraryRevisionId,
+            storageKey: "library/g_test/li_test/lr_test2",
+            mimeType: "application/pdf",
+            sizeBytes: 1,
+            originalFilename: null,
+            uploadedBy: uid,
+            uploadedAt: new Date(),
+          },
+        }),
+    ],
+    [
+      "LibraryItemRepository.addSteward",
+      () =>
+        library.addSteward({
+          libraryItemId: "li_test" as LibraryItemId,
+          userId: uid,
+          grantedBy: uid,
+          grantedAt: new Date(),
+        }),
+    ],
+    [
+      "LibraryItemRepository.removeSteward",
+      () =>
+        library.removeSteward({
+          libraryItemId: "li_test" as LibraryItemId,
+          userId: uid,
         }),
     ],
 
