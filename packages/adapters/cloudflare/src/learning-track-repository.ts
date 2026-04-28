@@ -606,15 +606,24 @@ export function createLearningTrackRepository(
       const now = new Date();
       const generatedId = ids.generate();
 
-      // Membership must exist + be current at write time. Single conditional
-      // UPSERT: insert OR (on the existing soft-left row) clear leftAt /
-      // leftBy + reset enrolledAt. Branching by SELECT is unsafe under
-      // concurrency — we route both paths through one statement.
+      // Membership must exist + be current at write time. The write is a
+      // two-phase guarded UPSERT (UPDATE-then-INSERT-ON-CONFLICT-DO-NOTHING)
+      // because SQLite UPSERT can't gate the conflict-set on row state —
+      // we need to distinguish the soft-left revive case from the
+      // already-active no-op case, and one statement can't express both.
       //
-      // The `where` on the upsert SET branch keeps us from clobbering an
-      // already-active row's role/enrolledAt — for a no-op revival we only
-      // touch the soft-left case. Active rows return through the post-write
-      // SELECT below as the existing row.
+      // Concurrent membership-removal between phase 1 and phase 2 can land
+      // an orphan enrollment row (no live membership). This is bounded by
+      // `endAllEnrollmentsForUser` in the leave-group / remove-member
+      // cascade, which soft-leaves all of a user's track enrollments at
+      // membership-end time — orphan rows from the race converge to that
+      // soft-left state on the next cascade pass. Wrapping in `db.batch`
+      // would close the window at the cost of a more constrained call
+      // shape; the cascade is sufficient for now.
+      //
+      // The phase-1 UPDATE preserves role on revive: a soft-left
+      // facilitator who self-enrolls comes back as facilitator. See
+      // `canEnrollSelfInTrack`'s contract docstring.
       const membershipExists = membershipExistsExpr(deps.db, trackId, userId);
 
       // Phase 1: idempotent revive — clear leftAt on a soft-left row.

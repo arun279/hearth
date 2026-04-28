@@ -147,8 +147,9 @@ function TrackHomeBody({
     group.status !== "archived";
   const facilitatorCount = counts?.facilitatorCount ?? 0;
   // Last facilitator on an active track can't leave without orphaning —
-  // the server returns 409 in that case; we surface a disabled UI hint
-  // to avoid the failed mutation round-trip.
+  // the server returns 409 in that case. The Leave button is hidden in
+  // that state (see the JSX below) and the People page surfaces the
+  // constraint inline so authority users still see the path forward.
   const isLastFacilitator =
     isCurrentEnrollee &&
     myEnrollment.role === "facilitator" &&

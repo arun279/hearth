@@ -12,6 +12,14 @@ import { isAuthorityOverTrack } from "./is-authority-over-track.ts";
  * member of its group. Paused tracks accept new enrollments — the
  * carve-out is intentional so a returning member can re-engage without
  * first unpausing the track. Archived tracks are read-only end-to-end.
+ *
+ * Revive preserves prior role: a soft-left facilitator who self-enrolls
+ * comes back as a facilitator, not as a participant. Leaving was a
+ * pause, not a renunciation of the seat — the demote → leave path is
+ * the deliberate way to give it up. If a participant prefers a clean
+ * reset, an authority can demote first and then the revive lands at
+ * participant. Adapter behavior is anchored at
+ * `learning-track-repository.enroll`'s phase-1 UPDATE.
  */
 export function canEnrollSelfInTrack(
   actor: User,
