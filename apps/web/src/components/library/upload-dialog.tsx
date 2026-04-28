@@ -2,7 +2,7 @@ import {
   ALLOWED_LIBRARY_MIME_TYPES,
   isAllowedLibraryMime,
   MAX_LIBRARY_ITEM_BYTES,
-} from "@hearth/domain";
+} from "@hearth/domain/library";
 import { Button, Callout, Field, Input, Modal, Textarea } from "@hearth/ui";
 import { Loader2, UploadCloud } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
