@@ -165,6 +165,26 @@ Two Google accounts and two browsers (or one normal + one Incognito) make it pos
 
 Removing an Approved Email while the matching user is signed in is the only action that hard-deletes live sessions. Watch the second browser: the next API call returns 401 and the SPA redirects to the sign-in screen.
 
+## 8a. Enrolling a second member in a Learning Track
+
+Most flows past the group lifecycle (track activities, sessions, the People tab, the orphan-facilitator guard on group-member removal) need at least two real members on the same track. The shortest path with the dev session helper:
+
+1. With the bootstrap operator signed in, create a Study Group and a Learning Track. The creator is auto-enrolled as the track's first facilitator.
+2. Approve the second user's email up front (the consume path reuses the instance-level allowlist):
+
+   ```bash
+   curl -X POST http://localhost:8787/api/v1/instance/approved-emails \
+     -H "content-type: application/json" \
+     -H "cookie: better-auth.session_token=$(pnpm -s local-session --seed --cookie-only)" \
+     --data '{"email":"member2@local.dev"}'
+   ```
+
+3. Mint a session for the second user with `pnpm local-session --seed --email
+   member2@local.dev --json` and grab the cookie value.
+4. Invite that email from the group's people page (admin-only `Invite` button) or via `POST /api/v1/g/:groupId/invitations`. Either path returns a token.
+5. Consume the invitation as the second user — visit `/invite/<token>` in a second browser/profile (cookies don't share between profiles), or POST `/api/v1/invitations/consume` with `{ "token": "..." }`.
+6. The second user can now self-enroll in the track via the `Enroll` button on the track home, or you can promote them to facilitator from the People tab (the admin-only `Promote` action). The orphan-facilitator guard on group removal lights up once a track has at least one facilitator who is the _only_ facilitator on that track — the easiest way to reproduce that state is to invite a third user, promote them to facilitator on a different track, then try removing them from the group.
+
 ## 9. Inspecting R2 (avatars and library uploads)
 
 The Worker writes uploaded avatars to the R2 binding named `STORAGE` under keys shaped `avatars/<userId>/<groupId>/<sha>`. To see what's in the local bucket while the dev Worker is running, pass `--local` so Wrangler reads the Miniflare-backed bucket rather than the production R2 namespace:

@@ -56,6 +56,7 @@ function TrackPeopleRoute() {
         return (
           <TrackPeopleBody
             groupId={detail.group.id}
+            groupName={detail.group.name}
             trackId={detail.track.id}
             trackName={detail.track.name}
             trackStatus={detail.track.status}
@@ -74,6 +75,7 @@ function TrackPeopleRoute() {
 
 type TrackPeopleBodyProps = {
   readonly groupId: string;
+  readonly groupName: string;
   readonly trackId: string;
   readonly trackName: string;
   readonly trackStatus: "active" | "paused" | "archived";
@@ -93,6 +95,7 @@ type TrackPeopleBodyProps = {
 
 function TrackPeopleBody({
   groupId,
+  groupName,
   trackId,
   trackName,
   trackStatus,
@@ -152,10 +155,24 @@ function TrackPeopleBody({
         </Link>
         <span aria-hidden="true">/</span>
         <Link
+          to="/g/$groupId"
+          params={{ groupId }}
+          search={{}}
+          className="truncate hover:text-[var(--color-ink-2)]"
+        >
+          {groupName}
+        </Link>
+        {/* Track segment hides under md so the breadcrumb fits on a phone —
+            the page title below already says "People — {track}" so the
+            navigation context is not lost. */}
+        <span aria-hidden="true" className="hidden md:inline">
+          /
+        </span>
+        <Link
           to="/g/$groupId/t/$trackId"
           params={{ groupId, trackId }}
           search={{}}
-          className="truncate hover:text-[var(--color-ink-2)]"
+          className="hidden truncate hover:text-[var(--color-ink-2)] md:inline"
         >
           {trackName}
         </Link>
@@ -210,22 +227,16 @@ function TrackPeopleBody({
         <Callout tone="neutral" className="mt-6">
           <div className="flex items-start justify-between gap-3">
             <p className="text-[12px] text-[var(--color-ink-3)]">
-              Leaving the track preserves your past activity records.
+              {isLastFacilitator
+                ? "You're the only facilitator on this track. Promote another facilitator before leaving — otherwise the track would be left without supervision."
+                : "Leaving the track preserves your past activity records."}
             </p>
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={isLastFacilitator}
-              title={
-                isLastFacilitator
-                  ? "You're the only facilitator. Promote a replacement first."
-                  : undefined
-              }
-              onClick={() => setLeaveOpen(true)}
-            >
-              <LogOut size={12} strokeWidth={1.75} aria-hidden="true" />
-              Leave {trackName}
-            </Button>
+            {isLastFacilitator ? null : (
+              <Button variant="secondary" size="sm" onClick={() => setLeaveOpen(true)}>
+                <LogOut size={12} strokeWidth={1.75} aria-hidden="true" />
+                Leave {trackName}
+              </Button>
+            )}
           </div>
         </Callout>
       ) : null}

@@ -39,11 +39,11 @@ export function TrackEnrolleeRow({
         <div className="flex items-center gap-2">
           <span className="truncate text-[13px] text-[var(--color-ink)]">{displayName}</span>
           {isMe ? <Badge tone="accent">you</Badge> : null}
-          {enrollment.role === "facilitator" ? (
-            <Badge tone="accent">facilitator</Badge>
-          ) : (
-            <Badge>enrolled</Badge>
-          )}
+          {/* Role pill stays neutral so it doesn't fight the accent-tone
+              `you` badge for visual prominence — the personal indicator
+              should win when both are present. Mirrors the M3
+              MemberRow convention. */}
+          {enrollment.role === "facilitator" ? <Badge>facilitator</Badge> : <Badge>enrolled</Badge>}
           {enrollment.leftAt !== null ? <Badge tone="neutral">left</Badge> : null}
         </div>
       </div>

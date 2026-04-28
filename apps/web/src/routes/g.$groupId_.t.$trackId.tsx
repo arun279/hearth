@@ -294,18 +294,14 @@ function TrackHomeBody({
                 {enroll.isPending ? "Enrolling…" : "Enroll"}
               </Button>
             ) : null}
-            {isCurrentEnrollee && group.status !== "archived" ? (
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={isLastFacilitator}
-                title={
-                  isLastFacilitator
-                    ? "You're the only facilitator. Promote a replacement first."
-                    : undefined
-                }
-                onClick={() => setLeaveOpen(true)}
-              >
+            {isCurrentEnrollee && group.status !== "archived" && !isLastFacilitator ? (
+              // Hidden when the actor is the only facilitator on an active
+              // track — the orphan invariant blocks the action and a disabled
+              // button next to identical-looking enabled siblings reads as
+              // interactive. The People page surfaces the same constraint
+              // inline ("Promote a replacement first") so authority users
+              // still see the path forward.
+              <Button variant="secondary" size="sm" onClick={() => setLeaveOpen(true)}>
                 <LogOut size={12} strokeWidth={1.75} aria-hidden="true" />
                 Leave
               </Button>
