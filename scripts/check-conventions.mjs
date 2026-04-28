@@ -152,6 +152,70 @@ const rules = [
 ];
 
 /**
+ * Every markdown filename mentioned in committed text must resolve to a
+ * markdown file committed to this repo, matched by basename or by
+ * repo-relative path. The allowlist is built from `git ls-files` on
+ * every run: committing a new doc authorizes references to it
+ * automatically; references to uncommitted docs are flagged.
+ *
+ * URL contexts (`https://…/foo.md`) and fenced code blocks inside
+ * markdown (where glob-shaped patterns like `**\/*.md` appear in
+ * examples) are skipped.
+ *
+ * @param {string[]} files
+ * @returns {{ ref: string, location: string, line: string }[]}
+ */
+function findUncommittedMarkdownReferences(files) {
+  const committedMd = new Set();
+  for (const f of files) {
+    if (!/\.(md|mdx)$/.test(f)) continue;
+    committedMd.add(f);
+    const base = f.split("/").pop();
+    if (base) committedMd.add(base);
+  }
+
+  const URL_PATTERN = /(?:[a-z][a-z0-9+.-]*:\/\/|www\.)\S+/gi;
+  const FENCE_LINE_PATTERN = /^```/;
+  const MD_REFERENCE_PATTERN = /(?<![\w-])([A-Za-z0-9][\w.-]*\.(?:md|mdx))\b/g;
+
+  const SCRIPT_BASENAME = "scripts/check-conventions.mjs";
+  /** @type {{ ref: string, location: string, line: string }[]} */
+  const hits = [];
+
+  for (const file of files) {
+    if (file.endsWith(SCRIPT_BASENAME)) continue;
+    let text;
+    try {
+      text = readFileSync(file, "utf8");
+    } catch {
+      continue;
+    }
+    const isMarkdown = /\.(md|mdx)$/.test(file);
+    let inFence = false;
+    const lines = text.split("\n");
+    for (const [i, line] of lines.entries()) {
+      if (isMarkdown && FENCE_LINE_PATTERN.test(line)) {
+        inFence = !inFence;
+        continue;
+      }
+      if (inFence) continue;
+      const sanitized = line.replace(URL_PATTERN, "");
+      MD_REFERENCE_PATTERN.lastIndex = 0;
+      let m = MD_REFERENCE_PATTERN.exec(sanitized);
+      while (m !== null) {
+        const ref = m[1];
+        const base = ref.split("/").pop();
+        if (!(committedMd.has(ref) || (base && committedMd.has(base)))) {
+          hits.push({ ref, location: `${file}:${i + 1}`, line: line.trim() });
+        }
+        m = MD_REFERENCE_PATTERN.exec(sanitized);
+      }
+    }
+  }
+  return hits;
+}
+
+/**
  * Files that MUST contain a specific pattern. Complement to the
  * forbidden-pattern rules above — for load-bearing configuration where
  * absence of a directive is the bug.
@@ -179,15 +243,25 @@ const DOCS_SIZE_CAPS = [
   { path: "CLAUDE.md", max: 100 },
 ];
 
+// Source / config / doc extensions we scan for convention violations.
+// `.example` covers env-file templates (`.dev.vars.example`); `.txt` /
+// `.toml` / `.cjs` cover config that isn't otherwise picked up. The
+// allowlist approach keeps the scan deterministic and excludes binary
+// payloads (lock files, images, fonts) without per-extension carve-outs.
+const SCANNED_EXTENSIONS =
+  /\.(ts|tsx|mjs|cjs|js|json|jsonc|yml|yaml|sh|md|mdx|toml|txt|example|template)$/;
+const SCANNED_EXACT_NAMES = new Set(["CODEOWNERS"]);
+
+function shouldScan(file) {
+  if (SCANNED_EXTENSIONS.test(file)) return true;
+  const base = file.split("/").pop();
+  return base !== undefined && SCANNED_EXACT_NAMES.has(base);
+}
+
 function listFiles() {
   const result = spawnSync("git", ["ls-files"], { encoding: "utf8" });
   if (result.status === 0) {
-    return result.stdout
-      .split("\n")
-      .filter(Boolean)
-      .filter(
-        (f) => /\.(ts|tsx|mjs|cjs|js|json|jsonc|yml|yaml|sh|md|mdx)$/.test(f) || f === "CODEOWNERS",
-      );
+    return result.stdout.split("\n").filter(Boolean).filter(shouldScan);
   }
   // Fallback for first-time runs before `git add`: walk the tree directly.
   return walk(".");
@@ -201,12 +275,7 @@ function walk(dir) {
     if (skip.has(entry.name)) continue;
     const full = `${dir}/${entry.name}`;
     if (entry.isDirectory()) out.push(...walk(full));
-    else if (
-      entry.isFile() &&
-      (/\.(ts|tsx|mjs|cjs|js|json|jsonc|yml|yaml|sh|md|mdx)$/.test(entry.name) ||
-        entry.name === "CODEOWNERS")
-    )
-      out.push(full);
+    else if (entry.isFile() && shouldScan(entry.name)) out.push(full);
   }
   return out;
 }
@@ -258,6 +327,18 @@ for (const req of REQUIRED_CONTENT) {
     console.error(`  Why: ${req.reason}\n`);
     fail = true;
   }
+}
+
+const uncommittedMdRefs = findUncommittedMarkdownReferences(files);
+if (uncommittedMdRefs.length > 0) {
+  console.error(
+    '\nConvention violation — uncommitted markdown reference (rule "no-uncommitted-md-reference"):',
+  );
+  for (const h of uncommittedMdRefs) console.error(`  ${h.location}: ${h.line}    [${h.ref}]`);
+  console.error(
+    "  Why: every markdown filename mentioned in committed code must resolve to a doc actually committed to this repo. Pointing at a maintainer-only doc that lives outside the repo (or a doc that hasn't been committed yet) leaves the reference dangling for anyone cloning. Inline the rationale, commit the doc, or rename the mention away.\n",
+  );
+  fail = true;
 }
 
 for (const cap of DOCS_SIZE_CAPS) {
