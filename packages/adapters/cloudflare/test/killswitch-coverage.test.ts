@@ -228,6 +228,24 @@ describe("killswitch coverage (resilience invariant 2 + 3)", () => {
       "LearningTrackRepository.endAllEnrollmentsForUser",
       () => tracks.endAllEnrollmentsForUser({ groupId: gid, userId: uid, by: uid }),
     ],
+    [
+      "LearningTrackRepository.enroll",
+      () => tracks.enroll({ trackId: "t_test" as LearningTrackId, userId: uid, by: uid }),
+    ],
+    [
+      "LearningTrackRepository.unenroll",
+      () => tracks.unenroll({ trackId: "t_test" as LearningTrackId, userId: uid, by: uid }),
+    ],
+    [
+      "LearningTrackRepository.setEnrollmentRole",
+      () =>
+        tracks.setEnrollmentRole({
+          trackId: "t_test" as LearningTrackId,
+          userId: uid,
+          role: "facilitator",
+          by: uid,
+        }),
+    ],
 
     // The hourly cron-driven sweep is not a *port* method, but it
     // calls `gate.assertWritable()` on entry and is the only path

@@ -230,7 +230,13 @@ function makeTracksPort(overrides: Partial<LearningTrackRepository> = {}): Learn
     listFacilitators: vi.fn(async () => [facilitatorEnrollment]),
     countFacilitators: vi.fn(async () => 1),
     countEnrollments: vi.fn(async () => 3),
+    enrollmentsForUser: vi.fn(async () => []),
+    listEnrollments: vi.fn(async () => []),
+    enroll: vi.fn(async () => facilitatorEnrollment),
+    unenroll: vi.fn(async () => facilitatorEnrollment),
+    setEnrollmentRole: vi.fn(async () => facilitatorEnrollment),
     endAllEnrollmentsForUser: vi.fn(async () => 0),
+    findTracksOrphanedByMemberRemoval: vi.fn(async () => []),
     ...overrides,
   } as LearningTrackRepository;
 }
@@ -774,5 +780,302 @@ describe("GET /api/v1/g/:groupId/t/:trackId/summary (getTrackSummary)", () => {
     });
     const res = await app.request(`/api/v1/g/${gid}/t/${tid}/summary`);
     expect(res.status).toBe(404);
+  });
+});
+
+describe("POST /api/v1/tracks/:trackId/enroll (enrollInTrack)", () => {
+  it("self-enrolls a current member with 201", async () => {
+    const app = harness({
+      userId: strangerId,
+      ports: {
+        users: makeUsersPort(strangerUser),
+        groups: makeGroupsPort({
+          membership: vi.fn(async () =>
+            baseMembership({ userId: strangerId, role: "participant" }),
+          ),
+        }),
+        tracks: makeTracksPort({
+          enrollment: vi.fn(async () => null),
+          enroll: vi.fn(
+            async (): Promise<TrackEnrollment> => ({
+              ...facilitatorEnrollment,
+              userId: strangerId,
+              role: "participant",
+            }),
+          ),
+        }),
+        policy: makePolicyPort(),
+      },
+    });
+    const res = await app.request(`/api/v1/tracks/${tid}/enroll`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    });
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as TrackEnrollment;
+    expect(body.userId).toBe(strangerId);
+    expect(body.role).toBe("participant");
+  });
+
+  it("authority enrolls a target — 201", async () => {
+    const app = harness({
+      userId: adminId,
+      ports: {
+        users: makeUsersPort(adminUser, strangerUser),
+        groups: makeGroupsPort({
+          membership: vi.fn(async (_g, uid) =>
+            uid === adminId
+              ? baseMembership({ role: "admin" })
+              : baseMembership({ userId: strangerId, role: "participant" }),
+          ),
+        }),
+        tracks: makeTracksPort({
+          enroll: vi.fn(
+            async (): Promise<TrackEnrollment> => ({
+              ...facilitatorEnrollment,
+              userId: strangerId,
+              role: "participant",
+            }),
+          ),
+        }),
+        policy: makePolicyPort(),
+      },
+    });
+    const res = await app.request(`/api/v1/tracks/${tid}/enroll`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ targetUserId: strangerId }),
+    });
+    expect(res.status).toBe(201);
+  });
+
+  it("returns 404 for a non-member (visibility hides the track)", async () => {
+    const app = harness({
+      userId: strangerId,
+      ports: {
+        users: makeUsersPort(strangerUser),
+        groups: makeGroupsPort({ membership: vi.fn(async () => null) }),
+        tracks: makeTracksPort({ enrollment: vi.fn(async () => null) }),
+        policy: makePolicyPort(),
+      },
+    });
+    const res = await app.request(`/api/v1/tracks/${tid}/enroll`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    });
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("POST /api/v1/tracks/:trackId/leave (leaveTrack)", () => {
+  it("returns 200 + the updated enrollment when count > 1", async () => {
+    const app = harness({
+      userId: adminId,
+      ports: {
+        users: makeUsersPort(adminUser),
+        groups: makeGroupsPort(),
+        tracks: makeTracksPort({
+          enrollment: vi.fn(async () => facilitatorEnrollment),
+          countFacilitators: vi.fn(async () => 2),
+          unenroll: vi.fn(async () => ({ ...facilitatorEnrollment, leftAt: now })),
+        }),
+        policy: makePolicyPort(),
+      },
+    });
+    const res = await app.request(`/api/v1/tracks/${tid}/leave`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it("returns 409 would_orphan_facilitator when actor is the last facilitator on active", async () => {
+    const app = harness({
+      userId: adminId,
+      ports: {
+        users: makeUsersPort(adminUser),
+        groups: makeGroupsPort(),
+        tracks: makeTracksPort({
+          enrollment: vi.fn(async () => facilitatorEnrollment),
+          countFacilitators: vi.fn(async () => 1),
+        }),
+        policy: makePolicyPort(),
+      },
+    });
+    const res = await app.request(`/api/v1/tracks/${tid}/leave`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    });
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { code: string };
+    expect(body.code).toBe("would_orphan_facilitator");
+  });
+});
+
+describe("DELETE /api/v1/tracks/:trackId/enrollments/:userId (removeTrackEnrollment)", () => {
+  it("admin removes a participant — 200", async () => {
+    const app = harness({
+      userId: adminId,
+      ports: {
+        users: makeUsersPort(adminUser, strangerUser),
+        groups: makeGroupsPort({
+          membership: vi.fn(async () => baseMembership({ role: "admin" })),
+        }),
+        tracks: makeTracksPort({
+          enrollment: vi.fn(
+            async (_t, uid): Promise<TrackEnrollment | null> =>
+              uid === adminId
+                ? facilitatorEnrollment
+                : { ...facilitatorEnrollment, userId: strangerId, role: "participant" },
+          ),
+          countFacilitators: vi.fn(async () => 1),
+          unenroll: vi.fn(
+            async (): Promise<TrackEnrollment> => ({
+              ...facilitatorEnrollment,
+              userId: strangerId,
+              role: "participant",
+              leftAt: now,
+            }),
+          ),
+        }),
+        policy: makePolicyPort(),
+      },
+    });
+    const res = await app.request(`/api/v1/tracks/${tid}/enrollments/${strangerId}`, {
+      method: "DELETE",
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it("rejects self-target — 409 self_remove_via_leave", async () => {
+    const app = harness({
+      userId: adminId,
+      ports: {
+        users: makeUsersPort(adminUser),
+        groups: makeGroupsPort(),
+        tracks: makeTracksPort(),
+        policy: makePolicyPort(),
+      },
+    });
+    const res = await app.request(`/api/v1/tracks/${tid}/enrollments/${adminId}`, {
+      method: "DELETE",
+    });
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { code: string };
+    expect(body.code).toBe("self_remove_via_leave");
+  });
+});
+
+describe("POST/DELETE /api/v1/tracks/:trackId/facilitators (assign / remove)", () => {
+  it("assign 200 with new facilitator role", async () => {
+    const app = harness({
+      userId: adminId,
+      ports: {
+        users: makeUsersPort(adminUser, strangerUser),
+        groups: makeGroupsPort({
+          membership: vi.fn(async () => baseMembership({ role: "admin" })),
+        }),
+        tracks: makeTracksPort({
+          enrollment: vi.fn(
+            async (_t, uid): Promise<TrackEnrollment | null> =>
+              uid === adminId
+                ? facilitatorEnrollment
+                : { ...facilitatorEnrollment, userId: strangerId, role: "participant" },
+          ),
+          setEnrollmentRole: vi.fn(
+            async (): Promise<TrackEnrollment> => ({
+              ...facilitatorEnrollment,
+              userId: strangerId,
+              role: "facilitator",
+            }),
+          ),
+        }),
+        policy: makePolicyPort(),
+      },
+    });
+    const res = await app.request(`/api/v1/tracks/${tid}/facilitators`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ targetUserId: strangerId }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as TrackEnrollment;
+    expect(body.role).toBe("facilitator");
+  });
+
+  it("remove 409 when demoting the last facilitator on active", async () => {
+    const app = harness({
+      userId: adminId,
+      ports: {
+        users: makeUsersPort(adminUser, strangerUser),
+        groups: makeGroupsPort({
+          membership: vi.fn(async () => baseMembership({ role: "admin" })),
+        }),
+        tracks: makeTracksPort({
+          enrollment: vi.fn(
+            async (_t, uid): Promise<TrackEnrollment | null> =>
+              uid === adminId
+                ? facilitatorEnrollment
+                : { ...facilitatorEnrollment, userId: strangerId, role: "facilitator" },
+          ),
+          countFacilitators: vi.fn(async () => 1),
+        }),
+        policy: makePolicyPort(),
+      },
+    });
+    const res = await app.request(`/api/v1/tracks/${tid}/facilitators/${strangerId}`, {
+      method: "DELETE",
+    });
+    expect(res.status).toBe(409);
+  });
+});
+
+describe("GET /api/v1/tracks/:trackId/people (listTrackPeople)", () => {
+  it("returns sectioned roster with caps", async () => {
+    const app = harness({
+      userId: adminId,
+      ports: {
+        users: makeUsersPort(adminUser, strangerUser),
+        groups: makeGroupsPort({
+          membership: vi.fn(async (_g, uid) =>
+            uid === adminId
+              ? baseMembership({ role: "admin" })
+              : baseMembership({ userId: strangerId, role: "participant" }),
+          ),
+        }),
+        tracks: makeTracksPort({
+          listEnrollments: vi.fn(
+            async (): Promise<readonly TrackEnrollment[]> => [
+              facilitatorEnrollment,
+              { ...facilitatorEnrollment, userId: strangerId, role: "participant" },
+            ],
+          ),
+          enrollment: vi.fn(async () => facilitatorEnrollment),
+          countFacilitators: vi.fn(async () => 1),
+        }),
+        policy: makePolicyPort(),
+      },
+    });
+    const res = await app.request(`/api/v1/tracks/${tid}/people`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      track: { id: string };
+      facilitatorCount: number;
+      entries: Array<{
+        enrollment: { userId: string; role: string };
+        displayName: string;
+        capabilities: { canRemove: boolean; canPromote: boolean; canDemote: boolean };
+      }>;
+      leftEntries: unknown[];
+    };
+    expect(body.facilitatorCount).toBe(1);
+    expect(body.entries).toHaveLength(2);
+    expect(body.entries[0]?.enrollment.role).toBe("facilitator");
+    expect(body.entries[1]?.capabilities.canPromote).toBe(true);
+    expect(body.leftEntries).toEqual([]);
   });
 });

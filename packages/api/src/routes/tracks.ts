@@ -1,7 +1,13 @@
 import {
   archiveTrack,
+  assignTrackFacilitator,
+  enrollInTrack,
   getTrack,
+  leaveTrack,
+  listTrackPeople,
   pauseTrack,
+  removeTrackEnrollment,
+  removeTrackFacilitator,
   resumeTrack,
   saveContributionPolicy,
   saveTrackStructure,
@@ -11,6 +17,7 @@ import type {
   ContributionPolicyEnvelope,
   LearningTrackId,
   TrackStructureEnvelope,
+  UserId,
 } from "@hearth/domain";
 import { zValidator } from "@hono/zod-validator";
 import type { Context } from "hono";
@@ -22,6 +29,21 @@ import { mapUnknown, problemFromZodError, problemResponse } from "../problem.ts"
 
 /** Track ids are cuid2 — bound to a length window so a malformed param 400s. */
 const trackIdParam = z.object({ trackId: z.string().min(1).max(64) });
+
+const trackUserIdParam = z.object({
+  trackId: z.string().min(1).max(64),
+  userId: z.string().min(1).max(64),
+});
+
+const enrollBody = z
+  .object({
+    targetUserId: z.string().min(1).max(64).optional(),
+  })
+  .optional();
+
+const facilitatorBody = z.object({
+  targetUserId: z.string().min(1).max(64),
+});
 
 const nameField = z.string().trim().min(1).max(120);
 const descriptionField = z.string().trim().max(2000);
@@ -238,6 +260,187 @@ export const tracksRoutes = new Hono<AppBindings>()
           },
         );
         return c.json(track);
+      } catch (err) {
+        return problemResponse(c, mapUnknown(err));
+      }
+    },
+  )
+  // jscpd:ignore-end
+
+  // ── Enrollments ───────────────────────────────────────────────────────
+
+  // GET /tracks/:trackId/people — sectioned roster for the People tab.
+  .get(
+    "/:trackId/people",
+    zValidator("param", trackIdParam, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    async (c) => {
+      const { trackId } = c.req.valid("param");
+      try {
+        const result = await listTrackPeople(
+          { actor: getUserId(c), trackId: trackId as LearningTrackId },
+          {
+            users: c.var.ports.users,
+            groups: c.var.ports.groups,
+            tracks: c.var.ports.tracks,
+            policy: c.var.ports.policy,
+          },
+        );
+        return c.json(result);
+      } catch (err) {
+        return problemResponse(c, mapUnknown(err));
+      }
+    },
+  )
+
+  // POST /tracks/:trackId/enroll — self-enroll, or authority enrolls a target.
+  // The optional `targetUserId` body field discriminates the path; the use
+  // case dispatches to `canEnrollSelfInTrack` vs `canEnrollUserInTrack`.
+  .post(
+    "/:trackId/enroll",
+    zValidator("param", trackIdParam, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    zValidator("json", enrollBody, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    async (c) => {
+      const { trackId } = c.req.valid("param");
+      const body = c.req.valid("json");
+      try {
+        const enrollment = await enrollInTrack(
+          {
+            actor: getUserId(c),
+            trackId: trackId as LearningTrackId,
+            ...(body?.targetUserId !== undefined
+              ? { targetUserId: body.targetUserId as UserId }
+              : {}),
+          },
+          {
+            users: c.var.ports.users,
+            groups: c.var.ports.groups,
+            tracks: c.var.ports.tracks,
+            policy: c.var.ports.policy,
+          },
+        );
+        return c.json(enrollment, 201);
+      } catch (err) {
+        return problemResponse(c, mapUnknown(err));
+      }
+    },
+  )
+
+  // POST /tracks/:trackId/leave — self-leave (separate from authority remove).
+  .post(
+    "/:trackId/leave",
+    zValidator("param", trackIdParam, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    async (c) => {
+      const { trackId } = c.req.valid("param");
+      try {
+        const enrollment = await leaveTrack(
+          { actor: getUserId(c), trackId: trackId as LearningTrackId },
+          {
+            users: c.var.ports.users,
+            groups: c.var.ports.groups,
+            tracks: c.var.ports.tracks,
+            policy: c.var.ports.policy,
+          },
+        );
+        return c.json(enrollment);
+      } catch (err) {
+        return problemResponse(c, mapUnknown(err));
+      }
+    },
+  )
+
+  // DELETE /tracks/:trackId/enrollments/:userId — authority removes an enrollee.
+  .delete(
+    "/:trackId/enrollments/:userId",
+    zValidator("param", trackUserIdParam, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    async (c) => {
+      const { trackId, userId } = c.req.valid("param");
+      try {
+        const enrollment = await removeTrackEnrollment(
+          {
+            actor: getUserId(c),
+            trackId: trackId as LearningTrackId,
+            target: userId as UserId,
+          },
+          {
+            users: c.var.ports.users,
+            groups: c.var.ports.groups,
+            tracks: c.var.ports.tracks,
+            policy: c.var.ports.policy,
+          },
+        );
+        return c.json(enrollment);
+      } catch (err) {
+        return problemResponse(c, mapUnknown(err));
+      }
+    },
+  )
+
+  // POST /tracks/:trackId/facilitators + DELETE /tracks/:trackId/facilitators/:userId
+  // are mirror-pair routes — keep both flat for review symmetry.
+  // jscpd:ignore-start
+  .post(
+    "/:trackId/facilitators",
+    zValidator("param", trackIdParam, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    zValidator("json", facilitatorBody, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    async (c) => {
+      const { trackId } = c.req.valid("param");
+      const body = c.req.valid("json");
+      try {
+        const enrollment = await assignTrackFacilitator(
+          {
+            actor: getUserId(c),
+            trackId: trackId as LearningTrackId,
+            target: body.targetUserId as UserId,
+          },
+          {
+            users: c.var.ports.users,
+            groups: c.var.ports.groups,
+            tracks: c.var.ports.tracks,
+            policy: c.var.ports.policy,
+          },
+        );
+        return c.json(enrollment);
+      } catch (err) {
+        return problemResponse(c, mapUnknown(err));
+      }
+    },
+  )
+  .delete(
+    "/:trackId/facilitators/:userId",
+    zValidator("param", trackUserIdParam, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    async (c) => {
+      const { trackId, userId } = c.req.valid("param");
+      try {
+        const enrollment = await removeTrackFacilitator(
+          {
+            actor: getUserId(c),
+            trackId: trackId as LearningTrackId,
+            target: userId as UserId,
+          },
+          {
+            users: c.var.ports.users,
+            groups: c.var.ports.groups,
+            tracks: c.var.ports.tracks,
+            policy: c.var.ports.policy,
+          },
+        );
+        return c.json(enrollment);
       } catch (err) {
         return problemResponse(c, mapUnknown(err));
       }

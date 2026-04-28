@@ -1,4 +1,4 @@
-import { trackEnrollments, tracks } from "@hearth/db/schema";
+import { groupMemberships, trackEnrollments, tracks } from "@hearth/db/schema";
 import {
   type ContributionMode,
   type ContributionPolicyEnvelope,
@@ -15,7 +15,7 @@ import {
   type UserId,
 } from "@hearth/domain";
 import type { LearningTrackRepository } from "@hearth/ports";
-import { and, asc, eq, exists, isNull, ne, sql } from "drizzle-orm";
+import { and, asc, eq, exists, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import type { CloudflareAdapterDeps } from "./deps.ts";
 import { createIdGenerator } from "./id-generator.ts";
 
@@ -201,6 +201,118 @@ async function saveTrackJsonColumn(
     throw new DomainError("CONFLICT", opts.archivedDetail, "track_archived");
   }
   return toTrack(updated[0] as typeof tracks.$inferSelect);
+}
+
+/**
+ * Build the SQL `EXISTS` expression for "the user holds a current group
+ * membership on the track's parent group." Pulled to a helper so the
+ * `enroll` UPSERT and the post-write membership re-check share one
+ * shape.
+ */
+function membershipExistsExpr(
+  db: Pick<CloudflareAdapterDeps, "db">["db"],
+  trackId: LearningTrackId,
+  userId: UserId,
+) {
+  return exists(
+    db
+      .select({ n: sql<number>`1` })
+      .from(groupMemberships)
+      .innerJoin(tracks, eq(tracks.groupId, groupMemberships.groupId))
+      .where(
+        and(
+          eq(tracks.id, trackId),
+          eq(groupMemberships.userId, userId),
+          isNull(groupMemberships.removedAt),
+        ),
+      ),
+  );
+}
+
+/**
+ * Throw `enrollment_requires_membership` if the user has no current group
+ * membership on the track's parent group. Shared between the two
+ * post-write paths in `enroll` so the deny code stays consistent.
+ */
+async function assertMembershipExists(
+  db: Pick<CloudflareAdapterDeps, "db">["db"],
+  trackId: LearningTrackId,
+  userId: UserId,
+): Promise<void> {
+  const memRows = await db
+    .select({ n: sql<number>`1` })
+    .from(groupMemberships)
+    .innerJoin(tracks, eq(tracks.groupId, groupMemberships.groupId))
+    .where(
+      and(
+        eq(tracks.id, trackId),
+        eq(groupMemberships.userId, userId),
+        isNull(groupMemberships.removedAt),
+      ),
+    )
+    .limit(1);
+  if (memRows.length === 0) {
+    throw new DomainError(
+      "FORBIDDEN",
+      "Group Membership is required before enrolling in a Learning Track.",
+      "enrollment_requires_membership",
+    );
+  }
+}
+
+/**
+ * Build the WHERE-clause fragment that protects the orphan-facilitator
+ * invariant for both `unenroll` (sets leftAt) and `setEnrollmentRole →
+ * participant` (demote). The guard passes IF the target is a
+ * participant, OR the track is not active, OR there is at least one
+ * OTHER active facilitator. Mirrors `wouldOrphanFacilitator` in domain.
+ */
+function orphanGuard(
+  db: Pick<CloudflareAdapterDeps, "db">["db"],
+  trackId: LearningTrackId,
+  userId: UserId,
+) {
+  const otherFacilitators = db
+    .select({ n: sql<number>`count(*)` })
+    .from(trackEnrollments)
+    .where(
+      and(
+        eq(trackEnrollments.trackId, trackId),
+        eq(trackEnrollments.role, "facilitator"),
+        isNull(trackEnrollments.leftAt),
+        ne(trackEnrollments.userId, userId),
+      ),
+    );
+  const trackIsActive = exists(
+    db
+      .select({ n: sql<number>`1` })
+      .from(tracks)
+      .where(and(eq(tracks.id, trackId), eq(tracks.status, "active"))),
+  );
+  return or(
+    ne(trackEnrollments.role, "facilitator"),
+    sql`NOT (${trackIsActive})`,
+    sql`(${otherFacilitators}) >= 1`,
+  );
+}
+
+/**
+ * Re-read the (trackId, userId) enrollment row after a guarded UPDATE
+ * touched zero rows — used to disambiguate the failure cause for both
+ * `unenroll` and the demote branch of `setEnrollmentRole`. Returns the
+ * row for the caller to inspect; both cases share the same disambiguator.
+ */
+async function reReadEnrollment(
+  db: Pick<CloudflareAdapterDeps, "db">["db"],
+  trackId: LearningTrackId,
+  userId: UserId,
+): Promise<typeof trackEnrollments.$inferSelect | undefined> {
+  const after = await db
+    .select()
+    .from(trackEnrollments)
+    .where(and(eq(trackEnrollments.trackId, trackId), eq(trackEnrollments.userId, userId)))
+    .limit(1);
+  return after[0];
 }
 
 /**
@@ -468,6 +580,233 @@ export function createLearningTrackRepository(
       return Number(rows[0]?.n ?? 0);
     },
 
+    async enrollmentsForUser(userId) {
+      const rows = await deps.db
+        .select()
+        .from(trackEnrollments)
+        .where(and(eq(trackEnrollments.userId, userId), isNull(trackEnrollments.leftAt)))
+        .orderBy(asc(trackEnrollments.enrolledAt));
+      return rows.map(toEnrollment);
+    },
+
+    async listEnrollments(trackId, opts) {
+      const baseQuery = deps.db.select().from(trackEnrollments);
+      const rows = opts.includeLeft
+        ? await baseQuery
+            .where(eq(trackEnrollments.trackId, trackId))
+            .orderBy(asc(trackEnrollments.enrolledAt))
+        : await baseQuery
+            .where(and(eq(trackEnrollments.trackId, trackId), isNull(trackEnrollments.leftAt)))
+            .orderBy(asc(trackEnrollments.enrolledAt));
+      return rows.map(toEnrollment);
+    },
+
+    async enroll({ trackId, userId, by }) {
+      await deps.gate.assertWritable();
+      const now = new Date();
+      const generatedId = ids.generate();
+
+      // Membership must exist + be current at write time. The write is a
+      // two-phase guarded UPSERT (UPDATE-then-INSERT-ON-CONFLICT-DO-NOTHING)
+      // because SQLite UPSERT can't gate the conflict-set on row state —
+      // we need to distinguish the soft-left revive case from the
+      // already-active no-op case, and one statement can't express both.
+      //
+      // Concurrent membership-removal between phase 1 and phase 2 can land
+      // an orphan enrollment row (no live membership). This is bounded by
+      // `endAllEnrollmentsForUser` in the leave-group / remove-member
+      // cascade, which soft-leaves all of a user's track enrollments at
+      // membership-end time — orphan rows from the race converge to that
+      // soft-left state on the next cascade pass. Wrapping in `db.batch`
+      // would close the window at the cost of a more constrained call
+      // shape; the cascade is sufficient for now.
+      //
+      // The phase-1 UPDATE preserves role on revive: a soft-left
+      // facilitator who self-enrolls comes back as facilitator. See
+      // `canEnrollSelfInTrack`'s contract docstring.
+      const membershipExists = membershipExistsExpr(deps.db, trackId, userId);
+
+      // Phase 1: idempotent revive — clear leftAt on a soft-left row.
+      // SQLite UPSERT can't gate the conflict-set on row state, so we run
+      // a guarded UPDATE first to handle the revive case explicitly.
+      await deps.db
+        .update(trackEnrollments)
+        .set({ leftAt: null, leftBy: null, enrolledAt: now })
+        .where(
+          and(
+            eq(trackEnrollments.trackId, trackId),
+            eq(trackEnrollments.userId, userId),
+            isNotNull(trackEnrollments.leftAt),
+            membershipExists,
+          ),
+        );
+
+      // Phase 2: insert when no row exists. The unique index on
+      // (trackId, userId) means concurrent insert attempts serialize at
+      // SQLite — a conflict here means someone else inserted between
+      // phases, which we treat as a no-op (the post-read returns the
+      // canonical row).
+      await deps.db
+        .insert(trackEnrollments)
+        .values({
+          id: generatedId,
+          trackId,
+          userId,
+          role: "participant",
+          enrolledAt: now,
+          leftAt: null,
+          leftBy: null,
+        })
+        .onConflictDoNothing({
+          target: [trackEnrollments.trackId, trackEnrollments.userId],
+        });
+
+      // Post-read confirms the canonical row + enforces the membership
+      // guard. If no row landed (insert/update both no-op'd), the cause
+      // is missing membership — the only way both can fail.
+      const rows = await deps.db
+        .select()
+        .from(trackEnrollments)
+        .where(and(eq(trackEnrollments.trackId, trackId), eq(trackEnrollments.userId, userId)))
+        .limit(1);
+
+      const row = rows[0];
+      if (!row) {
+        // No row: phase 1 found nothing to revive, phase 2 didn't insert.
+        // The phase-2 INSERT only no-ops on a conflict against an existing
+        // row (which would have been observed by the SELECT) — a missing
+        // membership is therefore the only remaining cause. We re-check
+        // explicitly so the deny code reflects the real cause, not a guess.
+        await assertMembershipExists(deps.db, trackId, userId);
+        // Defense-in-depth: track was deleted concurrently or a partial
+        // commit landed mid-batch. Both are vanishingly rare on D1; surface
+        // loudly so an operator can investigate rather than silently retry.
+        throw new DomainError("NOT_FOUND", "Enrollment row missing after upsert.", "not_found");
+      }
+
+      // Active row that pre-existed: re-validate the membership guard so
+      // a phase-2 conflict doesn't slip past it.
+      if (row.leftAt === null) {
+        await assertMembershipExists(deps.db, trackId, userId);
+      }
+
+      void by;
+      return toEnrollment(row as typeof trackEnrollments.$inferSelect);
+    },
+
+    async unenroll({ trackId, userId, by }) {
+      await deps.gate.assertWritable();
+      const now = new Date();
+
+      // Conditional UPDATE with the orphan invariant baked into the WHERE
+      // clause. A demote/leave race cannot drop the active facilitator
+      // count below 1 because both racers see the same view at statement
+      // time and one of them filters out. Mirrors the canonical
+      // `wouldOrphanFacilitator` predicate.
+      const updated = await deps.db
+        .update(trackEnrollments)
+        .set({ leftAt: now, leftBy: by })
+        .where(
+          and(
+            eq(trackEnrollments.trackId, trackId),
+            eq(trackEnrollments.userId, userId),
+            isNull(trackEnrollments.leftAt),
+            orphanGuard(deps.db, trackId, userId),
+          ),
+        )
+        .returning();
+
+      if (updated[0]) {
+        return toEnrollment(updated[0] as typeof trackEnrollments.$inferSelect);
+      }
+
+      // Re-read to disambiguate cause: row missing / already-left / orphan.
+      const row = await reReadEnrollment(deps.db, trackId, userId);
+      if (!row) {
+        throw new DomainError("NOT_FOUND", "Enrollment not found.", "not_track_enrollee");
+      }
+      if (row.leftAt !== null) {
+        // Idempotent no-op: the caller wanted to leave; the row already is.
+        return toEnrollment(row);
+      }
+      // Row is still active — the orphan guard fired.
+      throw new DomainError(
+        "CONFLICT",
+        "Cannot remove the last facilitator from an active track.",
+        "would_orphan_facilitator",
+      );
+    },
+
+    async setEnrollmentRole({ trackId, userId, role, by }) {
+      await deps.gate.assertWritable();
+
+      if (role === "facilitator") {
+        // Promotion: target must hold a current enrollment. Single
+        // conditional UPDATE — concurrent leave races cannot land a
+        // promotion on a now-left row.
+        const updated = await deps.db
+          .update(trackEnrollments)
+          .set({ role: "facilitator" })
+          .where(
+            and(
+              eq(trackEnrollments.trackId, trackId),
+              eq(trackEnrollments.userId, userId),
+              isNull(trackEnrollments.leftAt),
+            ),
+          )
+          .returning();
+
+        if (updated[0]) {
+          return toEnrollment(updated[0] as typeof trackEnrollments.$inferSelect);
+        }
+        // Disambiguate: row missing / left / already facilitator (no-op).
+        const row = await reReadEnrollment(deps.db, trackId, userId);
+        if (!row || row.leftAt !== null) {
+          throw new DomainError(
+            "FORBIDDEN",
+            "Target must already have a current Track Enrollment before being promoted to facilitator.",
+            "not_track_enrollee",
+          );
+        }
+        // Already facilitator: no-op.
+        return toEnrollment(row);
+      }
+
+      // Demotion: same orphan guard as unenroll, but the row stays
+      // present (role flips to participant rather than leftAt landing).
+      // Both call sites share the same predicate via `orphanGuard`.
+      const updated = await deps.db
+        .update(trackEnrollments)
+        .set({ role: "participant" })
+        .where(
+          and(
+            eq(trackEnrollments.trackId, trackId),
+            eq(trackEnrollments.userId, userId),
+            isNull(trackEnrollments.leftAt),
+            orphanGuard(deps.db, trackId, userId),
+          ),
+        )
+        .returning();
+
+      if (updated[0]) {
+        void by;
+        return toEnrollment(updated[0] as typeof trackEnrollments.$inferSelect);
+      }
+      // Disambiguate: missing / left / orphan-block.
+      const row = await reReadEnrollment(deps.db, trackId, userId);
+      if (!row) {
+        throw new DomainError("NOT_FOUND", "Enrollment not found.", "not_track_enrollee");
+      }
+      if (row.leftAt !== null) {
+        throw new DomainError("FORBIDDEN", "Enrollment has already ended.", "not_track_enrollee");
+      }
+      throw new DomainError(
+        "CONFLICT",
+        "Cannot demote the last facilitator on an active track.",
+        "would_orphan_facilitator",
+      );
+    },
+
     async endAllEnrollmentsForUser({ groupId, userId, by }) {
       await deps.gate.assertWritable();
       const now = new Date();
@@ -476,11 +815,12 @@ export function createLearningTrackRepository(
       // on tracks belonging to this group. The `exists` subquery confines
       // the update to enrollments whose parent track lives in the named
       // group — without it we would end enrollments cross-group.
-      // TODO(M5): when facilitator assign/remove ships, this cascade may
-      // strand a track with zero facilitators. M5's removal flow needs to
-      // refuse the membership removal if it would leave any track in the
-      // group with zero active facilitators (and the actor isn't promoting
-      // a replacement first).
+      //
+      // The orphan-facilitator refusal that prevents this cascade from
+      // silently stranding tracks lives upstream in the use case
+      // (`removeGroupMember` / `leaveGroup` call
+      // `findTracksOrphanedByMemberRemoval` first); by the time we get
+      // here, the policy layer has confirmed the cascade is safe.
       const updated = await deps.db
         .update(trackEnrollments)
         .set({ leftAt: now, leftBy: by })
@@ -499,6 +839,46 @@ export function createLearningTrackRepository(
         .returning({ id: trackEnrollments.id });
 
       return updated.length;
+    },
+
+    async findTracksOrphanedByMemberRemoval({ groupId, userId }) {
+      // For each active track in the group where this user is currently
+      // a facilitator: count OTHER active facilitators. If zero, the
+      // cascade would orphan that track — surface it.
+      //
+      // Single SQL pass, indexed on (groupId, status) for tracks and
+      // (trackId, role) for enrollments. The result is bounded by the
+      // user's facilitator count, which in v1 stays single digits.
+      const rows = await deps.db
+        .select({
+          trackId: tracks.id,
+          trackName: tracks.name,
+          otherFacilitators: sql<number>`(
+            SELECT COUNT(*) FROM ${trackEnrollments} other
+            WHERE other.track_id = ${tracks.id}
+              AND other.role = 'facilitator'
+              AND other.left_at IS NULL
+              AND other.user_id <> ${userId}
+          )`,
+        })
+        .from(tracks)
+        .innerJoin(
+          trackEnrollments,
+          and(
+            eq(trackEnrollments.trackId, tracks.id),
+            eq(trackEnrollments.userId, userId),
+            eq(trackEnrollments.role, "facilitator"),
+            isNull(trackEnrollments.leftAt),
+          ),
+        )
+        .where(and(eq(tracks.groupId, groupId), eq(tracks.status, "active")));
+
+      return rows
+        .filter((r) => Number(r.otherFacilitators) === 0)
+        .map((r) => ({
+          trackId: r.trackId as LearningTrackId,
+          trackName: r.trackName,
+        }));
     },
   };
 }

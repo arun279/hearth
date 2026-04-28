@@ -1,6 +1,5 @@
-import type { ContributionMode, LearningTrack, MeContext, TrackEnrollment } from "@hearth/domain";
+import type { ContributionMode, LearningTrack } from "@hearth/domain";
 import {
-  AvatarStack,
   Badge,
   type BadgeTone,
   Button,
@@ -11,9 +10,11 @@ import {
   tabIdFor,
 } from "@hearth/ui";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { Settings } from "lucide-react";
+import { LogOut, Plus, Settings, Users } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { z } from "zod";
+import { LeaveTrackDialog } from "../components/tracks/leave-track-dialog.tsx";
 import { TrackPageShell } from "../components/tracks/track-page-shell.tsx";
 import { TrackSettingsDialog } from "../components/tracks/track-settings-dialog.tsx";
 import { useDocumentTitle } from "../hooks/use-document-title.ts";
@@ -21,10 +22,12 @@ import { useMeContext } from "../hooks/use-me-context.ts";
 import {
   type TrackDetail,
   type TrackSummaryCounts,
+  useEnrollInTrack,
   useTrack,
   useTrackSummary,
 } from "../hooks/use-tracks.ts";
 import { loadMeContextOrNull } from "../lib/me-context.ts";
+import { asUserMessage } from "../lib/problem.ts";
 
 const searchSchema = z.object({
   tab: z.enum(["activities", "sessions", "library", "pending"]).optional(),
@@ -58,7 +61,6 @@ function TrackHome() {
   // the URL-supplied one matches in the happy path. Gate behind signedIn
   // so we don't fire while logging in.
   const summaryQuery = useTrackSummary(params.groupId, params.trackId, signedIn);
-  const r2PublicOrigin = me.data?.data.instance.r2PublicOrigin ?? "";
 
   useDocumentTitle([trackQuery.data?.track.name, trackQuery.data?.group.name]);
 
@@ -80,8 +82,6 @@ function TrackHome() {
         <>
           <TrackHomeBody
             detail={detail}
-            meUser={me.data?.data.user ?? null}
-            r2PublicOrigin={r2PublicOrigin}
             activeTab={activeTab}
             counts={summaryQuery.data}
             onChangeTab={(tab) => {
@@ -117,43 +117,44 @@ function TrackHome() {
 
 type TrackHomeBodyProps = {
   readonly detail: TrackDetail;
-  readonly meUser: MeContext["data"]["user"];
-  readonly r2PublicOrigin: string;
   readonly activeTab: TrackTab;
   readonly counts: TrackSummaryCounts | undefined;
   readonly onChangeTab: (tab: TrackTab) => void;
   readonly onOpenSettings: () => void;
 };
 
-/**
- * Group-profile avatars are stored as bare R2 keys; OAuth-supplied user
- * images are already absolute URLs. Join the key with the public origin
- * (taken from `me.instance.r2PublicOrigin` so the SPA never has a parallel
- * env var that can drift) and fall back to the OAuth image only when no
- * group-profile avatar exists. Mirrors the join in `member-row.tsx`.
- */
-function resolveAvatarSrc(
-  storageKey: string | null,
-  oauthImage: string | null,
-  publicOrigin: string,
-): string | null {
-  if (storageKey !== null && storageKey.length > 0) {
-    const origin = publicOrigin.replace(/\/$/, "");
-    return origin.length > 0 ? `${origin}/${storageKey}` : storageKey;
-  }
-  return oauthImage;
-}
-
 function TrackHomeBody({
   detail,
-  meUser,
-  r2PublicOrigin,
   activeTab,
   counts,
   onChangeTab,
   onOpenSettings,
 }: TrackHomeBodyProps) {
   const { track, group, caps, contributionPolicy } = detail;
+  const enroll = useEnrollInTrack(group.id, track.id);
+  const [leaveOpen, setLeaveOpen] = useState(false);
+  const myEnrollment = detail.myEnrollment;
+  const isCurrentEnrollee = myEnrollment !== null && myEnrollment.leftAt === null;
+  const myMembership = detail.myGroupMembership;
+  const isCurrentMember = myMembership !== null && myMembership.removedAt === null;
+  // Self-enroll is offered when: actor is a current group member, NOT
+  // currently enrolled, and the track / group are not archived. The
+  // policy server-checks; this is a UI gate that mirrors the predicate.
+  const canSelfEnroll =
+    isCurrentMember &&
+    !isCurrentEnrollee &&
+    track.status !== "archived" &&
+    group.status !== "archived";
+  const facilitatorCount = counts?.facilitatorCount ?? 0;
+  // Last facilitator on an active track can't leave without orphaning —
+  // the server returns 409 in that case. The Leave button is hidden in
+  // that state (see the JSX below) and the People page surfaces the
+  // constraint inline so authority users still see the path forward.
+  const isLastFacilitator =
+    isCurrentEnrollee &&
+    myEnrollment.role === "facilitator" &&
+    track.status === "active" &&
+    facilitatorCount <= 1;
   const groupArchived = group.status === "archived";
   const trackArchived = track.status === "archived";
   const trackPaused = track.status === "paused";
@@ -248,28 +249,57 @@ function TrackHomeBody({
               <p className="mt-1 text-[13px] text-[var(--color-ink-2)]">{track.description}</p>
             ) : null}
           </div>
-          {settingsAffordance ? (
-            <div className="flex shrink-0 items-center gap-1.5">
+          <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+            {canSelfEnroll ? (
+              <Button
+                variant="primary"
+                size="sm"
+                disabled={enroll.isPending}
+                onClick={async () => {
+                  try {
+                    await enroll.mutateAsync({});
+                    toast.success(`Enrolled in ${track.name}.`);
+                  } catch (err) {
+                    toast.error(asUserMessage(err, "Couldn't enroll."));
+                  }
+                }}
+              >
+                <Plus size={12} strokeWidth={1.75} aria-hidden="true" />
+                {enroll.isPending ? "Enrolling…" : "Enroll"}
+              </Button>
+            ) : null}
+            {isCurrentEnrollee && group.status !== "archived" && !isLastFacilitator ? (
+              // Hidden when the actor is the only facilitator on an active
+              // track — the orphan invariant blocks the action and a disabled
+              // button next to identical-looking enabled siblings reads as
+              // interactive. The People page surfaces the same constraint
+              // inline ("Promote a replacement first") so authority users
+              // still see the path forward.
+              <Button variant="secondary" size="sm" onClick={() => setLeaveOpen(true)}>
+                <LogOut size={12} strokeWidth={1.75} aria-hidden="true" />
+                Leave
+              </Button>
+            ) : null}
+            <Link
+              to="/g/$groupId/t/$trackId/people"
+              params={{ groupId: group.id, trackId: track.id }}
+              className="inline-flex h-7 items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--color-rule)] bg-[var(--color-surface)] px-2.5 text-[12px] text-[var(--color-ink-2)] hover:bg-[var(--color-surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
+            >
+              <Users size={12} strokeWidth={1.75} aria-hidden="true" />
+              People
+            </Link>
+            {settingsAffordance ? (
               <Button variant="secondary" size="sm" onClick={onOpenSettings}>
                 <Settings size={12} strokeWidth={1.75} aria-hidden="true" />
                 Track settings
               </Button>
-            </div>
-          ) : null}
+            ) : null}
+          </div>
         </div>
 
         <FacilitatorBar
           enrollmentCount={counts?.enrollmentCount ?? 0}
           facilitatorCount={counts?.facilitatorCount ?? 0}
-          myEnrollment={detail.myEnrollment}
-          myDisplayName={
-            detail.myGroupMembership?.profile.nickname ?? meUser?.name ?? meUser?.email ?? null
-          }
-          myAvatarSrc={resolveAvatarSrc(
-            detail.myGroupMembership?.profile.avatarUrl ?? null,
-            meUser?.image ?? null,
-            r2PublicOrigin,
-          )}
         />
       </header>
 
@@ -307,6 +337,13 @@ function TrackHomeBody({
           ) : null}
         </div>
       </section>
+
+      <LeaveTrackDialog
+        open={leaveOpen}
+        onClose={() => setLeaveOpen(false)}
+        groupId={group.id}
+        track={track}
+      />
     </div>
   );
 }
@@ -335,42 +372,14 @@ function TabCounter({ count }: { readonly count: number }) {
 function FacilitatorBar({
   enrollmentCount,
   facilitatorCount,
-  myEnrollment,
-  myDisplayName,
-  myAvatarSrc,
 }: {
   readonly enrollmentCount: number;
   readonly facilitatorCount: number;
-  readonly myEnrollment: TrackEnrollment | null;
-  readonly myDisplayName: string | null;
-  readonly myAvatarSrc: string | null;
 }) {
-  // We render the viewer's own avatar when they hold an active facilitator
-  // enrollment — covers the M4 happy path (the creator is the only
-  // facilitator) without an extra round trip. M5 will lift the full
-  // roster into the response and this collapses into a one-liner that
-  // maps the entries through `AvatarStack`. Until then, a viewer who is
-  // not a facilitator sees only the count, which is honest about what we
-  // know.
-  const viewerIsFacilitator =
-    myEnrollment !== null && myEnrollment.leftAt === null && myEnrollment.role === "facilitator";
-
-  const entries =
-    viewerIsFacilitator && myDisplayName
-      ? [{ key: "me", name: myDisplayName, src: myAvatarSrc }]
-      : [];
-
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-[var(--color-ink-2)]">
       <div className="flex items-center gap-2">
         <span className="text-[var(--color-ink-3)]">Facilitators</span>
-        {entries.length > 0 ? (
-          <AvatarStack
-            entries={entries}
-            ariaLabel={`Facilitators: ${entries.map((e) => e.name).join(", ")}`}
-            size={20}
-          />
-        ) : null}
         <span className="font-mono tabular-nums">{facilitatorCount}</span>
       </div>
       <span aria-hidden="true" className="text-[var(--color-ink-3)]">

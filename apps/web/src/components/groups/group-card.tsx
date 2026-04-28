@@ -10,8 +10,8 @@ type Props = {
 
 /**
  * Picker tile for the home screen. The whole card is a link to the group
- * home — the chevron and the `group/...` arrow nudge make the affordance
- * read as "open this group" without needing a separate "Open" button.
+ * home; the chevron and the `group/...` arrow nudge are the visual
+ * affordances that signal "open this group."
  */
 export function GroupCard({ group, myRole }: Props) {
   const archived = group.status === "archived";

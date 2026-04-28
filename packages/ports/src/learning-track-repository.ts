@@ -4,6 +4,7 @@ import type {
   LearningTrackId,
   StudyGroupId,
   TrackEnrollment,
+  TrackRole,
   TrackStatus,
   TrackStructureEnvelope,
   UserId,
@@ -119,15 +120,85 @@ export interface LearningTrackRepository {
   loadStructure(id: LearningTrackId): Promise<TrackStructureEnvelope | null>;
   loadContributionPolicy(id: LearningTrackId): Promise<ContributionPolicyEnvelope | null>;
 
-  // ── Enrollment surface (M5 owns the deep enrollment flow) ──────────────
-  // M4 only needs the four read methods below + endAllEnrollmentsForUser
-  // (cascade contract called by group-membership removal). The full enroll/
-  // unenroll/listEnrollments pair lands in M5.
+  // ── Enrollment surface ─────────────────────────────────────────────────
 
   enrollment(trackId: LearningTrackId, userId: UserId): Promise<TrackEnrollment | null>;
   listFacilitators(trackId: LearningTrackId): Promise<readonly TrackEnrollment[]>;
   countFacilitators(trackId: LearningTrackId): Promise<number>;
   countEnrollments(trackId: LearningTrackId): Promise<number>;
+
+  /**
+   * The actor's currently-active enrollments. Excludes left rows. Powers
+   * the `/api/v1/me/context` envelope; one indexed read per call.
+   */
+  enrollmentsForUser(userId: UserId): Promise<readonly TrackEnrollment[]>;
+
+  /**
+   * Active (and optionally historical) enrollments on a track, ordered
+   * by `enrolledAt` for a stable People-tab list. `includeLeft` toggles
+   * whether the historic section is materialized — the SPA gates that
+   * section to authority viewers.
+   */
+  listEnrollments(
+    trackId: LearningTrackId,
+    opts: { readonly includeLeft: boolean },
+  ): Promise<readonly TrackEnrollment[]>;
+
+  /**
+   * Begin (or revive) an enrollment. UPSERT semantics on the
+   * `(trackId, userId)` UNIQUE index:
+   *  - no existing row → INSERT a new participant row
+   *  - existing row with `leftAt !== null` → UPDATE clearing `leftAt` /
+   *    `leftBy`, resetting `enrolledAt`, role unchanged
+   *  - existing row with `leftAt === null` → idempotent no-op (returns
+   *    the existing row)
+   *
+   * The implementation guards membership existence (the target must hold
+   * a current Group Membership in the track's group) inside the same D1
+   * batch so a concurrent membership removal cannot land an orphan
+   * enrollment. Throws `DomainError("FORBIDDEN", …, "enrollment_requires_membership")`
+   * when no current membership row exists at write time.
+   */
+  enroll(input: {
+    readonly trackId: LearningTrackId;
+    readonly userId: UserId;
+    readonly by: UserId;
+  }): Promise<TrackEnrollment>;
+
+  /**
+   * End an active enrollment (`leftAt = now`, `leftBy = by`). The orphan
+   * check runs inside a single conditional UPDATE: if the target is the
+   * only active facilitator on an active track, the UPDATE matches zero
+   * rows and the implementation throws `DomainError("CONFLICT", …,
+   * "would_orphan_facilitator")`. Already-left rows are an idempotent
+   * no-op — the caller receives the existing row unchanged.
+   *
+   * Paused / archived tracks bypass the orphan guard so a frozen track
+   * can drop to zero facilitators (mirrors `wouldOrphanAdmin`'s
+   * archived-group carve-out).
+   */
+  unenroll(input: {
+    readonly trackId: LearningTrackId;
+    readonly userId: UserId;
+    readonly by: UserId;
+  }): Promise<TrackEnrollment>;
+
+  /**
+   * Promote (`participant → facilitator`) or demote (`facilitator →
+   * participant`). Demotion runs the same orphan check as `unenroll`;
+   * promotion verifies the target has a current enrollment at write time.
+   * Throws `DomainError("FORBIDDEN", …, "not_track_enrollee")` for a
+   * stale promote, or `CONFLICT would_orphan_facilitator` for an unsafe
+   * demote.
+   *
+   * Same-role calls are an idempotent no-op (return the existing row).
+   */
+  setEnrollmentRole(input: {
+    readonly trackId: LearningTrackId;
+    readonly userId: UserId;
+    readonly role: TrackRole;
+    readonly by: UserId;
+  }): Promise<TrackEnrollment>;
 
   /**
    * Cascade contract: when a Group Membership is removed, every active
@@ -143,4 +214,20 @@ export interface LearningTrackRepository {
     readonly userId: UserId;
     readonly by: UserId;
   }): Promise<number>;
+
+  /**
+   * For each active track in `groupId`: detect tracks where `userId` is
+   * the only remaining active facilitator. Used by `removeGroupMember` /
+   * `leaveGroup` to refuse a removal that would silently orphan tracks
+   * via the cascade. Returns the offending tracks so the SPA can show
+   * "promote a replacement on these tracks first."
+   *
+   * Single indexed read joining `tracks` and `track_enrollments`; runs
+   * before the membership write so a refusal does not leave the system
+   * in a partial state.
+   */
+  findTracksOrphanedByMemberRemoval(input: {
+    readonly groupId: StudyGroupId;
+    readonly userId: UserId;
+  }): Promise<readonly { readonly trackId: LearningTrackId; readonly trackName: string }[]>;
 }

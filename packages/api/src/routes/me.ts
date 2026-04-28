@@ -15,6 +15,7 @@ export const meRoutes = new Hono<AppBindings>()
           policy: c.var.ports.policy,
           settings: c.var.ports.settings,
           groups: c.var.ports.groups,
+          tracks: c.var.ports.tracks,
         },
       );
       return c.json(ctx);

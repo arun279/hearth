@@ -45,6 +45,13 @@ export const trackEnrollments = sqliteTable(
   (t) => [
     uniqueIndex("track_enrollments_track_user_idx").on(t.trackId, t.userId),
     index("track_enrollments_user_idx").on(t.userId),
+    // Partial index covering the hot read path: count active facilitators
+    // per track (orphan guard) and list active facilitators on the People
+    // tab. Drops `leftAt IS NULL` rows from the scan so the count is
+    // O(active facilitators) instead of O(all enrollments per track).
+    index("track_enrollments_active_facilitator_idx")
+      .on(t.trackId, t.role)
+      .where(sql`${t.leftAt} IS NULL`),
     check("track_enrollments_role", sql`${t.role} IN ('participant', 'facilitator')`),
   ],
 );

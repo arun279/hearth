@@ -72,6 +72,24 @@ export async function removeGroupMember(
     throw new DomainError(code, verdict.reason.message, verdict.reason.code);
   }
 
+  // Orphan refusal: removing a member cascades into ending every active
+  // enrollment they hold in this group's tracks. If any of those tracks
+  // would lose their last facilitator, refuse with a typed CONFLICT —
+  // the SPA renders the offending track names so the operator can promote
+  // a replacement first.
+  const orphanedTracks = await deps.tracks.findTracksOrphanedByMemberRemoval({
+    groupId: input.groupId,
+    userId: input.target,
+  });
+  if (orphanedTracks.length > 0) {
+    const names = orphanedTracks.map((t) => t.trackName).join(", ");
+    throw new DomainError(
+      "CONFLICT",
+      `Removing this member would leave the following tracks with no facilitators: ${names}. Promote a replacement on each before removing.`,
+      "would_orphan_facilitator",
+    );
+  }
+
   const attribution: AttributionPreference =
     input.attribution ?? target?.attributionPreference ?? "preserve_name";
 
@@ -83,10 +101,9 @@ export async function removeGroupMember(
     displayNameSnapshot: target?.name ?? null,
   });
 
-  // Cascade to track enrollments AFTER the membership write — the contract
-  // accepts the no-op fallback (M3 has no enrollments), and a failure here
-  // does not roll back the membership removal. M5 will tighten this into a
-  // single transaction once the enrollment table is populated.
+  // Cascade to track enrollments AFTER the membership write — by this
+  // point the orphan check above has confirmed every cascaded track will
+  // still have at least one active facilitator left.
   await deps.tracks.endAllEnrollmentsForUser({
     groupId: input.groupId,
     userId: input.target,

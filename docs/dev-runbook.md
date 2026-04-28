@@ -165,6 +165,26 @@ Two Google accounts and two browsers (or one normal + one Incognito) make it pos
 
 Removing an Approved Email while the matching user is signed in is the only action that hard-deletes live sessions. Watch the second browser: the next API call returns 401 and the SPA redirects to the sign-in screen.
 
+## 8a. Enrolling a second member in a Learning Track
+
+Most flows past the group lifecycle (track activities, sessions, the People tab, the orphan-facilitator guard on group-member removal) need at least two real members on the same track. The shortest path with the dev session helper:
+
+1. With the bootstrap operator signed in, create a Study Group and a Learning Track. The creator is auto-enrolled as the track's first facilitator.
+2. Approve the second user's email up front (the consume path reuses the instance-level allowlist):
+
+   ```bash
+   curl -X POST http://localhost:8787/api/v1/instance/approved-emails \
+     -H "content-type: application/json" \
+     -H "cookie: better-auth.session_token=$(pnpm -s local-session --seed --cookie-only)" \
+     --data '{"email":"member2@local.dev"}'
+   ```
+
+3. Mint a session for the second user with `pnpm local-session --seed --email
+   member2@local.dev --json` and grab the cookie value.
+4. Invite that email from the group's people page (admin-only `Invite` button) or via `POST /api/v1/g/:groupId/invitations`. Either path returns a token.
+5. Consume the invitation as the second user — visit `/invite/<token>` in a second browser/profile (cookies don't share between profiles), or POST `/api/v1/invitations/consume` with `{ "token": "..." }`.
+6. The second user can now self-enroll in the track via the `Enroll` button on the track home, or you can promote them to facilitator from the People tab (the admin-only `Promote` action). The orphan-facilitator guard on group removal lights up once a track has at least one facilitator who is the _only_ facilitator on that track — the easiest way to reproduce that state is to invite a third user, promote them to facilitator on a different track, then try removing them from the group.
+
 ## 9. Inspecting R2 (avatars and library uploads)
 
 The Worker writes uploaded avatars to the R2 binding named `STORAGE` under keys shaped `avatars/<userId>/<groupId>/<sha>`. To see what's in the local bucket while the dev Worker is running, pass `--local` so Wrangler reads the Miniflare-backed bucket rather than the production R2 namespace:
@@ -200,3 +220,4 @@ That wipes the Miniflare D1 store; your next Worker start reseeds the singleton 
 - **Sign-in succeeds but the SPA shows "Hearth is unreachable"** — the SPA hit `/api/v1/me/context` before the Worker was up. Refresh; Vite's proxy is lazy.
 - **Google rejects `localhost`** — the Google OAuth client's authorized redirect URIs must contain `http://localhost:8787/api/auth/callback/google` exactly, with no trailing slash.
 - **Cookies not persisting cross-port (5173 → 8787)** — check that the Worker's response sets `SameSite=Lax` and `Secure=false` in dev. Both are Better Auth defaults for `http://localhost`, but a stray `Secure=true` override breaks the session.
+- **e2e fails locally on a long-running Vite dev server, especially after many edits to `packages/*/src/`** — symptom: a Playwright test that depends on a recently-edited UI primitive fails against the running dev server, but the same test passes against a fresh Vite (verifiable by `curl http://localhost:5173/@fs/<path>?import` returning stale content while `curl …?import&t=NOW` returns the current source). Cause: Vite 8.0.9 ships chokidar 3.6, whose single-file watch on cross-package source files can drop the watch during rapid atomic-rename sequences (Edit-tool / vim / build-on-save flows). Once dropped, Vite serves the cached transform from when the file was first imported regardless of disk state. Fix: kill and restart `pnpm --filter @hearth/web dev` (the Worker dev server can stay up). This is a Vite/chokidar upstream bug — see `docs/tripwires.md` § "Vite watcher fragility on cross-package source files" for the reassess trigger that retires this troubleshooting note.

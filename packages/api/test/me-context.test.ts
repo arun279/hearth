@@ -36,6 +36,7 @@ function buildPorts(overrides: Partial<Ports>): Ports {
     records: throwingProxy<Ports["records"]>("records"),
     sessions: throwingProxy<Ports["sessions"]>("sessions"),
     storage: throwingProxy<Ports["storage"]>("storage"),
+    uploads: throwingProxy<Ports["uploads"]>("uploads"),
     flags: throwingProxy<SystemFlagRepository>("flags"),
     clock: { now: () => new Date("2026-04-22T00:00:00.000Z") },
     ids: { generate: () => "id_test" },
@@ -79,6 +80,13 @@ function emptyGroupsPort(): StudyGroupRepository {
   } as StudyGroupRepository;
 }
 
+function emptyTracksPort(): Ports["tracks"] {
+  return {
+    ...throwingProxy<Ports["tracks"]>("tracks"),
+    enrollmentsForUser: async () => [],
+  } as Ports["tracks"];
+}
+
 describe("GET /api/v1/me/context", () => {
   it("returns anonymous envelope when no session", async () => {
     const app = harness({
@@ -96,6 +104,7 @@ describe("GET /api/v1/me/context", () => {
           },
         },
         groups: emptyGroupsPort(),
+        tracks: emptyTracksPort(),
       },
     });
 
@@ -153,6 +162,7 @@ describe("GET /api/v1/me/context", () => {
           },
         },
         groups: emptyGroupsPort(),
+        tracks: emptyTracksPort(),
       },
     });
 
@@ -189,6 +199,10 @@ describe("GET /api/v1/me/context", () => {
         role: "admin",
         joinedAt: new Date("2026-01-01T00:00:00.000Z"),
         removedAt: null,
+        removedBy: null,
+        attributionOnLeave: null,
+        displayNameSnapshot: null,
+        profile: { nickname: null, avatarUrl: null, bio: null, updatedAt: null },
       },
     ];
     const app = harness({
@@ -223,6 +237,7 @@ describe("GET /api/v1/me/context", () => {
           ...throwingProxy<StudyGroupRepository>("groups"),
           membershipsForUser: async () => memberships,
         } as StudyGroupRepository,
+        tracks: emptyTracksPort(),
       },
     });
     const res = await app.request("/api/v1/me/context");
