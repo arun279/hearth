@@ -46,6 +46,7 @@ const tracksByGroupKey = (groupId: string) => ["tracks", "by-group", groupId] as
 const trackDetailKey = (trackId: string) => ["tracks", "detail", trackId] as const;
 const trackSummaryKey = (groupId: string, trackId: string) =>
   ["tracks", "summary", groupId, trackId] as const;
+const trackPeopleKey = (trackId: string) => ["tracks", "people", trackId] as const;
 
 /**
  * Invalidate every cache entry that could become stale after a mutation
@@ -60,6 +61,14 @@ function invalidateTrack(qc: QueryClient, groupId: string, trackId: string) {
   // Group counts (tab badges, group home) include trackCount which can
   // shift when a track is created or archived.
   qc.invalidateQueries({ queryKey: ["groups", "detail", groupId] });
+}
+
+function invalidateTrackEnrollment(qc: QueryClient, groupId: string, trackId: string) {
+  invalidateTrack(qc, groupId, trackId);
+  qc.invalidateQueries({ queryKey: trackPeopleKey(trackId) });
+  // /me/context's `enrollments` array shifts on every enroll/leave —
+  // invalidate so the SPA's "Up next" / track-card pills stay accurate.
+  qc.invalidateQueries({ queryKey: ["me", "context"] });
 }
 
 export function useTracksInGroup(groupId: string, enabled: boolean) {
@@ -165,5 +174,113 @@ export function useUpdateTrackContributionPolicy(groupId: string, trackId: strin
       return (await res.json()) as LearningTrack;
     },
     onSuccess: () => invalidateTrack(qc, groupId, trackId),
+  });
+}
+
+// ── Enrollment ─────────────────────────────────────────────────────────
+
+export type TrackEnrolleeCapabilities = {
+  readonly canRemove: boolean;
+  readonly canPromote: boolean;
+  readonly canDemote: boolean;
+};
+
+export type TrackEnrolleeRow = {
+  readonly enrollment: TrackEnrollment;
+  readonly displayName: string;
+  readonly avatarUrl: string | null;
+  readonly capabilities: TrackEnrolleeCapabilities;
+};
+
+type TrackPeoplePayload = {
+  readonly track: LearningTrack;
+  readonly facilitatorCount: number;
+  readonly entries: readonly TrackEnrolleeRow[];
+  readonly leftEntries: readonly TrackEnrolleeRow[];
+};
+
+export function useTrackPeople(trackId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: trackPeopleKey(trackId),
+    enabled,
+    queryFn: async (): Promise<TrackPeoplePayload> => {
+      const res = await api.tracks[":trackId"].people.$get({ param: { trackId } });
+      await assertOk(res);
+      return (await res.json()) as TrackPeoplePayload;
+    },
+  });
+}
+
+export function useEnrollInTrack(groupId: string, trackId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (
+      input: { readonly targetUserId?: string } = {},
+    ): Promise<TrackEnrollment> => {
+      const res = await api.tracks[":trackId"].enroll.$post({
+        param: { trackId },
+        json: input,
+      });
+      await assertOk(res);
+      return (await res.json()) as TrackEnrollment;
+    },
+    onSuccess: () => invalidateTrackEnrollment(qc, groupId, trackId),
+  });
+}
+
+export function useLeaveTrack(groupId: string, trackId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (): Promise<TrackEnrollment> => {
+      const res = await api.tracks[":trackId"].leave.$post({
+        param: { trackId },
+      });
+      await assertOk(res);
+      return (await res.json()) as TrackEnrollment;
+    },
+    onSuccess: () => invalidateTrackEnrollment(qc, groupId, trackId),
+  });
+}
+
+export function useRemoveTrackEnrollment(groupId: string, trackId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (userId: string): Promise<TrackEnrollment> => {
+      const res = await api.tracks[":trackId"].enrollments[":userId"].$delete({
+        param: { trackId, userId },
+      });
+      await assertOk(res);
+      return (await res.json()) as TrackEnrollment;
+    },
+    onSuccess: () => invalidateTrackEnrollment(qc, groupId, trackId),
+  });
+}
+
+export function useAssignTrackFacilitator(groupId: string, trackId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (targetUserId: string): Promise<TrackEnrollment> => {
+      const res = await api.tracks[":trackId"].facilitators.$post({
+        param: { trackId },
+        json: { targetUserId },
+      });
+      await assertOk(res);
+      return (await res.json()) as TrackEnrollment;
+    },
+    onSuccess: () => invalidateTrackEnrollment(qc, groupId, trackId),
+  });
+}
+
+export function useRemoveTrackFacilitator(groupId: string, trackId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (userId: string): Promise<TrackEnrollment> => {
+      const res = await api.tracks[":trackId"].facilitators[":userId"].$delete({
+        param: { trackId, userId },
+      });
+      await assertOk(res);
+      return (await res.json()) as TrackEnrollment;
+    },
+    onSuccess: () => invalidateTrackEnrollment(qc, groupId, trackId),
   });
 }

@@ -185,7 +185,13 @@ export function makeTracks(
     listFacilitators: vi.fn(async () => []),
     countFacilitators: vi.fn(async () => 0),
     countEnrollments: vi.fn(async () => 0),
+    enrollmentsForUser: vi.fn(async () => []),
+    listEnrollments: vi.fn(async () => []),
+    enroll: vi.fn(),
+    unenroll: vi.fn(),
+    setEnrollmentRole: vi.fn(),
     endAllEnrollmentsForUser: vi.fn(async () => 0),
+    findTracksOrphanedByMemberRemoval: vi.fn(async () => []),
     ...overrides,
   } as LearningTrackRepository;
 }

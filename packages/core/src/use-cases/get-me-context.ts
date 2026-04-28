@@ -2,6 +2,7 @@ import type { MeContext, MeContextInstance, MeContextUser, UserId } from "@heart
 import type {
   InstanceAccessPolicyRepository,
   InstanceSettingsRepository,
+  LearningTrackRepository,
   StudyGroupRepository,
   UserRepository,
 } from "@hearth/ports";
@@ -25,6 +26,7 @@ export type GetMeContextDeps = {
   readonly policy: InstanceAccessPolicyRepository;
   readonly settings: InstanceSettingsRepository;
   readonly groups: StudyGroupRepository;
+  readonly tracks: LearningTrackRepository;
 };
 
 /**
@@ -45,10 +47,13 @@ export async function getMeContext(
     deps.settings.get(),
   ]);
 
-  const [isOperator, memberships] = await Promise.all([
+  const [isOperator, memberships, enrollments] = await Promise.all([
     user !== null && input.userId !== null ? deps.policy.isOperator(input.userId) : false,
     user !== null && input.userId !== null
       ? deps.groups.membershipsForUser(input.userId)
+      : Promise.resolve([] as const),
+    user !== null && input.userId !== null
+      ? deps.tracks.enrollmentsForUser(input.userId)
       : Promise.resolve([] as const),
   ]);
 
@@ -70,7 +75,7 @@ export async function getMeContext(
       instance,
       isOperator,
       memberships,
-      enrollments: [],
+      enrollments,
     },
   };
 }

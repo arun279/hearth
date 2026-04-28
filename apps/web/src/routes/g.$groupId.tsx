@@ -1,4 +1,10 @@
-import type { GroupMembership, LearningTrack, MeContext, StudyGroup } from "@hearth/domain";
+import type {
+  GroupMembership,
+  LearningTrack,
+  MeContext,
+  StudyGroup,
+  TrackEnrollment,
+} from "@hearth/domain";
 import { Avatar, Badge, Button, Callout, EmptyState } from "@hearth/ui";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { Plus, Settings } from "lucide-react";
@@ -73,6 +79,7 @@ function GroupHome() {
             counts={detail.counts}
             myMembership={detail.myMembership}
             meUser={meUser}
+            enrollments={meData.enrollments}
             onOpenSettings={() => setSettingsOpenLocal(true)}
             onOpenNewTrack={() => setNewTrackOpenLocal(true)}
           />
@@ -140,6 +147,7 @@ type GroupHomeBodyProps = {
   readonly counts: { memberCount: number; trackCount: number; libraryItemCount: number };
   readonly myMembership: GroupMembership | null;
   readonly meUser: NonNullable<MeContext["data"]["user"]>;
+  readonly enrollments: readonly TrackEnrollment[];
   readonly onOpenSettings: () => void;
   readonly onOpenNewTrack: () => void;
 };
@@ -150,6 +158,7 @@ function GroupHomeBody({
   counts,
   myMembership,
   meUser,
+  enrollments,
   onOpenSettings,
   onOpenNewTrack,
 }: GroupHomeBodyProps) {
@@ -157,6 +166,9 @@ function GroupHomeBody({
   const myRole = myMembership?.role ?? null;
   const tracksQuery = useTracksInGroup(g.id, true);
   const tracks = tracksQuery.data ?? [];
+  const enrolledIds = new Set(
+    enrollments.filter((e) => e.leftAt === null).map((e) => e.trackId as string),
+  );
 
   return (
     <div className="mx-auto max-w-3xl px-5 py-8 md:px-8">
@@ -230,7 +242,7 @@ function GroupHomeBody({
             className="divide-y divide-[var(--color-rule)] rounded-[var(--radius-md)] border border-[var(--color-rule)] bg-[var(--color-surface)]"
           >
             {tracks.map((t) => (
-              <TrackRow key={t.id} track={t} />
+              <TrackRow key={t.id} track={t} isEnrolled={enrolledIds.has(t.id)} />
             ))}
           </ul>
         ) : (
@@ -311,7 +323,13 @@ const TRACK_STATUS_TONE: Record<LearningTrack["status"], "good" | "warn" | "neut
   archived: "neutral",
 };
 
-function TrackRow({ track }: { readonly track: LearningTrack }) {
+function TrackRow({
+  track,
+  isEnrolled,
+}: {
+  readonly track: LearningTrack;
+  readonly isEnrolled: boolean;
+}) {
   return (
     <li>
       <Link
@@ -326,6 +344,7 @@ function TrackRow({ track }: { readonly track: LearningTrack }) {
               {track.name}
             </span>
             <Badge tone={TRACK_STATUS_TONE[track.status]}>{track.status}</Badge>
+            {isEnrolled ? <Badge tone="accent">enrolled</Badge> : null}
           </div>
           {track.description ? (
             <div className="mt-0.5 line-clamp-1 text-[12px] text-[var(--color-ink-2)]">

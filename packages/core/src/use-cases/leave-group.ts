@@ -42,6 +42,22 @@ export async function leaveGroup(input: LeaveGroupInput, deps: LeaveGroupDeps): 
     throw new DomainError(code, verdict.reason.message, verdict.reason.code);
   }
 
+  // Orphan refusal mirrors `removeGroupMember`: if leaving would strand
+  // any track in the group with zero active facilitators, surface the
+  // offending track names so the actor can promote a replacement first.
+  const orphanedTracks = await deps.tracks.findTracksOrphanedByMemberRemoval({
+    groupId: input.groupId,
+    userId: input.actor,
+  });
+  if (orphanedTracks.length > 0) {
+    const names = orphanedTracks.map((t) => t.trackName).join(", ");
+    throw new DomainError(
+      "CONFLICT",
+      `Leaving would strand the following tracks with no facilitators: ${names}. Promote a replacement on each before leaving.`,
+      "would_orphan_facilitator",
+    );
+  }
+
   const attribution: AttributionPreference =
     input.attribution ?? actor.attributionPreference ?? "preserve_name";
 

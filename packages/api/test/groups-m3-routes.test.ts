@@ -190,13 +190,22 @@ function makeTracksPort(): LearningTrackRepository {
     byId: vi.fn(),
     byGroup: vi.fn(),
     updateStatus: vi.fn(),
+    updateMetadata: vi.fn(),
+    saveStructure: vi.fn(),
+    saveContributionPolicy: vi.fn(),
+    loadStructure: vi.fn(),
+    loadContributionPolicy: vi.fn(),
     enroll: vi.fn(),
     unenroll: vi.fn(),
+    setEnrollmentRole: vi.fn(),
     listEnrollments: vi.fn(async () => []),
     enrollment: vi.fn(),
+    enrollmentsForUser: vi.fn(async () => []),
     listFacilitators: vi.fn(async () => []),
     countFacilitators: vi.fn(async () => 0),
+    countEnrollments: vi.fn(async () => 0),
     endAllEnrollmentsForUser: vi.fn(async () => 0),
+    findTracksOrphanedByMemberRemoval: vi.fn(async () => []),
   } as LearningTrackRepository;
 }
 

@@ -1,0 +1,1 @@
+CREATE INDEX `track_enrollments_active_facilitator_idx` ON `track_enrollments` (`track_id`,`role`) WHERE "track_enrollments"."left_at" IS NULL;

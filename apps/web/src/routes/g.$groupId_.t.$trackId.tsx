@@ -11,9 +11,11 @@ import {
   tabIdFor,
 } from "@hearth/ui";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { Settings } from "lucide-react";
+import { LogOut, Plus, Settings, Users } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 import { z } from "zod";
+import { LeaveTrackDialog } from "../components/tracks/leave-track-dialog.tsx";
 import { TrackPageShell } from "../components/tracks/track-page-shell.tsx";
 import { TrackSettingsDialog } from "../components/tracks/track-settings-dialog.tsx";
 import { useDocumentTitle } from "../hooks/use-document-title.ts";
@@ -21,10 +23,12 @@ import { useMeContext } from "../hooks/use-me-context.ts";
 import {
   type TrackDetail,
   type TrackSummaryCounts,
+  useEnrollInTrack,
   useTrack,
   useTrackSummary,
 } from "../hooks/use-tracks.ts";
 import { loadMeContextOrNull } from "../lib/me-context.ts";
+import { asUserMessage } from "../lib/problem.ts";
 
 const searchSchema = z.object({
   tab: z.enum(["activities", "sessions", "library", "pending"]).optional(),
@@ -154,6 +158,29 @@ function TrackHomeBody({
   onOpenSettings,
 }: TrackHomeBodyProps) {
   const { track, group, caps, contributionPolicy } = detail;
+  const enroll = useEnrollInTrack(group.id, track.id);
+  const [leaveOpen, setLeaveOpen] = useState(false);
+  const myEnrollment = detail.myEnrollment;
+  const isCurrentEnrollee = myEnrollment !== null && myEnrollment.leftAt === null;
+  const myMembership = detail.myGroupMembership;
+  const isCurrentMember = myMembership !== null && myMembership.removedAt === null;
+  // Self-enroll is offered when: actor is a current group member, NOT
+  // currently enrolled, and the track / group are not archived. The
+  // policy server-checks; this is a UI gate that mirrors the predicate.
+  const canSelfEnroll =
+    isCurrentMember &&
+    !isCurrentEnrollee &&
+    track.status !== "archived" &&
+    group.status !== "archived";
+  const facilitatorCount = counts?.facilitatorCount ?? 0;
+  // Last facilitator on an active track can't leave without orphaning —
+  // the server returns 409 in that case; we surface a disabled UI hint
+  // to avoid the failed mutation round-trip.
+  const isLastFacilitator =
+    isCurrentEnrollee &&
+    myEnrollment.role === "facilitator" &&
+    track.status === "active" &&
+    facilitatorCount <= 1;
   const groupArchived = group.status === "archived";
   const trackArchived = track.status === "archived";
   const trackPaused = track.status === "paused";
@@ -248,14 +275,56 @@ function TrackHomeBody({
               <p className="mt-1 text-[13px] text-[var(--color-ink-2)]">{track.description}</p>
             ) : null}
           </div>
-          {settingsAffordance ? (
-            <div className="flex shrink-0 items-center gap-1.5">
+          <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+            {canSelfEnroll ? (
+              <Button
+                variant="primary"
+                size="sm"
+                disabled={enroll.isPending}
+                onClick={async () => {
+                  try {
+                    await enroll.mutateAsync({});
+                    toast.success(`Enrolled in ${track.name}.`);
+                  } catch (err) {
+                    toast.error(asUserMessage(err, "Couldn't enroll."));
+                  }
+                }}
+              >
+                <Plus size={12} strokeWidth={1.75} aria-hidden="true" />
+                {enroll.isPending ? "Enrolling…" : "Enroll"}
+              </Button>
+            ) : null}
+            {isCurrentEnrollee && group.status !== "archived" ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={isLastFacilitator}
+                title={
+                  isLastFacilitator
+                    ? "You're the only facilitator. Promote a replacement first."
+                    : undefined
+                }
+                onClick={() => setLeaveOpen(true)}
+              >
+                <LogOut size={12} strokeWidth={1.75} aria-hidden="true" />
+                Leave
+              </Button>
+            ) : null}
+            <Link
+              to="/g/$groupId/t/$trackId/people"
+              params={{ groupId: group.id, trackId: track.id }}
+              className="inline-flex h-7 items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--color-rule)] bg-[var(--color-surface)] px-2.5 text-[12px] text-[var(--color-ink-2)] hover:bg-[var(--color-surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
+            >
+              <Users size={12} strokeWidth={1.75} aria-hidden="true" />
+              People
+            </Link>
+            {settingsAffordance ? (
               <Button variant="secondary" size="sm" onClick={onOpenSettings}>
                 <Settings size={12} strokeWidth={1.75} aria-hidden="true" />
                 Track settings
               </Button>
-            </div>
-          ) : null}
+            ) : null}
+          </div>
         </div>
 
         <FacilitatorBar
@@ -307,6 +376,13 @@ function TrackHomeBody({
           ) : null}
         </div>
       </section>
+
+      <LeaveTrackDialog
+        open={leaveOpen}
+        onClose={() => setLeaveOpen(false)}
+        groupId={group.id}
+        track={track}
+      />
     </div>
   );
 }

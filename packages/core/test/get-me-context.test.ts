@@ -7,6 +7,7 @@ import type {
 } from "@hearth/ports";
 import { describe, expect, it, vi } from "vitest";
 import { getMeContext } from "../src/use-cases/get-me-context.ts";
+import { makeTracks } from "./_helpers.ts";
 
 const uid = "u_1" as UserId;
 const now = new Date("2026-04-22T00:00:00.000Z");
@@ -65,7 +66,19 @@ function makeGroups(overrides: Partial<StudyGroupRepository> = {}): StudyGroupRe
     updateMetadata: vi.fn(),
     membership: vi.fn(async () => null),
     membershipsForUser: vi.fn(async () => []),
+    listMemberships: vi.fn(async () => []),
+    listAdmins: vi.fn(async () => []),
     countAdmins: vi.fn(async () => 0),
+    addMembership: vi.fn(),
+    removeMembership: vi.fn(),
+    setMembershipRole: vi.fn(),
+    updateProfile: vi.fn(),
+    createInvitation: vi.fn(),
+    invitationByToken: vi.fn(async () => null),
+    invitationById: vi.fn(async () => null),
+    listPendingInvitations: vi.fn(async () => []),
+    revokeInvitation: vi.fn(),
+    consumeInvitation: vi.fn(),
     counts: vi.fn(async () => ({ memberCount: 0, trackCount: 0, libraryItemCount: 0 })),
     ...overrides,
   };
@@ -92,6 +105,7 @@ describe("getMeContext", () => {
         policy: makePolicy({ countActiveOperators: vi.fn(async () => 0) }),
         settings: makeSettings({ get: async () => null }),
         groups: makeGroups(),
+        tracks: makeTracks(),
       },
     );
     expect(ctx.v).toBe(1);
@@ -114,6 +128,7 @@ describe("getMeContext", () => {
           get: async () => ({ name: "Jolene's Hearth", updatedAt: now, updatedBy: null }),
         }),
         groups: makeGroups(),
+        tracks: makeTracks(),
       },
     );
     expect(ctx.data.instance).toEqual({
@@ -134,6 +149,7 @@ describe("getMeContext", () => {
         }),
         settings: makeSettings(),
         groups: makeGroups(),
+        tracks: makeTracks(),
       },
     );
     expect(ctx.data.user).toEqual({
@@ -153,6 +169,7 @@ describe("getMeContext", () => {
         policy: makePolicy({ countActiveOperators: vi.fn(async () => 1) }),
         settings: makeSettings(),
         groups: makeGroups(),
+        tracks: makeTracks(),
       },
     );
     // A user row without an email (post-scrub) isn't exposable as MeContextUser.
@@ -171,6 +188,10 @@ describe("getMeContext", () => {
       role: "admin",
       joinedAt: now,
       removedAt: null,
+      removedBy: null,
+      attributionOnLeave: null,
+      displayNameSnapshot: null,
+      profile: { nickname: null, avatarUrl: null, bio: null, updatedAt: null },
     };
     const ctx = await getMeContext(
       { userId: uid, r2PublicOrigin: TEST_R2_ORIGIN },
@@ -181,6 +202,7 @@ describe("getMeContext", () => {
         groups: makeGroups({
           membershipsForUser: vi.fn(async () => [membership]),
         }),
+        tracks: makeTracks(),
       },
     );
     expect(ctx.data.memberships).toEqual([membership]);
