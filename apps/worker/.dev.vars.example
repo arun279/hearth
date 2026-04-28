@@ -1,5 +1,6 @@
 # Copy to .dev.vars (gitignored) and fill in real values for local development.
-# See ../../../docs/stack-claude.md "Deployment bootstrap" for canonical shape.
+# The Zod schema in packages/config/src/index.ts validates each variable;
+# docs/dev-runbook.md walks through where each value comes from.
 
 GOOGLE_OAUTH_CLIENT_ID="paste-from-google-cloud-console"
 GOOGLE_OAUTH_CLIENT_SECRET="paste-from-google-cloud-console"

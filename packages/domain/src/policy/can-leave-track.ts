@@ -5,9 +5,10 @@ import { wouldOrphanFacilitator } from "../track-invariants.ts";
 import { isCurrentEnrollment, isCurrentMember } from "./helpers.ts";
 
 /**
- * Self-leave: the actor ends their own track enrollment. Their prior
- * Activity Records stay preserved (per CONTEXT.md "Leaving ends full track
- * access … prior records survive").
+ * Self-leave: the actor ends their own track enrollment. Leaving ends
+ * full track access and active participation, but prior Activity Records
+ * stay preserved on the track — leaving is reversible at the
+ * record-attribution level even though the active enrollment isn't.
  *
  * The orphan-facilitator check applies symmetrically: the last facilitator
  * cannot leave an *active* track without first promoting a replacement.

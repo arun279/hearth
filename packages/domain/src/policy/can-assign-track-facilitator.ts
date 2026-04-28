@@ -4,11 +4,11 @@ import type { LearningTrack, TrackEnrollment } from "../track.ts";
 import { isAuthorityOverTrack } from "./is-authority-over-track.ts";
 
 /**
- * Promote a current participant on this track to facilitator. Per CONTEXT.md
- * ("A Track Facilitator must have Track Enrollment in that Learning Track")
- * the target must already hold a current enrollment — we don't materialize
- * one as a side-effect, because the dual paths (admin invites a non-member;
- * admin promotes a current participant) have very different consent
+ * Promote a current participant on this track to facilitator. The target
+ * must already hold a current track enrollment — being a facilitator
+ * implies enrollment, and we don't materialize one as a side-effect of
+ * promotion because the dual paths (admin invites a non-member; admin
+ * promotes a current participant) have very different consent
  * implications.
  *
  * Authority-only on this side. Demotion lives in `canRemoveTrackFacilitator`

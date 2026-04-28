@@ -7,10 +7,11 @@ import { isAuthorityOverTrack } from "./is-authority-over-track.ts";
 
 /**
  * The actor enrolls themselves in a track. Active group membership is
- * required (per CONTEXT.md: enrollment is a strictly-stronger predicate
- * than membership). Paused tracks accept new enrollments — the carve-out
- * is intentional so a returning member can re-engage without first
- * unpausing the track. Archived tracks are read-only end-to-end.
+ * required: track enrollment is a strictly-stronger predicate than group
+ * membership — you cannot be enrolled in a track without being a current
+ * member of its group. Paused tracks accept new enrollments — the
+ * carve-out is intentional so a returning member can re-engage without
+ * first unpausing the track. Archived tracks are read-only end-to-end.
  */
 export function canEnrollSelfInTrack(
   actor: User,

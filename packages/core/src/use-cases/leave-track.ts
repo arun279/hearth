@@ -32,7 +32,8 @@ export type LeaveTrackDeps = {
  * mapping (`would_orphan_facilitator → CONFLICT`) reads cleanly.
  *
  * Prior `ActivityRecord` rows for this enrollee are not cascaded — the
- * track keeps the historical attribution intact (per CONTEXT.md).
+ * track keeps the historical attribution intact, so re-enrolling later
+ * picks up where the prior session left off.
  */
 export async function leaveTrack(
   input: LeaveTrackInput,

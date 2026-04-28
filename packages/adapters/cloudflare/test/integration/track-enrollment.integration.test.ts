@@ -14,7 +14,7 @@ import { createSystemFlagRepository } from "../../src/system-flag-repository.ts"
  *
  * - `enroll` rejects `enrollment_requires_membership` when the target is
  *   not a current group member of the track's parent group.
- * - `enroll` UPSERTs: a fresh row is INSERTed; a soft-left row has its
+ * - `enroll` upserts: a fresh row is inserted; a soft-left row has its
  *   `leftAt` / `leftBy` cleared and `enrolledAt` reset.
  * - `unenroll` runs the orphan check inside one conditional UPDATE — two
  *   facilitators racing each other on an active track cannot both succeed.
