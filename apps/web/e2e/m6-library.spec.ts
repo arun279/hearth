@@ -27,7 +27,7 @@ test.describe("M6 — Library page", () => {
     const { id: groupId } = (await create.json()) as { id: string };
 
     await page.goto(`/g/${groupId}/library`);
-    await expect(page.getByRole("heading", { name: "Library" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "Library" })).toBeVisible();
     await expect(page.getByRole("navigation", { name: /Breadcrumb/i })).toContainText(
       "Tuesday Night Learners",
     );
