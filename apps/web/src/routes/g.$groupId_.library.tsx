@@ -12,7 +12,7 @@ import { UploadDialog } from "../components/library/upload-dialog.tsx";
 import { useDebouncedValue } from "../hooks/use-debounced-value.ts";
 import { useDocumentTitle } from "../hooks/use-document-title.ts";
 import { useGroup } from "../hooks/use-groups.ts";
-import { useLibraryList, useLibrarySearch } from "../hooks/use-library.ts";
+import { type LibraryListEntry, useLibraryList, useLibrarySearch } from "../hooks/use-library.ts";
 import { useMeContext } from "../hooks/use-me-context.ts";
 import { loadMeContextOrNull } from "../lib/me-context.ts";
 
@@ -52,8 +52,10 @@ function LibraryPage() {
   const uploadOpen = uploadOpenLocal || search.upload === "open";
 
   const [searchInput, setSearchInput] = useState("");
+  const trimmedInput = searchInput.trim();
   const debouncedQuery = useDebouncedValue(searchInput, SEARCH_DEBOUNCE_MS).trim();
   const isSearching = debouncedQuery.length >= SEARCH_MIN_LENGTH;
+  const isSubMinLength = trimmedInput.length > 0 && trimmedInput.length < SEARCH_MIN_LENGTH;
   const searchResults = useLibrarySearch(
     params.groupId,
     debouncedQuery,
@@ -75,10 +77,14 @@ function LibraryPage() {
         const archived = g.status === "archived";
         const canUpload = list.data?.caps.canUpload === true && !archived;
         const listEntries = list.data?.entries ?? [];
-        const searchEntries = searchResults.data?.entries ?? [];
+        const searchEntries: readonly LibraryListEntry[] =
+          searchResults.data?.pages.flatMap((page) => page.entries) ?? [];
         const entries = isSearching ? searchEntries : listEntries;
-        const showSearchBox = listEntries.length > 0 || isSearching;
+        const showSearchBox = listEntries.length > 0 || trimmedInput.length > 0;
         const searchLoading = isSearching && searchResults.isLoading;
+        const searchError = isSearching && searchResults.isError;
+        const canLoadMore = isSearching && searchResults.hasNextPage === true;
+        const loadingMore = searchResults.isFetchingNextPage;
 
         const closeUpload = () => {
           setUploadOpenLocal(false);
@@ -136,7 +142,7 @@ function LibraryPage() {
                       aria-hidden
                       className={cn(
                         "pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2",
-                        "text-[var(--color-ink-3)]",
+                        "text-[var(--color-ink-2)]",
                       )}
                     />
                     <Input
@@ -145,16 +151,17 @@ function LibraryPage() {
                       placeholder="Search by title, description, or tag"
                       value={searchInput}
                       onChange={(e) => setSearchInput(e.target.value)}
-                      className="pl-8 pr-8"
+                      className="pl-8 pr-10"
                       aria-controls="library-results"
+                      aria-describedby={isSubMinLength ? "library-search-hint" : undefined}
                     />
                     {searchInput.length > 0 ? (
                       <button
                         type="button"
                         onClick={() => setSearchInput("")}
                         className={cn(
-                          "absolute top-1/2 right-1 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded",
-                          "text-[var(--color-ink-3)] hover:text-[var(--color-ink-2)]",
+                          "absolute top-1/2 right-0 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-r-[var(--radius-md)]",
+                          "text-[var(--color-ink-2)] hover:text-[var(--color-ink)]",
                           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]",
                         )}
                         aria-label="Clear search"
@@ -163,12 +170,22 @@ function LibraryPage() {
                       </button>
                     ) : null}
                   </div>
+                  {isSubMinLength ? (
+                    <p
+                      id="library-search-hint"
+                      className="mt-1.5 text-[12px] text-[var(--color-ink-2)]"
+                    >
+                      Keep typing — search starts at {SEARCH_MIN_LENGTH} characters.
+                    </p>
+                  ) : null}
                   <div role="status" aria-live="polite" className="sr-only">
-                    {searchLoading
-                      ? "Searching…"
-                      : isSearching
-                        ? `${searchEntries.length} ${searchEntries.length === 1 ? "match" : "matches"}`
-                        : ""}
+                    {searchError
+                      ? "Search failed. Try again."
+                      : searchLoading
+                        ? "Searching…"
+                        : isSearching
+                          ? `${searchEntries.length} ${searchEntries.length === 1 ? "match" : "matches"}${canLoadMore ? ", more available" : ""}`
+                          : ""}
                   </div>
                 </div>
               ) : null}
@@ -177,6 +194,18 @@ function LibraryPage() {
                 <h2 id="library-heading" className="sr-only">
                   Library items
                 </h2>
+                {searchError ? (
+                  <Callout tone="danger" title="Search failed" className="mb-4">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <span>
+                        Couldn't reach the library search. Check your connection and try again.
+                      </span>
+                      <Button size="sm" variant="secondary" onClick={() => searchResults.refetch()}>
+                        Try again
+                      </Button>
+                    </div>
+                  </Callout>
+                ) : null}
                 <div id="library-results">
                   {(isSearching ? searchLoading : list.isLoading) ? (
                     <div className="space-y-2">
@@ -186,15 +215,17 @@ function LibraryPage() {
                     </div>
                   ) : entries.length === 0 ? (
                     isSearching ? (
-                      <EmptyState
-                        title="No matching items"
-                        description={`Nothing in the library matches "${debouncedQuery}". Try a different keyword or tag.`}
-                        action={
-                          <Button variant="ghost" onClick={() => setSearchInput("")}>
-                            Clear search
-                          </Button>
-                        }
-                      />
+                      searchError ? null : (
+                        <EmptyState
+                          title="No matching items"
+                          description={`Nothing in the library matches "${debouncedQuery}". Try a different keyword or tag.`}
+                          action={
+                            <Button variant="secondary" onClick={() => setSearchInput("")}>
+                              Show all items
+                            </Button>
+                          }
+                        />
+                      )
                     ) : (
                       <EmptyState
                         title="No library items yet"
@@ -213,13 +244,26 @@ function LibraryPage() {
                       />
                     )
                   ) : (
-                    <ul className="overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-rule)] bg-[var(--color-surface)] divide-y divide-[var(--color-rule)]">
-                      {entries.map((entry) => (
-                        <li key={entry.item.id}>
-                          <LibraryItemCard entry={entry} onSelect={openItem} />
-                        </li>
-                      ))}
-                    </ul>
+                    <>
+                      <ul className="overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-rule)] bg-[var(--color-surface)] divide-y divide-[var(--color-rule)]">
+                        {entries.map((entry) => (
+                          <li key={entry.item.id}>
+                            <LibraryItemCard entry={entry} onSelect={openItem} />
+                          </li>
+                        ))}
+                      </ul>
+                      {canLoadMore ? (
+                        <div className="mt-4 flex justify-center">
+                          <Button
+                            variant="secondary"
+                            onClick={() => searchResults.fetchNextPage()}
+                            disabled={loadingMore}
+                          >
+                            {loadingMore ? "Loading…" : "Load more"}
+                          </Button>
+                        </div>
+                      ) : null}
+                    </>
                   )}
                 </div>
               </section>

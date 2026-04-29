@@ -543,6 +543,7 @@ export function createLibraryItemRepository(
       // from library_items, mirroring the AFTER INSERT trigger's
       // exact projection (every row, retired or living — the retired
       // filter lives at search time, not at index time).
+      await deps.gate.assertWritable();
       await deps.db.run(sql`DELETE FROM library_items_fts`);
       await deps.db.run(sql`
         INSERT INTO library_items_fts (library_item_id, title, description, tags)

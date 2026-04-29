@@ -100,9 +100,10 @@ module.exports = {
     {
       name: "policy-purity-no-node-globals",
       severity: "error",
-      comment: "packages/domain/policy and /visibility must stay SPA-safe: no Node globals.",
+      comment:
+        "packages/domain/policy, /visibility, and /library must stay SPA-safe: no Node globals. Paired with the policy-purity vitest source-text scan in packages/domain/test/policy-purity.test.ts — the two checks must scope identically (the test catches inline `Date.now()` etc., this rule catches imports of Node built-ins).",
       from: {
-        path: "^packages/domain/src/(policy|visibility)/",
+        path: "^packages/domain/src/(policy|visibility|library)/",
       },
       to: {
         path: ["^node:", "^fs$", "^path$", "^crypto$", "^buffer$", "^process$"],

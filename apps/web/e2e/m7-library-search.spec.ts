@@ -86,10 +86,11 @@ test.describe("M7 — Library search", () => {
     await expect(page.getByText(/No matching items/i)).toBeVisible();
     await expect(page.getByRole("button", { name: /Open Beginner Spanish primer/i })).toBeHidden();
 
-    // Clear: the EmptyState's "Clear search" action restores the unfiltered grid
-    // (matching by role + visible text disambiguates from the icon-button at the
-    // input's right edge, which carries the same accessible name by design).
-    await page.getByRole("button", { name: "Clear search", exact: true }).last().click();
+    // Clear: the EmptyState's "Show all items" action restores the unfiltered grid
+    // (the icon-button at the input's right edge keeps the "Clear search" name —
+    // distinct accessible names so screen-reader users can disambiguate the two
+    // controls).
+    await page.getByRole("button", { name: "Show all items" }).click();
     await expect(searchInput).toHaveValue("");
     await expect(page.getByRole("button", { name: /Open Beginner Spanish primer/i })).toBeVisible();
     await expect(

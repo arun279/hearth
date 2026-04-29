@@ -19,6 +19,14 @@ const __dirname = dirname(__filename);
  * Node built-ins but cannot detect inline expressions like `Date.now()`.
  * This test does a source-text pass to close that gap.
  *
+ * Paired-gate invariant: this test's SCAN_DIRS list and the
+ * `policy-purity-no-node-globals` rule's `from.path` regex in
+ * `.dependency-cruiser.cjs` MUST scope identically. Broadening one
+ * without the other leaves a hole — the test catches inline expressions
+ * but not Node-built-in imports, and the dep-cruiser rule catches
+ * imports but not inline expressions. When adding a directory here, add
+ * it to the dep-cruiser rule too (and vice-versa).
+ *
  * New files in any scanned dir are picked up automatically — the glob
  * below walks the source dirs, so there is no hand-maintained file list
  * that can drift.

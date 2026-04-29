@@ -33,6 +33,7 @@ export function LibraryItemCard({ entry, onSelect }: Props) {
     stewardCount === 0 ? null : stewardCount === 1 ? "1 steward" : `${stewardCount} stewards`;
   const isRetired = item.retiredAt !== null;
   const hasTags = item.tags.length > 0;
+  const visibleTags = item.tags.slice(0, 3);
 
   return (
     <button
@@ -53,22 +54,23 @@ export function LibraryItemCard({ entry, onSelect }: Props) {
           </span>
           {isRetired ? <Badge tone="neutral">retired</Badge> : null}
         </div>
-        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-[var(--color-ink-3)]">
+        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] text-[var(--color-ink-2)]">
           <span className="font-mono">{revisionLabel}</span>
-          {sizeLabel ? <span>· {sizeLabel}</span> : null}
-          {stewardPhrase ? <span>· {stewardPhrase}</span> : null}
+          {/* Size + steward count are background context — hidden at narrow
+           * widths so the search-affordance (tags, used-in count) survives a
+           * 375 px viewport. Reappear at sm and up. */}
+          {sizeLabel ? <span className="hidden sm:inline">· {sizeLabel}</span> : null}
+          {stewardPhrase ? <span className="hidden sm:inline">· {stewardPhrase}</span> : null}
           <span>· {usedInPhrase}</span>
           {hasTags ? (
-            <span className="hidden font-mono text-[var(--color-ink-3)] sm:inline">
-              · {item.tags.slice(0, 3).join(" · ")}
-            </span>
+            <span className="font-mono text-[var(--color-ink-2)]">· {visibleTags.join(" · ")}</span>
           ) : null}
         </div>
       </div>
       <ChevronRight
         size={14}
         strokeWidth={1.5}
-        className="text-[var(--color-ink-3)] transition-transform group-hover:translate-x-0.5"
+        className="text-[var(--color-ink-2)] transition-transform group-hover:translate-x-0.5"
         aria-hidden="true"
       />
     </button>

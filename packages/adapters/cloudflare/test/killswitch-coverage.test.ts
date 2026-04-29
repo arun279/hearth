@@ -316,6 +316,7 @@ describe("killswitch coverage (resilience invariant 2 + 3)", () => {
           userId: uid,
         }),
     ],
+    ["LibraryItemRepository.restoreFtsIndex", () => library.restoreFtsIndex()],
 
     // The hourly cron-driven sweep is not a *port* method, but it
     // calls `gate.assertWritable()` on entry and is the only path

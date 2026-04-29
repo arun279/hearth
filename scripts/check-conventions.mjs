@@ -216,6 +216,76 @@ function findUncommittedMarkdownReferences(files) {
 }
 
 /**
+ * Every `check:<name>` reference in committed Markdown must resolve to
+ * a script declared in the root `package.json`. Catches prose that
+ * claims a `check:something` gate exists when no such script does —
+ * the failure mode is documenting an "enforced" rule that is in fact
+ * honor-system, which violates the project's real-gates principle.
+ *
+ * Only `check:`-prefixed names are matched; generic `pnpm <name>`
+ * mentions are intentionally not flagged because pnpm forwards bare
+ * binaries (`pnpm biome`, `pnpm wrangler`, …) to `node_modules/.bin`,
+ * so a name not in `package.json#scripts` is not necessarily fictional.
+ * Fenced code blocks and URL contexts are skipped same as the
+ * markdown-reference check above.
+ *
+ * @param {string[]} files
+ * @returns {{ ref: string, location: string, line: string }[]}
+ */
+function findFictionalCheckScripts(files) {
+  /** @type {Set<string>} */
+  const declared = new Set();
+  try {
+    const pkg = JSON.parse(readFileSync("package.json", "utf8"));
+    if (pkg && typeof pkg === "object" && pkg.scripts && typeof pkg.scripts === "object") {
+      for (const name of Object.keys(pkg.scripts)) declared.add(name);
+    }
+  } catch {
+    return [];
+  }
+
+  const CHECK_PATTERN = /(?<![\w-])(check:[a-z][a-z0-9:_-]*)\b/g;
+  const URL_PATTERN = /(?:[a-z][a-z0-9+.-]*:\/\/|www\.)\S+/gi;
+  const FENCE_LINE_PATTERN = /^```/;
+
+  const SCRIPT_BASENAME = "scripts/check-conventions.mjs";
+  /** @type {{ ref: string, location: string, line: string }[]} */
+  const hits = [];
+
+  for (const file of files) {
+    if (file.endsWith(SCRIPT_BASENAME)) continue;
+    if (!/\.(md|mdx)$/.test(file)) continue;
+    let text;
+    try {
+      text = readFileSync(file, "utf8");
+    } catch {
+      continue;
+    }
+    let inFence = false;
+    const lines = text.split("\n");
+    for (const [i, line] of lines.entries()) {
+      if (FENCE_LINE_PATTERN.test(line)) {
+        inFence = !inFence;
+        continue;
+      }
+      if (inFence) continue;
+      const sanitized = line.replace(URL_PATTERN, "");
+
+      CHECK_PATTERN.lastIndex = 0;
+      let m = CHECK_PATTERN.exec(sanitized);
+      while (m !== null) {
+        const ref = m[1];
+        if (ref && !declared.has(ref)) {
+          hits.push({ ref, location: `${file}:${i + 1}`, line: line.trim() });
+        }
+        m = CHECK_PATTERN.exec(sanitized);
+      }
+    }
+  }
+  return hits;
+}
+
+/**
  * Files that MUST contain a specific pattern. Complement to the
  * forbidden-pattern rules above — for load-bearing configuration where
  * absence of a directive is the bug.
@@ -337,6 +407,18 @@ if (uncommittedMdRefs.length > 0) {
   for (const h of uncommittedMdRefs) console.error(`  ${h.location}: ${h.line}    [${h.ref}]`);
   console.error(
     "  Why: every markdown filename mentioned in committed code must resolve to a doc actually committed to this repo. Pointing at a maintainer-only doc that lives outside the repo (or a doc that hasn't been committed yet) leaves the reference dangling for anyone cloning. Inline the rationale, commit the doc, or rename the mention away.\n",
+  );
+  fail = true;
+}
+
+const fictionalScripts = findFictionalCheckScripts(files);
+if (fictionalScripts.length > 0) {
+  console.error(
+    '\nConvention violation — fictional check script (rule "no-fictional-check-script"):',
+  );
+  for (const h of fictionalScripts) console.error(`  ${h.location}: ${h.line}    [${h.ref}]`);
+  console.error(
+    "  Why: prose that claims a `check:<name>` gate enforces a rule must point at a real script in the root package.json. Documenting an enforced rule that is in fact honor-system violates the project's real-gates principle (CLAUDE.md § Quality gates). Either wire the script or rephrase to drop the enforcement claim.\n",
   );
   fail = true;
 }

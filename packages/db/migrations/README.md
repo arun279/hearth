@@ -4,7 +4,7 @@ Generated migrations land here via `pnpm db:generate`. Most files are auto-gener
 
 ## Hand-written migrations
 
-A small number of migrations are intentionally hand-written and excluded from drizzle-kit's diffing path. They sit alongside the generated files and run in the same numeric sequence. Drizzle's snapshot files in `meta/` reflect only the generated migrations — that's the divergence the `check:table-inventory` gate enforces.
+A small number of migrations are intentionally hand-written and excluded from drizzle-kit's diffing path. They sit alongside the generated files and run in the same numeric sequence. Drizzle's snapshot files in `meta/` reflect only the generated migrations.
 
 The hand-written set covers SQLite features drizzle-kit cannot manage cleanly:
 
