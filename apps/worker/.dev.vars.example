@@ -13,15 +13,20 @@ BETTER_AUTH_TRUSTED_ORIGINS="http://localhost:5173,http://localhost:8787"
 KILLSWITCH_TOKEN="generate-via-openssl-rand-hex-32"
 HEARTH_BOOTSTRAP_OPERATOR_EMAIL="your-google-signin-email@example.com"
 
-# R2 S3-compatibility credentials. Mint via the Cloudflare dashboard:
-# R2 → Manage API Tokens → Create User API Token, scoped Object Read/Write
-# on hearth-storage. R2_ACCOUNT_ID is your Cloudflare account id.
-# R2_PUBLIC_ORIGIN is the bucket's public dev URL (`https://pub-…r2.dev`)
-# or your custom domain bound to the bucket.
-R2_ACCOUNT_ID="paste-from-cloudflare-dashboard"
-R2_ACCESS_KEY_ID="paste-from-cloudflare-dashboard"
-R2_SECRET_ACCESS_KEY="paste-from-cloudflare-dashboard"
-R2_PUBLIC_ORIGIN="https://pub-xxxxx.r2.dev"
+# R2 storage. With R2_DEV_PROXY=1 the Worker mediates uploads against
+# Miniflare's in-process R2; the four R2_* values below are stubs in
+# that mode. Set R2_DEV_PROXY=0 and fill them with real values from
+# the Cloudflare dashboard to target a real bucket. See
+# docs/dev-runbook.md § 9 for the full mode walkthrough.
+R2_DEV_PROXY="1"
+R2_ACCOUNT_ID="local-dev-stub"
+R2_ACCESS_KEY_ID="local-dev-stub"
+R2_SECRET_ACCESS_KEY="local-dev-stub"
+R2_PUBLIC_ORIGIN="http://localhost:8787/api/v1/__r2/public"
+
+# Optional library byte-budget overrides; see docs/dev-runbook.md § 9.
+# LIBRARY_R2_BYTE_BUDGET="100000000"
+# LIBRARY_R2_BUDGET_TRIP_RATIO="0.8"
 
 # Optional — uncomment when you have real values. Empty strings fail URL validation.
 # SENTRY_DSN="https://...@sentry.io/..."

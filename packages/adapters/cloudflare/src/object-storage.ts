@@ -7,6 +7,7 @@ import type {
   PresignedPutInput,
 } from "@hearth/ports";
 import { AwsClient } from "aws4fetch";
+import { buildDevProxyGetUrl, buildDevProxyPutUrl, signDevProxy } from "./dev-r2-proxy.ts";
 import type { KillswitchGate } from "./killswitch.ts";
 
 export type ObjectStorageConfig = {
@@ -27,6 +28,22 @@ export type ObjectStorageConfig = {
    * pass shorter values still (15 min for now).
    */
   readonly maxExpirySeconds: number;
+  /**
+   * Dev-mode override. When provided, the adapter signs URLs that point
+   * back at the worker itself (Miniflare's R2 simulator is binding-only
+   * and doesn't expose an S3 endpoint a browser can PUT to). Production
+   * leaves this undefined; the aws4fetch path takes over.
+   *
+   * `baseUrl` is the worker's public origin (e.g. `http://localhost:8787`).
+   * `secret` is HMAC'd into every signed URL so the dev proxy routes can
+   * verify a URL came from the worker before honouring it. Reusing
+   * `BETTER_AUTH_SECRET` is fine — it's already a 32+ char HMAC key
+   * scoped to this instance.
+   */
+  readonly devProxy?: {
+    readonly baseUrl: string;
+    readonly secret: string;
+  };
 };
 
 /**
@@ -84,6 +101,24 @@ export function createObjectStorage(
       }
       const expirySeconds = Math.min(Math.max(ttlSeconds, 1), config.maxExpirySeconds);
 
+      if (config.devProxy) {
+        const expiresAtMs = Date.now() + expirySeconds * 1000;
+        const sig = await signDevProxy(
+          { method: "PUT", key, expiresAtMs, contentType: mimeType },
+          config.devProxy.secret,
+        );
+        return {
+          url: buildDevProxyPutUrl({
+            baseUrl: config.devProxy.baseUrl,
+            key,
+            expiresAtMs,
+            contentType: mimeType,
+            signature: sig,
+          }),
+          requiredHeaders: { "Content-Type": mimeType },
+        };
+      }
+
       // Path-style URL — matches Cloudflare's documented R2 example. The
       // signed request encodes the bucket as the first path segment, the
       // key as the rest, and binds `host` + `content-type` into the
@@ -118,6 +153,18 @@ export function createObjectStorage(
         throw new Error("Refusing to sign URL for unknown key prefix");
       }
       const expirySeconds = Math.min(Math.max(ttlSeconds, 1), config.maxExpirySeconds);
+
+      if (config.devProxy) {
+        const expiresAtMs = Date.now() + expirySeconds * 1000;
+        const sig = await signDevProxy({ method: "GET", key, expiresAtMs }, config.devProxy.secret);
+        return buildDevProxyGetUrl({
+          baseUrl: config.devProxy.baseUrl,
+          key,
+          expiresAtMs,
+          signature: sig,
+          ...(contentDisposition !== undefined ? { contentDisposition } : {}),
+        });
+      }
 
       // R2 / S3 honour `response-content-disposition` on signed GETs to
       // override the saved object's disposition for this download only.

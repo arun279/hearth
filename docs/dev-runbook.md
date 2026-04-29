@@ -217,13 +217,12 @@ The four-step direct-to-R2 flow uses the same machinery as avatars but with long
 4. Add a revision: open the item from the list, click `Upload new revision`. The new revision becomes the current one; downloading from the item card always serves the current revision.
 5. Retire the item from its detail modal — the row stays readable, but new uploads against the same item id return 409 `library_item_retired`.
 
-The 80% byte-quota trip is enforced by `requestLibraryUpload`. To exercise it locally without uploading 8 GB, temporarily lower `INSTANCE_R2_BYTE_BUDGET` in `packages/domain/src/library/mime.ts` for a single dev run. Restore it before committing.
+The 80% byte-quota trip is enforced by `requestLibraryUpload`. To exercise it locally without uploading several GB, set `LIBRARY_R2_BYTE_BUDGET=100000000` (≈ 100 MB) in your `.dev.vars` and reload the dev worker. The trip ratio also has an env override (`LIBRARY_R2_BUDGET_TRIP_RATIO`, range `(0, 1]`). Production typically leaves both unset; the domain defaults (10 GB / 0.8) apply.
 
-The hourly cron handler (`pending-uploads-sweep`) reaps abandoned uploads. Manually fire it during dev:
+The hourly cron handler (`pending-uploads-sweep`) reaps abandoned uploads. Manually fire it during dev by hitting Wrangler's local scheduler endpoint:
 
 ```bash
-pnpm --filter @hearth/worker dev:scheduled  # if that script exists, otherwise:
-curl 'http://localhost:8787/__scheduled?cron=0%20*%20*%20*%20*'
+curl 'http://localhost:8787/cdn-cgi/handler/scheduled?cron=0%20*%20*%20*%20*'
 ```
 
 ## 10. Resetting local state

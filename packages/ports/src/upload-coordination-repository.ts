@@ -10,6 +10,12 @@ export type PendingUpload = {
   readonly storageKey: string;
   readonly declaredSizeBytes: number;
   readonly declaredMimeType: string;
+  /**
+   * Optional client-supplied filename, persisted verbatim so finalize
+   * can copy it onto the materialized revision row. Null when the
+   * uploader didn't pick from the file dialog.
+   */
+  readonly originalFilename: string | null;
   readonly createdAt: Date;
   readonly expiresAt: Date;
 };
@@ -27,6 +33,7 @@ export type CreatePendingUploadInput = {
   readonly storageKey: string;
   readonly declaredSizeBytes: number;
   readonly declaredMimeType: string;
+  readonly originalFilename: string | null;
   readonly createdAt: Date;
   readonly expiresAt: Date;
 };

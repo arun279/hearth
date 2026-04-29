@@ -1,6 +1,6 @@
 import type { LibraryItemId, LibraryRevisionId } from "@hearth/domain";
 import { Badge, Button, Callout, cn, Modal, Skeleton } from "@hearth/ui";
-import { Archive, Download, FileUp, Loader2 } from "lucide-react";
+import { Archive, Download, FileUp } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
@@ -12,6 +12,7 @@ import {
 } from "../../hooks/use-library.ts";
 import { formatBytes, formatShortDate } from "../../lib/format.ts";
 import { asUserMessage } from "../../lib/problem.ts";
+import { ConfirmActionDialog } from "../admin/confirm-action-dialog.tsx";
 import { KindBadge } from "./kind-badge.tsx";
 import { UploadDialog } from "./upload-dialog.tsx";
 
@@ -20,6 +21,15 @@ type Props = {
   readonly itemId: LibraryItemId;
   readonly open: boolean;
   readonly onClose: () => void;
+  /**
+   * When the parent group is archived, the page banner promises a frozen
+   * state. Disable both Retire and Upload-revision affordances so the
+   * dialog matches that promise — re-enable from group settings via
+   * Unarchive. The server still allows the operation (the policy stays
+   * authority-only per AGENTS.md), so an API client can mutate, but the
+   * SPA UI mirrors the banner.
+   */
+  readonly archived: boolean;
 };
 
 /**
@@ -27,7 +37,7 @@ type Props = {
  * highlighted), stewards, and "Used in" activities. Steward affordances
  * (Add revision / Retire) are gated on the server-rendered caps.
  */
-export function LibraryItemDetail({ groupId, itemId, open, onClose }: Props) {
+export function LibraryItemDetail({ groupId, itemId, open, onClose, archived }: Props) {
   const query = useLibraryItem(itemId, open);
   const retire = useRetireLibraryItem(groupId, itemId);
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -47,6 +57,10 @@ export function LibraryItemDetail({ groupId, itemId, open, onClose }: Props) {
     }
   };
 
+  const showRetire =
+    data?.caps.canRetire === true && data.detail.item.retiredAt === null && !archived;
+  const showUploadRevision = data?.caps.canAddRevision === true && !archived;
+
   return (
     <>
       <Modal
@@ -60,7 +74,7 @@ export function LibraryItemDetail({ groupId, itemId, open, onClose }: Props) {
               <Button variant="secondary" onClick={onClose}>
                 Close
               </Button>
-              {data.caps.canRetire && data.detail.item.retiredAt === null ? (
+              {showRetire ? (
                 <Button
                   variant="secondary"
                   onClick={() => setRetireConfirmOpen(true)}
@@ -69,7 +83,7 @@ export function LibraryItemDetail({ groupId, itemId, open, onClose }: Props) {
                   <Archive size={12} aria-hidden /> Retire
                 </Button>
               ) : null}
-              {data.caps.canAddRevision ? (
+              {showUploadRevision ? (
                 <Button onClick={() => setUploadOpen(true)}>
                   <FileUp size={12} aria-hidden /> Upload new revision
                 </Button>
@@ -97,39 +111,17 @@ export function LibraryItemDetail({ groupId, itemId, open, onClose }: Props) {
         libraryItemId={itemId}
       />
 
-      <Modal
+      <ConfirmActionDialog
         open={retireConfirmOpen}
         onClose={() => setRetireConfirmOpen(false)}
+        onConfirm={() => void onRetire()}
         title="Retire this item?"
-        size="sm"
-        tone="danger"
-        footer={
-          <>
-            <Button
-              variant="secondary"
-              onClick={() => setRetireConfirmOpen(false)}
-              disabled={retire.isPending}
-            >
-              Cancel
-            </Button>
-            <Button variant="danger" onClick={() => void onRetire()} disabled={retire.isPending}>
-              {retire.isPending ? (
-                <>
-                  <Loader2 size={12} className="animate-spin" aria-hidden /> Retiring…
-                </>
-              ) : (
-                "Retire"
-              )}
-            </Button>
-          </>
-        }
-      >
-        <p className="text-[13px] text-[var(--color-ink-2)]">
-          New activities won't be able to attach this item, but anything that already references it
-          keeps reading the pinned revision. You can retire it again later or unretire by editing
-          metadata after we ship that.
-        </p>
-      </Modal>
+        description="New activities won't be able to attach this item, but anything that already references it keeps reading the pinned revision."
+        confirmLabel="Retire"
+        tone="destructive"
+        confirmationPhrase="retire"
+        pending={retire.isPending}
+      />
     </>
   );
 }
@@ -276,8 +268,8 @@ function DetailBody({
         </h3>
         <p className="text-[12px] text-[var(--color-ink-2)]">
           {detail.usedInCount === 0
-            ? "Not referenced by any activity yet."
-            : `Referenced by ${detail.usedInCount} ${detail.usedInCount === 1 ? "activity" : "activities"}.`}
+            ? "Not yet used in any activity."
+            : `Used in ${detail.usedInCount} ${detail.usedInCount === 1 ? "activity" : "activities"}.`}
         </p>
       </section>
     </div>

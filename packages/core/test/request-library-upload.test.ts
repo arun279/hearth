@@ -276,7 +276,7 @@ describe("requestLibraryUpload — new revision", () => {
           ids: makeIds(["a", "b"]),
         },
       ),
-    ).rejects.toMatchObject({ code: "CONFLICT", reason: "library_item_retired" });
+    ).rejects.toMatchObject({ code: "FORBIDDEN", reason: "library_item_retired" });
   });
 
   it("rejects revision uploads from a non-steward member", async () => {

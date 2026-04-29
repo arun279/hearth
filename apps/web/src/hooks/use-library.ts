@@ -52,11 +52,42 @@ type RequestUploadResult = {
   readonly byteQuotaRemaining: number;
 };
 
+export type UploadStage = "idle" | "reserving" | "uploading" | "finalizing";
+
+export type UploadProgress = {
+  readonly stage: UploadStage;
+  /** Bytes uploaded so far (during the "uploading" stage); 0 otherwise. */
+  readonly loaded: number;
+  /** Total bytes for the current upload; 0 outside the "uploading" stage. */
+  readonly total: number;
+};
+
+export type UploadController = {
+  /**
+   * Aborts the in-flight R2 PUT (if currently uploading). The hourly
+   * pending-uploads cron sweeps the orphan row + R2 object — no client-
+   * side cleanup needed beyond reflecting cancel-state in the UI.
+   */
+  cancel(): void;
+};
+
+class UploadAbortedError extends Error {
+  constructor() {
+    super("Upload was cancelled.");
+    this.name = "UploadAbortedError";
+  }
+}
+
+export function isUploadAbortedError(err: unknown): err is UploadAbortedError {
+  return err instanceof UploadAbortedError;
+}
+
 const libraryListKey = (groupId: string) => ["library", "list", groupId] as const;
 const libraryItemKey = (itemId: string) => ["library", "item", itemId] as const;
 
 function invalidateLibrary(qc: QueryClient, groupId: string, itemId?: string) {
   qc.invalidateQueries({ queryKey: libraryListKey(groupId) });
+  qc.invalidateQueries({ queryKey: ["library", "quota", groupId] });
   qc.invalidateQueries({ queryKey: ["groups", "detail", groupId] });
   if (itemId) qc.invalidateQueries({ queryKey: libraryItemKey(itemId) });
 }
@@ -73,6 +104,31 @@ export function useLibraryList(groupId: string, enabled: boolean) {
   });
 }
 
+type LibraryQuotaResult = {
+  readonly usedBytes: number;
+  readonly budgetBytes: number;
+  readonly availableBytes: number;
+  readonly tripRatio: number;
+  readonly maxItemBytes: number;
+};
+
+export function useLibraryQuota(groupId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["library", "quota", groupId] as const,
+    enabled,
+    queryFn: async (): Promise<LibraryQuotaResult> => {
+      const res = await api.g[":groupId"].library.quota.$get({ param: { groupId } });
+      await assertOk(res);
+      return (await res.json()) as LibraryQuotaResult;
+    },
+    // Quota changes only on uploads / cron sweeps; per-mutation
+    // invalidation already covers the upload path. A 1-min staletime
+    // keeps the dropzone gauge fresh without burning round-trips on
+    // every dialog open.
+    staleTime: 60_000,
+  });
+}
+
 export function useLibraryItem(itemId: string, enabled: boolean) {
   return useQuery({
     queryKey: libraryItemKey(itemId),
@@ -85,28 +141,41 @@ export function useLibraryItem(itemId: string, enabled: boolean) {
   });
 }
 
+type UploadInput = {
+  readonly file: File;
+  readonly title: string;
+  readonly description: string | null;
+  readonly tags: readonly string[];
+  /** When set, finalize appends a revision to the existing item. */
+  readonly libraryItemId?: string;
+  /** Notified on each XHR `progress` tick during the R2 PUT step. */
+  readonly onProgress?: (progress: UploadProgress) => void;
+  /** Receives a cancel handle once the R2 PUT begins. */
+  readonly onController?: (controller: UploadController) => void;
+};
+
 /**
- * Library upload mutation. Mirrors the avatar pattern in
- * `use-avatar-upload.ts`:
- *   1. POST /g/:groupId/library/upload-request → presigned PUT.
- *   2. PUT directly to R2 with `credentials: "omit"` so our session
- *      cookie does not leak cross-origin to R2.
- *   3. POST /library/finalize { uploadId, groupId, title, description, tags }.
+ * The four-step direct-to-R2 upload, as one mutation:
+ *   1. POST /g/:groupId/library/upload-request → presigned PUT URL +
+ *      coordination row.
+ *   2. PUT directly to R2 via `XMLHttpRequest` so `xhr.upload.onprogress`
+ *      surfaces real bytes-uploaded data — `fetch` doesn't expose that
+ *      yet in any browser, and a 95 MB upload with a single spinner is
+ *      the difference between "still working" and "stalled?". The PUT
+ *      uses `withCredentials = false` (R2 is cross-origin in prod and
+ *      `credentials: "omit"` is the equivalent for XHR), so our session
+ *      cookie never leaks cross-origin.
+ *   3. POST /library/finalize materializes the item + revision rows and
+ *      drops the pending row.
  *
- * On success the SPA refetches the list / item detail. The mutation is
- * one closure so callers don't have to thread three loading states.
+ * Cancel is wired through the XHR `abort()`. The hourly pending-uploads
+ * cron sweeps the orphan row + R2 object on the next tick.
  */
 export function useUploadLibraryItem(groupId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: {
-      readonly file: File;
-      readonly title: string;
-      readonly description: string | null;
-      readonly tags: readonly string[];
-      /** When set, finalize appends a revision to the existing item. */
-      readonly libraryItemId?: string;
-    }) => {
+    mutationFn: async (input: UploadInput) => {
+      input.onProgress?.({ stage: "reserving", loaded: 0, total: 0 });
       const reqRes = await api.g[":groupId"].library["upload-request"].$post({
         param: { groupId },
         json: {
@@ -119,16 +188,17 @@ export function useUploadLibraryItem(groupId: string) {
       await assertOk(reqRes);
       const requested = (await reqRes.json()) as RequestUploadResult;
 
-      const putRes = await fetch(requested.upload.url, {
-        method: "PUT",
-        headers: requested.upload.requiredHeaders,
+      const total = input.file.size;
+      input.onProgress?.({ stage: "uploading", loaded: 0, total });
+      await putViaXhr({
+        url: requested.upload.url,
         body: input.file,
-        credentials: "omit",
+        headers: requested.upload.requiredHeaders,
+        onProgress: (loaded) => input.onProgress?.({ stage: "uploading", loaded, total }),
+        onController: input.onController,
       });
-      if (!putRes.ok) {
-        throw new Error(`Library upload failed (R2 ${putRes.status}). Try again.`);
-      }
 
+      input.onProgress?.({ stage: "finalizing", loaded: total, total });
       const finRes = await api.library.finalize.$post({
         json: {
           uploadId: requested.uploadId,
@@ -142,6 +212,55 @@ export function useUploadLibraryItem(groupId: string) {
       return (await finRes.json()) as LibraryItemDetailPayload["detail"];
     },
     onSuccess: (detail) => invalidateLibrary(qc, groupId, detail.item.id),
+  });
+}
+
+type PutViaXhrInput = {
+  readonly url: string;
+  readonly body: Blob;
+  readonly headers: Readonly<Record<string, string>>;
+  readonly onProgress?: (loaded: number) => void;
+  readonly onController?: (controller: UploadController) => void;
+};
+
+function putViaXhr(opts: PutViaXhrInput): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", opts.url, true);
+    xhr.withCredentials = false;
+    for (const [name, value] of Object.entries(opts.headers)) {
+      xhr.setRequestHeader(name, value);
+    }
+    let aborted = false;
+    opts.onController?.({
+      cancel() {
+        if (xhr.readyState !== XMLHttpRequest.DONE) {
+          aborted = true;
+          xhr.abort();
+        }
+      },
+    });
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) opts.onProgress?.(e.loaded);
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve();
+      } else {
+        reject(new Error(`Storage rejected the upload (${xhr.status}).`));
+      }
+    };
+    xhr.onerror = () => {
+      reject(
+        new Error(
+          "Couldn't reach storage. Check your connection and try again, or pick the file again if the upload window expired.",
+        ),
+      );
+    };
+    xhr.onabort = () => {
+      reject(aborted ? new UploadAbortedError() : new Error("Upload was interrupted."));
+    };
+    xhr.send(opts.body);
   });
 }
 

@@ -18,6 +18,7 @@ function toPendingUpload(r: typeof pendingUploads.$inferSelect): PendingUpload {
     storageKey: r.revisionId,
     declaredSizeBytes: r.declaredSizeBytes,
     declaredMimeType: r.declaredMimeType,
+    originalFilename: r.originalFilename,
     createdAt: r.createdAt,
     expiresAt: r.expiresAt,
   };
@@ -48,6 +49,7 @@ export function createUploadCoordinationRepository(
         revisionId: input.storageKey,
         declaredSizeBytes: input.declaredSizeBytes,
         declaredMimeType: input.declaredMimeType,
+        originalFilename: input.originalFilename,
         context: input.context,
         pendingContributionId: null,
         createdAt: input.createdAt,

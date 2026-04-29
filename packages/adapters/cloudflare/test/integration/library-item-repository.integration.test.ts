@@ -1,7 +1,7 @@
 import { env } from "cloudflare:test";
 import * as schema from "@hearth/db/schema";
 import type { LibraryItemId, LibraryRevisionId, StudyGroupId, UserId } from "@hearth/domain";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { describe, expect, it } from "vitest";
 import { createKillswitchGate } from "../../src/killswitch.ts";
@@ -102,8 +102,7 @@ describe("library-item adapter (real D1)", () => {
 
     // FTS5 mirror got populated by the trigger from migration 0001.
     const ftsRows = await db.all<{ readonly title: string }>(
-      // biome-ignore lint/suspicious/noTemplateCurlyInString: literal SQL
-      `SELECT title FROM library_items_fts WHERE library_item_id = '${itemId}'`,
+      sql`SELECT title FROM library_items_fts WHERE library_item_id = ${itemId}`,
     );
     expect(ftsRows[0]?.title).toBe("Primer");
   });
@@ -361,5 +360,113 @@ describe("library-item adapter (real D1)", () => {
     // remains the recommended path.
     const present = await library.byId(itemId);
     expect(present).not.toBeNull();
+  });
+
+  it("updateMetadata + archive-group race — metadata never lands on archived row", async () => {
+    // Mirrors the canonical concurrent-mutation pattern from
+    // study-group-repository.ts (per AGENTS.md): fire two mutations
+    // simultaneously, assert one succeeds, the other observes the
+    // frozen state, and the row never ends up in a corrupted shape.
+    const { db, library } = buildRepo();
+    const userId = await seedUser(db, "u_meta_race", "meta@x.com");
+    const groupId = await seedGroup(db, "g_meta_race");
+    const itemId = "li_meta_race" as LibraryItemId;
+    const revId = "lr_meta_race" as LibraryRevisionId;
+    const now = new Date();
+    await library.create({
+      id: itemId,
+      groupId,
+      title: "Original",
+      description: null,
+      tags: [],
+      uploadedBy: userId,
+      firstRevision: {
+        id: revId,
+        storageKey: `library/${groupId}/${itemId}/${revId}`,
+        mimeType: "application/pdf",
+        sizeBytes: 100,
+        originalFilename: null,
+        uploadedBy: userId,
+        uploadedAt: now,
+      },
+      now,
+    });
+
+    const results = await Promise.allSettled([
+      // Race the metadata write against an archive of the parent group.
+      // The metadata UPDATE includes an `EXISTS … status='active'`
+      // sub-query so a concurrent flip surfaces as zero rows updated
+      // and we throw CONFLICT/group_archived.
+      db.update(schema.groups).set({ status: "archived" }).where(eq(schema.groups.id, groupId)),
+      library.updateMetadata(itemId, { title: "Renamed" }),
+    ]);
+
+    const after = await library.byId(itemId);
+    if (results[1].status === "fulfilled") {
+      expect(after?.title).toBe("Renamed");
+    } else {
+      // Loser observed the archived state; the row keeps its original title.
+      expect(results[1].reason).toMatchObject({ reason: "group_archived" });
+      expect(after?.title).toBe("Original");
+    }
+  });
+
+  it("addRevision + markRetired race — orphan revision is rolled back", async () => {
+    const { db, library } = buildRepo();
+    const userId = await seedUser(db, "u_rev_race", "rev@x.com");
+    const groupId = await seedGroup(db, "g_rev_race");
+    const itemId = "li_rev_race" as LibraryItemId;
+    const r1 = "lr_rev_race_1" as LibraryRevisionId;
+    const r2 = "lr_rev_race_2" as LibraryRevisionId;
+    const now = new Date();
+    await library.create({
+      id: itemId,
+      groupId,
+      title: "Soon-frozen",
+      description: null,
+      tags: [],
+      uploadedBy: userId,
+      firstRevision: {
+        id: r1,
+        storageKey: `library/${groupId}/${itemId}/${r1}`,
+        mimeType: "application/pdf",
+        sizeBytes: 100,
+        originalFilename: null,
+        uploadedBy: userId,
+        uploadedAt: now,
+      },
+      now,
+    });
+
+    const results = await Promise.allSettled([
+      library.markRetired(itemId, userId, now),
+      library.addRevision({
+        libraryItemId: itemId,
+        revision: {
+          id: r2,
+          storageKey: `library/${groupId}/${itemId}/${r2}`,
+          mimeType: "application/pdf",
+          sizeBytes: 200,
+          originalFilename: null,
+          uploadedBy: userId,
+          uploadedAt: now,
+        },
+      }),
+    ]);
+
+    expect(results[0].status).toBe("fulfilled");
+    const item = await library.byId(itemId);
+    if (results[1].status === "fulfilled") {
+      // addRevision won the race: item is still living and r2 is current.
+      expect(item?.retiredAt).toBeNull();
+      expect(item?.currentRevisionId).toBe(r2);
+    } else {
+      // markRetired won: item is retired and the orphan revision row was
+      // rolled back so the storage key doesn't dangle past the next sweep.
+      expect(item?.retiredAt).not.toBeNull();
+      const revisions = await library.listRevisions(itemId);
+      expect(revisions.map((r) => r.id)).toEqual([r1]);
+      expect(results[1].reason).toMatchObject({ reason: "library_item_retired" });
+    }
   });
 });

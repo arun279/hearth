@@ -10,6 +10,8 @@ import {
   ALLOWED_LIBRARY_MIME_TYPES,
   type LibraryItemId,
   MAX_LIBRARY_ITEM_BYTES,
+  MAX_TAG_CHARS,
+  MAX_TAGS,
   type StudyGroupId,
   type UserId,
 } from "@hearth/domain";
@@ -33,12 +35,18 @@ const stewardUserIdParam = z.object({
 
 const titleField = z.string().trim().min(1).max(200);
 const descriptionField = z.string().trim().max(4000);
-const tagField = z.string().trim().min(1).max(32);
-const tagsField = z.array(tagField).max(32);
+const tagField = z.string().trim().min(1).max(MAX_TAG_CHARS);
+// Cap matches the domain's `MAX_TAGS`. Without this the route accepts more
+// than the domain ultimately keeps after `normalizeTags()`, so the silent
+// trim happens server-side and the user never learns their excess tags
+// were dropped.
+const tagsField = z.array(tagField).max(MAX_TAGS);
 
-// Mime allowlist replicated as a Zod literal-union so a bogus value 400s
-// at the boundary instead of deep in the use case. Keep in lockstep with
-// `ALLOWED_LIBRARY_MIME_TYPES` from @hearth/domain.
+// MIME allowlist replicated as a Zod literal-union so a bogus value 400s
+// at the boundary with a precise error path. The use case still re-checks
+// `isAllowedLibraryMime` defensively so a non-route caller can't bypass
+// the rule, but in practice the route validation is the only path that
+// reaches `requestLibraryUpload` from the API surface.
 const libraryMimeField = z.enum(ALLOWED_LIBRARY_MIME_TYPES as readonly [string, ...string[]]);
 
 export const libraryRequestUploadBody = z.object({
@@ -75,6 +83,13 @@ function problemFromInvalid(c: Context, error: unknown) {
   return problemResponse(c, problemFromZodError(error as z.ZodError));
 }
 
+/**
+ * Signed-GET lifetime for download redirects. 300 seconds = 5 minutes —
+ * long enough for a browser to follow the 302 + start the download,
+ * short enough that a screenshot or copy-paste of the URL stops working
+ * before it's useful for sharing. Each click on Download mints a fresh
+ * URL via the API, so a casual user never sees the URL itself.
+ */
 const DOWNLOAD_TTL_SECONDS = 300;
 
 function sanitizeFilename(name: string): string {
@@ -127,7 +142,6 @@ function loadItemForRoute(c: Context<AppBindings>, itemId: LibraryItemId) {
 export const libraryRoutes = new Hono<AppBindings>()
   .use("*", sessionAuthMiddleware())
 
-  // GET /:itemId — item detail + caps + displayKind.
   .get(
     "/:itemId",
     zValidator("param", itemIdParam, (result, c) => {
@@ -144,7 +158,6 @@ export const libraryRoutes = new Hono<AppBindings>()
     },
   )
 
-  // GET /:itemId/download — signed redirect to current revision.
   .get(
     "/:itemId/download",
     zValidator("param", itemIdParam, (result, c) => {
@@ -177,9 +190,6 @@ export const libraryRoutes = new Hono<AppBindings>()
     },
   )
 
-  // GET /:itemId/revisions/:revisionId/download — signed redirect to a
-  // specific revision (history). The viewability gate on the item
-  // prevents a non-member from probing arbitrary revision ids.
   .get(
     "/:itemId/revisions/:revisionId/download",
     zValidator("param", revisionIdParam, (result, c) => {
@@ -210,7 +220,6 @@ export const libraryRoutes = new Hono<AppBindings>()
     },
   )
 
-  // POST /finalize — finalize after the R2 PUT lands.
   .post(
     "/finalize",
     zValidator("json", finalizeBody, (result, c) => {
@@ -227,8 +236,12 @@ export const libraryRoutes = new Hono<AppBindings>()
             title: body.title,
             description: body.description ?? null,
             tags: body.tags ?? [],
+            now: new Date(),
           },
           {
+            users: c.var.ports.users,
+            groups: c.var.ports.groups,
+            policy: c.var.ports.policy,
             library: c.var.ports.libraryItems,
             storage: c.var.ports.storage,
             uploads: c.var.ports.uploads,
@@ -241,7 +254,6 @@ export const libraryRoutes = new Hono<AppBindings>()
     },
   )
 
-  // PATCH /:itemId — metadata edit.
   .patch(
     "/:itemId",
     zValidator("param", itemIdParam, (result, c) => {
@@ -276,7 +288,6 @@ export const libraryRoutes = new Hono<AppBindings>()
     },
   )
 
-  // POST /:itemId/retire — soft-retire (idempotent).
   .post(
     "/:itemId/retire",
     zValidator("param", itemIdParam, (result, c) => {
@@ -301,7 +312,6 @@ export const libraryRoutes = new Hono<AppBindings>()
     },
   )
 
-  // POST /:itemId/stewards — promote a member.
   .post(
     "/:itemId/stewards",
     zValidator("param", itemIdParam, (result, c) => {
@@ -338,7 +348,6 @@ export const libraryRoutes = new Hono<AppBindings>()
     },
   )
 
-  // DELETE /:itemId/stewards/:userId — demote a steward.
   .delete(
     "/:itemId/stewards/:userId",
     zValidator("param", stewardUserIdParam, (result, c) => {

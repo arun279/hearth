@@ -66,7 +66,21 @@ export function Modal({
         )}
       >
         <div className="space-y-1 border-[var(--color-rule)] border-b px-5 py-4">
-          <h2 id={titleId} className="font-serif text-[20px] text-[var(--color-ink)] leading-tight">
+          {/*
+           * `tabIndex={-1}` lets the dialog hook park initial focus on the
+           * heading on open. Without it, an async-loading body (skeleton
+           * with no focusables) hands first focus to the footer's Close
+           * button — which means a neighbouring destructive button like
+           * "Retire" becomes the *second* Tab a keyboard user hits.
+           * WCAG 2.4.3 "Focus Order" / Shneiderman #7. The heading is the
+           * intent-level entry point of every dialog and a safer focus
+           * anchor than whatever happens to render first.
+           */}
+          <h2
+            id={titleId}
+            tabIndex={-1}
+            className="font-serif text-[20px] text-[var(--color-ink)] leading-tight outline-none"
+          >
             {title}
           </h2>
           {description ? (

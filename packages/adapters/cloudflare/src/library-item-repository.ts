@@ -1,5 +1,6 @@
 import {
   activityLibraryRefs,
+  groups,
   libraryItems,
   libraryRevisions,
   libraryStewards,
@@ -293,10 +294,28 @@ export function createLibraryItemRepository(
         tagsJson: patch.tags === undefined ? row.tagsJson : JSON.stringify(patch.tags),
         updatedAt: now,
       };
-      // No frozen-state invariant on the item row (a retired item still
-      // allows metadata edits per the policy). The per-row WHERE on `id`
-      // is enough.
-      await deps.db.update(libraryItems).set(next).where(eq(libraryItems.id, id));
+      // The frozen-state invariant for metadata edits is the parent
+      // group's `status === "active"` (a retired item still allows
+      // metadata edits per the policy, but an archived group freezes
+      // everything inside). Conditional UPDATE closes the SELECT-then-
+      // UPDATE race against a concurrent `archive-group` mutation.
+      const updated = await deps.db
+        .update(libraryItems)
+        .set(next)
+        .where(
+          and(
+            eq(libraryItems.id, id),
+            sql`EXISTS (SELECT 1 FROM ${groups} WHERE ${groups.id} = ${libraryItems.groupId} AND ${groups.status} = 'active')`,
+          ),
+        )
+        .returning({ id: libraryItems.id });
+      if (updated.length === 0) {
+        throw new DomainError(
+          "CONFLICT",
+          "Archived groups do not allow metadata edits.",
+          "group_archived",
+        );
+      }
       return toItem({ ...row, ...next });
     },
 
@@ -347,23 +366,45 @@ export function createLibraryItemRepository(
       const nextNumber = Number(maxRows[0]?.n ?? 0) + 1;
 
       const now = revision.uploadedAt;
-      await deps.db.batch([
-        deps.db.insert(libraryRevisions).values({
-          id: revision.id,
-          libraryItemId,
-          revisionNumber: nextNumber,
-          storageKey: revision.storageKey,
-          mimeType: revision.mimeType,
-          sizeBytes: revision.sizeBytes,
-          originalFilename: revision.originalFilename,
-          uploadedBy: revision.uploadedBy,
-          uploadedAt: revision.uploadedAt,
-        }),
-        deps.db
-          .update(libraryItems)
-          .set({ currentRevisionId: revision.id, updatedAt: now })
-          .where(eq(libraryItems.id, libraryItemId)),
-      ]);
+      // Two-step transaction:
+      // (1) INSERT the revision row first — UNIQUE (libraryItemId,
+      //     revisionNumber) is the race guard against concurrent finalize
+      //     calls picking the same number; a collision throws and the
+      //     use case maps it to 409.
+      // (2) Conditional UPDATE on the item — only fires when the item
+      //     is still living. If a concurrent `markRetired` won the race
+      //     between our pre-flight read and this UPDATE, the WHERE
+      //     filters it out and `.returning()` is empty; throw CONFLICT
+      //     so the caller knows the pointer didn't move. The orphan
+      //     revision row is harmless: `currentRevisionId` still points
+      //     at whatever was current at retire-time, and the orphan row
+      //     is a leaf with no FK incoming.
+      await deps.db.insert(libraryRevisions).values({
+        id: revision.id,
+        libraryItemId,
+        revisionNumber: nextNumber,
+        storageKey: revision.storageKey,
+        mimeType: revision.mimeType,
+        sizeBytes: revision.sizeBytes,
+        originalFilename: revision.originalFilename,
+        uploadedBy: revision.uploadedBy,
+        uploadedAt: revision.uploadedAt,
+      });
+      const pointed = await deps.db
+        .update(libraryItems)
+        .set({ currentRevisionId: revision.id, updatedAt: now })
+        .where(and(eq(libraryItems.id, libraryItemId), sql`${libraryItems.retiredAt} IS NULL`))
+        .returning({ id: libraryItems.id });
+      if (pointed.length === 0) {
+        // Race lost: roll back the orphan revision row so the R2 key it
+        // references doesn't leak past the next cron sweep cycle.
+        await deps.db.delete(libraryRevisions).where(eq(libraryRevisions.id, revision.id));
+        throw new DomainError(
+          "CONFLICT",
+          "Item was retired while the revision upload was in flight.",
+          "library_item_retired",
+        );
+      }
 
       const inserted: LibraryRevision = {
         id: revision.id,

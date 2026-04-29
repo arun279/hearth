@@ -25,7 +25,9 @@ const CODE_TO_STATUS: Record<DomainErrorCode, number> = {
   FORBIDDEN: 403,
   NOT_FOUND: 404,
   CONFLICT: 409,
+  GONE: 410,
   INVARIANT_VIOLATION: 422,
+  INSUFFICIENT_STORAGE: 507,
   READ_ONLY: 503,
   DISABLED: 503,
 };
@@ -77,12 +79,21 @@ export function problemFromZodError(err: ZodError): Problem {
 }
 
 export function unknownErrorProblem(err: unknown): Problem {
+  // Log the full error server-side (Sentry catches via the worker
+  // wrapping). The CLIENT response stays generic — a SQL message or
+  // stack trace would leak schema details and obscure the actual user-
+  // facing failure mode. Surface diagnosis through the operator's
+  // observability surface, not the SPA's error toast.
+  if (err instanceof Error) {
+    console.error("Unhandled error in API route", err);
+  } else {
+    console.error("Unhandled non-Error thrown from API route", err);
+  }
   return {
     type: `${TYPE_PREFIX}internal_error`,
     title: "internal error",
     status: 500,
-    detail:
-      err instanceof Error && err.message.length > 0 ? err.message : "Unexpected server error.",
+    detail: "Something went wrong on our end. Try again, or contact your operator.",
     code: "internal_error",
   };
 }

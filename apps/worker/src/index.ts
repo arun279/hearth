@@ -22,6 +22,7 @@ import {
   type AppBindings,
   authRateLimit,
   createApiRouter,
+  createDevR2ProxyRouter,
   killswitchMiddleware,
   writeRateLimit,
 } from "@hearth/api";
@@ -98,7 +99,16 @@ app.use("*", async (c, next) => {
   c.set("adminToken", env.KILLSWITCH_TOKEN);
   c.set("writeLimiter", c.env.WRITE_LIMITER);
   c.set("authLimiter", c.env.AUTH_LIMITER);
-  c.set("config", { r2PublicOrigin: env.R2_PUBLIC_ORIGIN });
+  c.set("config", {
+    r2PublicOrigin: env.R2_PUBLIC_ORIGIN,
+    ...(env.LIBRARY_R2_BYTE_BUDGET !== undefined
+      ? { libraryByteBudget: env.LIBRARY_R2_BYTE_BUDGET }
+      : {}),
+    ...(env.LIBRARY_R2_BUDGET_TRIP_RATIO !== undefined
+      ? { libraryBudgetTripRatio: env.LIBRARY_R2_BUDGET_TRIP_RATIO }
+      : {}),
+    ...(env.R2_DEV_PROXY ? { r2DevProxy: true } : {}),
+  });
   c.set("ports", {
     policy,
     settings,
@@ -117,6 +127,14 @@ app.use("*", async (c, next) => {
       // 15-minute ceiling for presigned PUTs. R2/S3 caps at 7 days; we
       // pick lower to limit blast radius if a URL leaks.
       maxExpirySeconds: 900,
+      ...(env.R2_DEV_PROXY
+        ? {
+            devProxy: {
+              baseUrl: env.BETTER_AUTH_URL,
+              secret: env.BETTER_AUTH_SECRET,
+            },
+          }
+        : {}),
     }),
     uploads: createUploadCoordinationRepository({ db, gate }),
     flags,
@@ -139,6 +157,25 @@ app.use("*", logger());
 // Cloudflare's edge counter (no D1/KV/DO writes — see docs/free-tier-guardrails.md).
 app.use("/api/auth/*", authRateLimit());
 app.on(["GET", "POST"], "/api/auth/*", (c) => c.var.auth.handler(c.req.raw));
+
+// Dev R2 proxy mount — only when explicitly opted in via R2_DEV_PROXY.
+// MUST be installed BEFORE the rate-limit middleware on /api/v1/* so a
+// large file upload doesn't burn through the per-user write budget; the
+// dev proxy is a local stand-in for cross-origin R2 PUTs which never
+// hit our edge limiter in production. Path-prefix gate keeps the
+// runtime cost on non-dev-proxy requests at a single string check.
+app.use("/api/v1/__r2/*", async (c, next) => {
+  if (!c.var.config.r2DevProxy) return next();
+  // The composition-root middleware already validated env via parseEnv,
+  // so the BETTER_AUTH_SECRET binding is known to be a 32+ char string.
+  // Reading it directly here keeps the dev proxy off the hot path of
+  // re-parsing every env var per request.
+  const router = createDevR2ProxyRouter({
+    bucket: c.env.STORAGE,
+    secret: c.env.BETTER_AUTH_SECRET,
+  });
+  return router.fetch(c.req.raw);
+});
 
 app.use("/api/v1/*", writeRateLimit());
 app.route("/api/v1", createApiRouter());

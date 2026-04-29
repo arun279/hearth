@@ -458,6 +458,9 @@ describe("POST /api/v1/library/finalize — variants", () => {
     const app = harness({
       userId: actorId,
       ports: {
+        users: makeUsersPort(),
+        groups: makeGroupsPort(),
+        policy: makePolicyPort(),
         libraryItems: makeLibraryPort({ byId: vi.fn(async () => null), create }),
         storage: makeStoragePort(),
         uploads: makeUploadsPort({
@@ -469,8 +472,9 @@ describe("POST /api/v1/library/finalize — variants", () => {
             storageKey: `library/${gid}/${itemId}/${revisionId}`,
             declaredSizeBytes: 1000,
             declaredMimeType: "application/pdf",
+            originalFilename: null,
             createdAt: now,
-            expiresAt: new Date(now.getTime() + 900_000),
+            expiresAt: new Date(Date.now() + 900_000),
           })),
           deletePending: vi.fn(),
         }),
@@ -507,8 +511,9 @@ describe("POST /api/v1/library/finalize", () => {
             storageKey: `library/${gid}/${itemId}/${revisionId}`,
             declaredSizeBytes: 1000,
             declaredMimeType: "application/pdf",
+            originalFilename: null,
             createdAt: now,
-            expiresAt: new Date(now.getTime() + 900_000),
+            expiresAt: new Date(Date.now() + 900_000),
           })),
           deletePending,
         }),

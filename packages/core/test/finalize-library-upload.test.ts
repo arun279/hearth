@@ -7,7 +7,21 @@ import type {
 import type { LibraryItemDetail, PendingUpload } from "@hearth/ports";
 import { describe, expect, it, vi } from "vitest";
 import { finalizeLibraryUpload } from "../src/use-cases/finalize-library-upload.ts";
-import { ACTOR_ID, GROUP_ID, makeLibrary, makeStorage, makeUploads, TEST_NOW } from "./_helpers.ts";
+import {
+  ACTIVE_GROUP,
+  ACTOR,
+  ACTOR_ID,
+  ARCHIVED_GROUP,
+  GROUP_ID,
+  makeGroups,
+  makeLibrary,
+  makePolicy,
+  makeStorage,
+  makeUploads,
+  makeUsers,
+  membership,
+  TEST_NOW,
+} from "./_helpers.ts";
 
 const itemId = "li_1" as LibraryItemId;
 const revisionId = "lr_1" as LibraryRevisionId;
@@ -21,6 +35,7 @@ const pendingRow: PendingUpload = {
   storageKey,
   declaredSizeBytes: 1000,
   declaredMimeType: "application/pdf",
+  originalFilename: "primer.pdf",
   createdAt: TEST_NOW,
   expiresAt: new Date(TEST_NOW.getTime() + 900_000),
 };
@@ -46,7 +61,7 @@ const firstRevision: LibraryRevision = {
   storageKey,
   mimeType: "application/pdf",
   sizeBytes: 1000,
-  originalFilename: null,
+  originalFilename: "primer.pdf",
   uploadedBy: ACTOR_ID,
   uploadedAt: TEST_NOW,
 };
@@ -57,6 +72,17 @@ const newDetail: LibraryItemDetail = {
   stewards: [],
   usedInCount: 0,
 };
+
+function defaultDeps() {
+  return {
+    users: makeUsers(ACTOR),
+    groups: makeGroups({
+      byId: vi.fn(async () => ACTIVE_GROUP),
+      membership: vi.fn(async () => membership({ role: "participant" })),
+    }),
+    policy: makePolicy(),
+  };
+}
 
 describe("finalizeLibraryUpload", () => {
   it("creates a new item + first revision when the item id is fresh", async () => {
@@ -70,12 +96,11 @@ describe("finalizeLibraryUpload", () => {
         title: "Primer",
         description: null,
         tags: [],
+        now: TEST_NOW,
       },
       {
-        library: makeLibrary({
-          byId: vi.fn(async () => null),
-          create,
-        }),
+        ...defaultDeps(),
+        library: makeLibrary({ byId: vi.fn(async () => null), create }),
         storage: makeStorage({
           headObject: vi.fn(async () => ({ size: 1000, uploadedAt: TEST_NOW })),
         }),
@@ -84,6 +109,14 @@ describe("finalizeLibraryUpload", () => {
     );
     expect(result.item.id).toBe(itemId);
     expect(create).toHaveBeenCalled();
+    // Tag normalization runs at finalize for new items.
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ tags: [] }));
+    // originalFilename flows from pending row → first revision.
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        firstRevision: expect.objectContaining({ originalFilename: "primer.pdf" }),
+      }),
+    );
     expect(deletePending).toHaveBeenCalledWith("u_1");
   });
 
@@ -99,8 +132,10 @@ describe("finalizeLibraryUpload", () => {
         title: "ignored",
         description: null,
         tags: [],
+        now: TEST_NOW,
       },
       {
+        ...defaultDeps(),
         library: makeLibrary({
           byId: vi.fn(async () => newItem),
           addRevision,
@@ -127,8 +162,10 @@ describe("finalizeLibraryUpload", () => {
           title: "Primer",
           description: null,
           tags: [],
+          now: TEST_NOW,
         },
         {
+          ...defaultDeps(),
           library: makeLibrary(),
           storage: makeStorage(),
           uploads: makeUploads({ getPending: vi.fn(async () => null) }),
@@ -147,8 +184,10 @@ describe("finalizeLibraryUpload", () => {
           title: "Primer",
           description: null,
           tags: [],
+          now: TEST_NOW,
         },
         {
+          ...defaultDeps(),
           library: makeLibrary(),
           storage: makeStorage(),
           uploads: makeUploads({
@@ -160,6 +199,63 @@ describe("finalizeLibraryUpload", () => {
         },
       ),
     ).rejects.toMatchObject({ reason: "pending_upload_not_found" });
+  });
+
+  it("returns 410 + cleans up when the pending row has expired", async () => {
+    const deleteR2 = vi.fn();
+    const deletePending = vi.fn();
+    const expired: PendingUpload = {
+      ...pendingRow,
+      expiresAt: new Date(TEST_NOW.getTime() - 1),
+    };
+    await expect(
+      finalizeLibraryUpload(
+        {
+          actor: ACTOR_ID,
+          groupId: GROUP_ID,
+          uploadId: "u_1",
+          title: "Primer",
+          description: null,
+          tags: [],
+          now: TEST_NOW,
+        },
+        {
+          ...defaultDeps(),
+          library: makeLibrary(),
+          storage: makeStorage({ delete: deleteR2 }),
+          uploads: makeUploads({ getPending: vi.fn(async () => expired), deletePending }),
+        },
+      ),
+    ).rejects.toMatchObject({ code: "GONE", reason: "upload_expired" });
+    expect(deleteR2).toHaveBeenCalledWith(storageKey);
+    expect(deletePending).toHaveBeenCalledWith("u_1");
+  });
+
+  it("re-runs the policy check after the pending TTL — removed members can't finalize", async () => {
+    await expect(
+      finalizeLibraryUpload(
+        {
+          actor: ACTOR_ID,
+          groupId: GROUP_ID,
+          uploadId: "u_1",
+          title: "Primer",
+          description: null,
+          tags: [],
+          now: TEST_NOW,
+        },
+        {
+          users: makeUsers(ACTOR),
+          groups: makeGroups({
+            byId: vi.fn(async () => ACTIVE_GROUP),
+            membership: vi.fn(async () => null),
+          }),
+          policy: makePolicy(),
+          library: makeLibrary({ byId: vi.fn(async () => null) }),
+          storage: makeStorage(),
+          uploads: makeUploads({ getPending: vi.fn(async () => pendingRow) }),
+        },
+      ),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 
   it("returns 422 + cleans up on size mismatch", async () => {
@@ -174,9 +270,11 @@ describe("finalizeLibraryUpload", () => {
           title: "Primer",
           description: null,
           tags: [],
+          now: TEST_NOW,
         },
         {
-          library: makeLibrary(),
+          ...defaultDeps(),
+          library: makeLibrary({ byId: vi.fn(async () => null) }),
           storage: makeStorage({
             headObject: vi.fn(async () => ({ size: 9999, uploadedAt: TEST_NOW })),
             delete: deleteR2,
@@ -199,13 +297,103 @@ describe("finalizeLibraryUpload", () => {
           title: "Primer",
           description: null,
           tags: [],
+          now: TEST_NOW,
         },
         {
-          library: makeLibrary(),
+          ...defaultDeps(),
+          library: makeLibrary({ byId: vi.fn(async () => null) }),
           storage: makeStorage({ headObject: vi.fn(async () => null) }),
           uploads: makeUploads({ getPending: vi.fn(async () => pendingRow) }),
         },
       ),
     ).rejects.toMatchObject({ reason: "upload_missing" });
+  });
+
+  it("returns 403 when an existing item exists but the actor can no longer add revisions", async () => {
+    // Group archived between presign and finalize → addRevision policy
+    // re-check rejects the actor with FORBIDDEN.
+    await expect(
+      finalizeLibraryUpload(
+        {
+          actor: ACTOR_ID,
+          groupId: GROUP_ID,
+          uploadId: "u_1",
+          title: "Primer",
+          description: null,
+          tags: [],
+          now: TEST_NOW,
+        },
+        {
+          ...defaultDeps(),
+          groups: makeGroups({
+            byId: vi.fn(async () => ARCHIVED_GROUP),
+            membership: vi.fn(async () => membership({ role: "participant" })),
+          }),
+          library: makeLibrary({ byId: vi.fn(async () => newItem) }),
+          storage: makeStorage(),
+          uploads: makeUploads({ getPending: vi.fn(async () => pendingRow) }),
+        },
+      ),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("re-throws non-UNIQUE addRevision errors so the caller sees the cause", async () => {
+    // Anything other than the SQLite UNIQUE-constraint shape isn't ours
+    // to translate — we propagate so the API envelope can map it via
+    // the unknown-error path.
+    const bang = new Error("transient db connection");
+    await expect(
+      finalizeLibraryUpload(
+        {
+          actor: ACTOR_ID,
+          groupId: GROUP_ID,
+          uploadId: "u_1",
+          title: "Primer",
+          description: null,
+          tags: [],
+          now: TEST_NOW,
+        },
+        {
+          ...defaultDeps(),
+          library: makeLibrary({
+            byId: vi.fn(async () => newItem),
+            addRevision: vi.fn(async () => {
+              throw bang;
+            }),
+          }),
+          storage: makeStorage({
+            headObject: vi.fn(async () => ({ size: 1000, uploadedAt: TEST_NOW })),
+          }),
+          uploads: makeUploads({ getPending: vi.fn(async () => pendingRow) }),
+        },
+      ),
+    ).rejects.toBe(bang);
+  });
+
+  it("maps SQLite UNIQUE constraint failures to 409 revision_number_conflict", async () => {
+    const addRevision = vi.fn(async () => {
+      throw new Error("D1_ERROR: UNIQUE constraint failed: library_revisions.revision_number");
+    });
+    await expect(
+      finalizeLibraryUpload(
+        {
+          actor: ACTOR_ID,
+          groupId: GROUP_ID,
+          uploadId: "u_1",
+          title: "Primer",
+          description: null,
+          tags: [],
+          now: TEST_NOW,
+        },
+        {
+          ...defaultDeps(),
+          library: makeLibrary({ byId: vi.fn(async () => newItem), addRevision }),
+          storage: makeStorage({
+            headObject: vi.fn(async () => ({ size: 1000, uploadedAt: TEST_NOW })),
+          }),
+          uploads: makeUploads({ getPending: vi.fn(async () => pendingRow) }),
+        },
+      ),
+    ).rejects.toMatchObject({ code: "CONFLICT", reason: "revision_number_conflict" });
   });
 });

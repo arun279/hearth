@@ -40,6 +40,38 @@ export const EnvSchema = z.object({
    */
   R2_PUBLIC_ORIGIN: z.url(),
 
+  /**
+   * Dev-only R2 proxy switch. Set to "1" / "true" in `.dev.vars` to
+   * route presigned PUT and signed GET URLs through the Worker itself
+   * (which then talks to the R2 binding via Miniflare's in-process
+   * simulator). Production leaves this unset; the adapter signs real
+   * S3-compatible URLs against Cloudflare R2.
+   *
+   * The flag exists because Miniflare's R2 simulator is binding-only —
+   * it doesn't expose an S3 endpoint a browser can PUT to. Without this
+   * proxy, every developer needs a real R2 bucket + account credentials
+   * to exercise the upload pipeline locally, which makes the UX fork
+   * silently invisible until production.
+   */
+  R2_DEV_PROXY: z
+    .union([z.literal("1"), z.literal("true"), z.literal("0"), z.literal("false")])
+    .optional()
+    .transform((v) => v === "1" || v === "true"),
+
+  /**
+   * Operator override for the per-instance R2 byte budget (in bytes).
+   * Set to a small value (e.g. `100000000` ≈ 100 MB) in dev to
+   * exercise the killswitch trip without uploading several GB.
+   * Production typically leaves it unset; the domain default
+   * (10 GB, free-tier ceiling) applies.
+   */
+  LIBRARY_R2_BYTE_BUDGET: z.coerce.number().int().positive().optional(),
+  /**
+   * Override for the trip ratio (default 0.8). Same dev / prod
+   * semantics as the budget knob; valid range is (0, 1].
+   */
+  LIBRARY_R2_BUDGET_TRIP_RATIO: z.coerce.number().gt(0).max(1).optional(),
+
   SENTRY_DSN: z.url().optional(),
   DISCORD_WEBHOOK_URL: z.url().optional(),
 });

@@ -177,6 +177,7 @@ describe("killswitch coverage (resilience invariant 2 + 3)", () => {
           storageKey: "avatars/u_test/g_test/k",
           declaredSizeBytes: 1,
           declaredMimeType: "image/png",
+          originalFilename: null,
           createdAt: new Date(),
           expiresAt: new Date(),
         }),

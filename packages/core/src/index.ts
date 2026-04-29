@@ -13,6 +13,7 @@ export * from "./use-cases/finalize-avatar-upload.ts";
 export * from "./use-cases/finalize-library-upload.ts";
 export * from "./use-cases/get-group.ts";
 export * from "./use-cases/get-library-item.ts";
+export * from "./use-cases/get-library-quota.ts";
 export * from "./use-cases/get-me-context.ts";
 export * from "./use-cases/get-track.ts";
 export * from "./use-cases/get-track-summary.ts";

@@ -50,6 +50,15 @@ export function resetInstanceState(): void {
     // parent group has no surviving members), then groups (orphans only).
     "DELETE FROM track_enrollments WHERE user_id LIKE 'u_e2e_%' OR track_id IN (SELECT t.id FROM tracks t WHERE t.group_id IN (SELECT g.id FROM groups g WHERE NOT EXISTS (SELECT 1 FROM group_memberships m WHERE m.group_id = g.id)))",
     "DELETE FROM tracks WHERE group_id IN (SELECT g.id FROM groups g WHERE NOT EXISTS (SELECT 1 FROM group_memberships m WHERE m.group_id = g.id))",
+    // M6 dependents: revisions / stewards / activity refs FK into
+    // library_items; library_items FK into groups + users. Children
+    // first so SQLite's FK enforcement doesn't reject the parent
+    // delete. Scoped to e2e-only items via uploaded_by / user_id /
+    // ownership so a developer's real library survives the teardown.
+    "DELETE FROM activity_library_refs WHERE library_item_id IN (SELECT id FROM library_items WHERE uploaded_by LIKE 'u_e2e_%')",
+    "DELETE FROM library_revisions WHERE uploaded_by LIKE 'u_e2e_%' OR library_item_id IN (SELECT id FROM library_items WHERE uploaded_by LIKE 'u_e2e_%')",
+    "DELETE FROM library_stewards WHERE user_id LIKE 'u_e2e_%' OR granted_by LIKE 'u_e2e_%' OR library_item_id IN (SELECT id FROM library_items WHERE uploaded_by LIKE 'u_e2e_%')",
+    "DELETE FROM library_items WHERE uploaded_by LIKE 'u_e2e_%' OR retired_by LIKE 'u_e2e_%'",
     "DELETE FROM groups WHERE id NOT IN (SELECT DISTINCT group_id FROM group_memberships)",
     "DELETE FROM users WHERE id LIKE 'u_e2e_%'",
   ]);

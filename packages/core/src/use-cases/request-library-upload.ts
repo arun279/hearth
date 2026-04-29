@@ -44,6 +44,15 @@ export type RequestLibraryUploadInput = {
    */
   readonly libraryItemId?: LibraryItemId;
   readonly now: Date;
+  /**
+   * Optional budget overrides (typically derived from worker env at
+   * the route boundary; see `LIBRARY_R2_BYTE_BUDGET` /
+   * `LIBRARY_R2_BUDGET_TRIP_RATIO`). When absent, falls back to
+   * `INSTANCE_R2_BYTE_BUDGET` and `INSTANCE_R2_BUDGET_TRIP_RATIO` from
+   * the domain — those track the free-tier ceiling.
+   */
+  readonly budgetBytes?: number;
+  readonly budgetTripRatio?: number;
 };
 
 export type RequestLibraryUploadDeps = {
@@ -66,6 +75,14 @@ export type RequestLibraryUploadResult = {
   readonly byteQuotaRemaining: number;
 };
 
+/**
+ * Presigned-PUT lifetime, in seconds. 900 = 15 minutes — long enough to
+ * forgive a flaky upload of the 95 MB ceiling on a slow connection
+ * (≈ 64 KB/s minimum throughput), short enough that a leaked URL stops
+ * working before someone can replay it. The cron sweep reaps abandoned
+ * pending rows on the next hourly tick, so the row's worst-case
+ * residence is one hour even if the client never retries.
+ */
 const TTL_SECONDS = 900;
 
 export async function requestLibraryUpload(
@@ -106,8 +123,7 @@ export async function requestLibraryUpload(
       stewardSet,
     );
     if (!verdict.ok) {
-      const httpCode = verdict.reason.code === "library_item_retired" ? "CONFLICT" : "FORBIDDEN";
-      throw new DomainError(httpCode, verdict.reason.message, verdict.reason.code);
+      throw new DomainError("FORBIDDEN", verdict.reason.message, verdict.reason.code);
     }
   } else {
     const verdict = canUploadLibraryItem(actor, group, membership);
@@ -116,16 +132,18 @@ export async function requestLibraryUpload(
     }
   }
 
+  const budget = input.budgetBytes ?? INSTANCE_R2_BYTE_BUDGET;
+  const ratio = input.budgetTripRatio ?? INSTANCE_R2_BUDGET_TRIP_RATIO;
   // Used-bytes is fetched after the policy gate so an unauthorized actor
   // can't probe quota state. R2's list API is O(n) over objects with a
   // 1000-page cap; v1 instances stay well within one page.
   const usedBytes = await deps.storage.usedBytes();
   const projected = usedBytes + input.sizeBytes;
-  const tripAt = INSTANCE_R2_BYTE_BUDGET * INSTANCE_R2_BUDGET_TRIP_RATIO;
+  const tripAt = budget * ratio;
   if (projected > tripAt) {
     throw new DomainError(
-      "INVARIANT_VIOLATION",
-      `This upload would push instance storage past ${Math.floor(INSTANCE_R2_BUDGET_TRIP_RATIO * 100)}% of the byte budget.`,
+      "INSUFFICIENT_STORAGE",
+      `This upload would push instance storage past ${Math.floor(ratio * 100)}% of the byte budget.`,
       "byte_quota_exceeded",
     );
   }
@@ -154,6 +172,7 @@ export async function requestLibraryUpload(
     storageKey: key,
     declaredSizeBytes: input.sizeBytes,
     declaredMimeType: input.mimeType,
+    originalFilename: input.originalFilename,
     createdAt: input.now,
     expiresAt,
   });

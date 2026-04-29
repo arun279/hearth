@@ -1,0 +1,1 @@
+ALTER TABLE `pending_uploads` ADD `original_filename` text;

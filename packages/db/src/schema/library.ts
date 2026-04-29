@@ -94,6 +94,7 @@ export const pendingUploads = sqliteTable(
     revisionId: text("revision_id").notNull(),
     declaredSizeBytes: integer("declared_size_bytes").notNull(),
     declaredMimeType: text("declared_mime_type").notNull(),
+    originalFilename: text("original_filename"),
     context: text("context").notNull(),
     pendingContributionId: text("pending_contribution_id"),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),

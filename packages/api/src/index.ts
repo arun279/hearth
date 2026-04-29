@@ -46,3 +46,4 @@ export {
   problemResponse,
   unknownErrorProblem,
 } from "./problem.ts";
+export { createDevR2ProxyRouter } from "./routes/dev-r2-proxy.ts";

@@ -220,6 +220,19 @@ test.describe("Mobile (375px) overflow regression guard", () => {
     await expectNoOverflow(page, "/g/:id/t/:id/people");
     await expectNoCrushedIdentities(page, "/g/:id/t/:id/people");
 
+    // Library page — header `+ Upload` button next to the breadcrumb,
+    // and the upload dialog with its dropzone + tag inputs. Empty list
+    // first; then exercise the dialog so the Cancel / Upload row gets
+    // measured at 375px too.
+    await page.goto(`/g/${trackHostId}/library`);
+    await expect(page.getByRole("heading", { level: 1, name: "Library" })).toBeVisible();
+    await expectNoOverflow(page, "/g/:id/library (empty)");
+
+    await page.getByRole("button", { name: /Upload your first item/i }).click();
+    await expect(page.getByRole("dialog", { name: /Upload to Library/i })).toBeVisible();
+    await expectNoOverflow(page, "Library upload dialog");
+    await page.keyboard.press("Escape");
+
     await context.close();
   });
 });

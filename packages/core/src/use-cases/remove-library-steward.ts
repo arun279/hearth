@@ -21,10 +21,10 @@ export type RemoveLibraryStewardDeps = {
 };
 
 /**
- * Demote a Library Steward back to plain Group Member status. The
- * uploader is *implicit* — there's no row to remove and `removeSteward`
- * on the uploader is rejected so the SPA can surface "the uploader is
- * always a Steward" rather than silently no-op-ing. Group Admins keep
+ * Demote a Library Steward back to plain Group Member status. Calling
+ * with the uploader's id is a 422: the uploader is an *implicit*
+ * Steward with no row to remove, and the explicit error lets the SPA
+ * surface "the uploader is always a Steward" inline. Group Admins keep
  * their authority via the policy regardless of any explicit row.
  */
 export async function removeLibrarySteward(

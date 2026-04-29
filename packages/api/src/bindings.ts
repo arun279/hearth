@@ -63,6 +63,25 @@ export type AppBindings = {
      */
     readonly config: {
       readonly r2PublicOrigin: string;
+      /**
+       * Per-instance R2 byte ceiling, in bytes. Overrides
+       * `INSTANCE_R2_BYTE_BUDGET` from the domain when an operator wants
+       * to tune the trip threshold without a code change. Optional;
+       * absent defaults to the domain constant.
+       */
+      readonly libraryByteBudget?: number;
+      /**
+       * Trip ratio (0 < r ≤ 1) — fraction of `libraryByteBudget` at
+       * which the killswitch fires. Defaults to the domain constant.
+       */
+      readonly libraryBudgetTripRatio?: number;
+      /**
+       * Dev-only R2 proxy enabled. When true, the worker mounts
+       * `/api/v1/__r2/*` routes that mediate uploads against the
+       * Miniflare R2 binding. Production leaves this false; the
+       * adapter signs real S3-compat URLs.
+       */
+      readonly r2DevProxy?: boolean;
     };
     readonly ports: {
       readonly policy: InstanceAccessPolicyRepository;

@@ -92,8 +92,22 @@ export function useDialogPanel({
     };
     document.addEventListener("keydown", onTab);
 
-    const target = panelRef.current?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
-    target?.focus();
+    // Initial focus lands on the dialog's heading (h2 with `tabIndex=-1`)
+    // rather than the first focusable in the panel. Reasons:
+    //   1. WCAG 2.4.3 — focus order should follow visual reading order;
+    //      the heading is the intent-level entry point.
+    //   2. Stability — when the body renders a loading skeleton with no
+    //      focusables, "first focusable" falls through to the footer,
+    //      which can put a destructive action (Retire, Delete) directly
+    //      under the keyboard cursor as the second Tab.
+    //   3. Screen readers announce the heading text via aria-labelledby,
+    //      so focusing it gives the user immediate context on the
+    //      dialog's purpose.
+    // Tab from the heading lands on the first interactive element in
+    // the body, which is the natural reading-order start.
+    const heading = panelRef.current?.querySelector<HTMLElement>("h2[tabindex='-1']");
+    const fallback = panelRef.current?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
+    (heading ?? fallback)?.focus();
 
     return () => {
       document.removeEventListener("keydown", onTab);

@@ -5,6 +5,7 @@ import {
   createTrack,
   finalizeAvatarUpload,
   getGroup,
+  getLibraryQuota,
   getTrackSummary,
   leaveGroup,
   listGroupInvitations,
@@ -706,7 +707,39 @@ export const groupsRoutes = new Hono<AppBindings>()
     },
   )
 
-  // POST /g/:groupId/library/upload-request — mint presigned PUT URL.
+  .get(
+    "/:groupId/library/quota",
+    zValidator("param", groupIdParam, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    async (c) => {
+      const { groupId } = c.req.valid("param");
+      try {
+        const quota = await getLibraryQuota(
+          {
+            actor: getUserId(c),
+            groupId: groupId as StudyGroupId,
+            ...(c.var.config.libraryByteBudget !== undefined
+              ? { budgetBytes: c.var.config.libraryByteBudget }
+              : {}),
+            ...(c.var.config.libraryBudgetTripRatio !== undefined
+              ? { budgetTripRatio: c.var.config.libraryBudgetTripRatio }
+              : {}),
+          },
+          {
+            users: c.var.ports.users,
+            groups: c.var.ports.groups,
+            policy: c.var.ports.policy,
+            storage: c.var.ports.storage,
+          },
+        );
+        return c.json(quota);
+      } catch (err) {
+        return problemResponse(c, mapUnknown(err));
+      }
+    },
+  )
+
   .post(
     "/:groupId/library/upload-request",
     zValidator("param", groupIdParam, (result, c) => {
@@ -728,6 +761,12 @@ export const groupsRoutes = new Hono<AppBindings>()
             originalFilename: body.originalFilename ?? null,
             ...(body.libraryItemId !== undefined
               ? { libraryItemId: body.libraryItemId as LibraryItemId }
+              : {}),
+            ...(c.var.config.libraryByteBudget !== undefined
+              ? { budgetBytes: c.var.config.libraryByteBudget }
+              : {}),
+            ...(c.var.config.libraryBudgetTripRatio !== undefined
+              ? { budgetTripRatio: c.var.config.libraryBudgetTripRatio }
               : {}),
             now: new Date(),
           },

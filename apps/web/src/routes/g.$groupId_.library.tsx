@@ -93,7 +93,7 @@ function LibraryPage() {
                     update one source and every track stays in sync.
                   </p>
                 </div>
-                {canUpload ? (
+                {canUpload && entries.length > 0 ? (
                   <Button size="sm" variant="primary" onClick={() => setUploadOpenLocal(true)}>
                     <Plus size={12} strokeWidth={1.75} aria-hidden /> Upload
                   </Button>
@@ -153,6 +153,7 @@ function LibraryPage() {
                 itemId={search.item as LibraryItemId}
                 open
                 onClose={closeItem}
+                archived={archived}
               />
             ) : null}
           </>
