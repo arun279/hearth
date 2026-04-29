@@ -66,5 +66,7 @@ pre-push:
       run: pnpm --filter @hearth/web e2e
     audit:
       run: pnpm audit --audit-level=high
+    licenses:
+      run: pnpm check:licenses
     resolution:
       run: pnpm install --resolution-only

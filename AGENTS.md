@@ -34,7 +34,8 @@ All of these must pass locally before merge. Most run automatically via `lefthoo
 11. `pnpm test`
 12. `pnpm test:integration`
 13. `pnpm check:coverage`
-14. `pnpm audit --audit-level=high`
+14. `pnpm check:licenses`
+15. `pnpm audit --audit-level=high`
 
 `pnpm check` runs all of the above in one pass.
 
@@ -123,6 +124,7 @@ Implementation lives at `scripts/lib/auth-session.mjs` (shared module, JSDoc-typ
 | `pnpm test`                      | —                  | —                                | changed packages only           | all packages                               |
 | `pnpm test:integration`          | —                  | —                                | ✓                               | ✓                                          |
 | `pnpm check:coverage`            | —                  | —                                | ✓                               | ✓                                          |
+| `pnpm check:licenses`            | —                  | —                                | ✓                               | (mirrored by dep-review action)            |
 | Policy-purity test               | —                  | —                                | when policy/visibility changes  | (part of `pnpm test`)                      |
 | `pnpm audit --audit-level=high`  | —                  | —                                | ✓                               | daily + per-PR                             |
 | TruffleHog secrets scan          | —                  | staged files only                | —                               | daily + per-PR                             |
