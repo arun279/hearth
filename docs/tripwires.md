@@ -106,6 +106,14 @@ Each entry names the **pinned tool**, the **condition** that triggers a reassess
 - **Action**: drop the `allow-dependencies-licenses: 'pkg:npm/spark-md5@3.0.2'` line from `.github/workflows/dep-review.yml`. The carve-out is intentionally pinned to one package and one version so any future WTFPL-touched dependency surfaces in dep-review and prompts a deliberate review — promoting `WTFPL` to the project-wide `allow-licenses` would silence that signal across the whole tree. If a `spark-md5` minor/patch bump arrives, update the version in the carve-out string in the same PR; if a different package introduces WTFPL, evaluate its provenance from scratch rather than extending this carve-out.
 - **Location**: `.github/workflows/dep-review.yml` (`allow-dependencies-licenses`); transitive owner via `@jscpd/tokenizer`.
 
+## Repository internals — opportunistic migrations
+
+### `Write<F>` brand on repository ports — opportunistic migration (currently applied to: `LibraryItemRepository` only)
+
+- **Trigger**: a future PR touches mutating methods on a repository port that hasn't yet adopted the brand. The 16 ports without it are: `UserRepository`, `InstanceAccessPolicyRepository`, `InstanceSettingsRepository`, `StudyGroupRepository`, `LearningTrackRepository`, `LearningActivityRepository`, `ActivityRecordRepository`, `StudySessionRepository`, `UploadCoordinationRepository`, `SystemFlagRepository`, `ObjectStorage`, `Scheduler`, plus three skeleton-stub repos.
+- **Action**: on that PR, brand the touched port's mutating methods with `Write<F>` (from `packages/ports/src/_brand.ts`). Update the implementation methods in `packages/adapters/cloudflare/src/<repo>.ts` to use `markWrite(...)`. Extend the type union in `packages/adapters/cloudflare/test/killswitch-coverage.test.ts` (the `ExpectedLibraryLabels` template-literal type) to include the newly branded port. Tsc will then enforce that every branded write method has a CASES entry. The migration is opportunistic — no need for a sweep PR — but DO migrate any port you're already editing rather than leaving the next session to find half-branded surfaces.
+- **Location**: `packages/ports/src/_brand.ts` (the brand machinery + this rationale); `packages/adapters/cloudflare/test/killswitch-coverage.test.ts` (the type-level enforcement site).
+
 ## How to remove an entry
 
 An entry leaves this list only when one of the following is true:

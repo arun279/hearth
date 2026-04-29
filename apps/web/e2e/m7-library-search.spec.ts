@@ -104,4 +104,76 @@ test.describe("M7 — Library search", () => {
       page.getByRole("button", { name: /Open Intermediate French handout/i }),
     ).toBeVisible();
   });
+
+  test("Load more appends a second page and hides when the cursor exhausts", async ({
+    browser,
+  }) => {
+    test.setTimeout(180_000);
+    const op = await seedOperator({ ...OPERATOR, userId: "u_e2e_op_m7_paging" });
+    const context = await browser.newContext();
+    await attachSession(context, op.cookie);
+    const page = await context.newPage();
+
+    // Seed three items sharing the "lesson" tag so a single query
+    // matches all three. Forcing `limit=1` (via the route() rewrite
+    // below) then exercises three pages — page 1 + Load more → page 2
+    // + Load more → page 3 → button hides.
+    const create = await context.request.post("/api/v1/g", {
+      data: { name: "Pagination Cohort" },
+      headers: { "content-type": "application/json" },
+    });
+    expect(create.status()).toBe(201);
+    const { id: groupId } = (await create.json()) as { id: string };
+
+    await page.goto(`/g/${groupId}/library`);
+
+    const seedItem = async (title: string, body: string, isFirst: boolean): Promise<void> => {
+      const triggerName = isFirst ? /Upload your first item/i : /^Upload$/i;
+      await page.getByRole("button", { name: triggerName }).first().click();
+      const dialog = page.getByRole("dialog", { name: /Upload to Library/i });
+      await dialog.locator('input[type="file"]').setInputFiles({
+        name: `${title.toLowerCase().replace(/\s+/g, "-")}.txt`,
+        mimeType: "text/plain",
+        buffer: Buffer.from(`${body}\n`, "utf-8"),
+      });
+      await dialog.getByRole("textbox", { name: /Title/i }).fill(title);
+      await dialog.getByRole("textbox", { name: /Tags/i }).fill("lesson");
+      await dialog.getByRole("button", { name: /^Upload$/i }).click();
+      await expect(page.getByText(/Library item uploaded\./i).last()).toBeVisible();
+      await expect(dialog).toBeHidden();
+    };
+
+    await seedItem("Lesson one — greetings", "g", true);
+    await seedItem("Lesson two — numbers", "n", false);
+    await seedItem("Lesson three — verbs", "v", false);
+
+    // Force the SPA's debounced search request to use limit=1 so the
+    // three seeded items split across three pages. The hook hardcodes
+    // its own limit; rewriting the URL at the network boundary is the
+    // cheapest way to exercise the multi-page cursor without seeding
+    // 25+ items per test.
+    await page.route("**/api/v1/g/*/library/search?*", async (route) => {
+      const url = new URL(route.request().url());
+      url.searchParams.set("limit", "1");
+      await route.continue({ url: url.toString() });
+    });
+
+    const searchInput = page.getByRole("searchbox", { name: /Search library/i });
+    await searchInput.fill("lesson");
+
+    // Page 1: exactly one result + Load more affordance present.
+    const loadMore = page.getByRole("button", { name: /Load more/i });
+    await expect(loadMore).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Open Lesson /i })).toHaveCount(1);
+
+    // Click Load more — page 2 appends a second result; button stays.
+    await loadMore.click();
+    await expect(page.getByRole("button", { name: /^Open Lesson /i })).toHaveCount(2);
+    await expect(loadMore).toBeVisible();
+
+    // Click again — page 3 lands; cursor exhausted; button hides.
+    await loadMore.click();
+    await expect(page.getByRole("button", { name: /^Open Lesson /i })).toHaveCount(3);
+    await expect(loadMore).toBeHidden();
+  });
 });
