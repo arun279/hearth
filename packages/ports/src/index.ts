@@ -24,6 +24,8 @@ export type {
   LibraryItemDetail,
   LibraryItemListEntry,
   LibraryItemRepository,
+  LibrarySearchOptions,
+  LibrarySearchPage,
   RemoveLibraryStewardInput,
   UpdateLibraryMetadataInput,
 } from "./library-item-repository.ts";

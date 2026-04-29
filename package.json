@@ -33,6 +33,7 @@
     "db:check-auth": "pnpm --filter @hearth/db db:check-auth",
     "approve-email": "node scripts/approve-email.mjs",
     "local-session": "node scripts/local-session.mjs",
+    "restore:fts": "node scripts/restore-fts.mjs",
     "prepare": "lefthook install"
   },
   "pnpm": {

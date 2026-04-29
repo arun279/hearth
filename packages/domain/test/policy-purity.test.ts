@@ -7,23 +7,25 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 /**
- * Files under `packages/domain/src/policy/**` and `packages/domain/src/visibility/**`
- * must stay SPA-importable — no Node globals, no async, no `Date.now()`,
- * no `crypto.*`, no dynamic imports. The SPA imports these modules to
- * compute UI capabilities client-side; non-pure code would leak into the
- * browser bundle or depend on server-only APIs that don't exist there.
+ * Files under `packages/domain/src/policy/**`, `packages/domain/src/visibility/**`,
+ * and `packages/domain/src/library/**` must stay SPA-importable — no Node
+ * globals, no async, no `Date.now()`, no `crypto.*`, no dynamic imports.
+ * The SPA imports these modules to compute UI capabilities client-side
+ * (policy/visibility) and to render Library cards / preview tag normalization
+ * (library helpers); non-pure code would leak into the browser bundle or
+ * depend on server-only APIs that don't exist there.
  *
  * Dep-cruiser's `policy-purity-no-node-globals` rule catches imports of
  * Node built-ins but cannot detect inline expressions like `Date.now()`.
  * This test does a source-text pass to close that gap.
  *
- * New policy and visibility files are picked up automatically — the glob
+ * New files in any scanned dir are picked up automatically — the glob
  * below walks the source dirs, so there is no hand-maintained file list
  * that can drift.
  */
 
 const PACKAGE_ROOT = resolve(__dirname, "..");
-const SCAN_DIRS = ["src/policy", "src/visibility"] as const;
+const SCAN_DIRS = ["src/policy", "src/visibility", "src/library"] as const;
 
 function* walk(dir: string): Generator<string> {
   for (const entry of readdirSync(dir)) {
