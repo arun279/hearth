@@ -41,7 +41,6 @@
     "@vitejs/plugin-react": "^6.0.1",
     "tailwindcss": "^4.2.0",
     "typescript": "catalog:",
-    "@axe-core/playwright": "^4.10.2",
     "@playwright/test": "^1.59.1",
     "@types/node": "^22.10.0",
     "vite": "^8.0.0",

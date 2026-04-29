@@ -106,11 +106,13 @@ Each entry names the **pinned tool**, the **condition** that triggers a reassess
 - **Action**: drop the `pkg:npm/spark-md5@3.0.2` entry from `.github/dependency-review-config.json`'s `allow-dependencies-licenses` list. The carve-out is intentionally pinned to one package and one version so any future WTFPL-touched dependency surfaces in dep-review and prompts a deliberate review — promoting `WTFPL` to the project-wide `allow-licenses` would silence that signal across the whole tree. If a `spark-md5` minor/patch bump arrives, update the version in the carve-out string in the same PR; if a different package introduces WTFPL, evaluate its provenance from scratch rather than extending this carve-out.
 - **Location**: `.github/dependency-review-config.json` (`allow-dependencies-licenses`); transitive owner via `@jscpd/tokenizer`.
 
-### `@axe-core/playwright` + `axe-core` MPL-2.0 per-package carve-out (current pin: `@axe-core/playwright@^4.10.2` in `apps/web`)
+## Design system
 
-- **Trigger**: `axe-core` or `@axe-core/playwright` publishes a new version (the carve-out is version-pinned, so a bump turns the gate red until the two version strings here are updated together), OR a permissive-licensed Playwright a11y wrapper emerges that scans rendered DOM for WCAG-tagged violations without requiring a hosted service.
-- **Action**: keep the two carve-out strings in lockstep — both `@axe-core/playwright` and the transitive `axe-core` are MPL-2.0, and the dep-review action evaluates the entire dependency graph. When bumping, update both `pkg:npm/%40axe-core/playwright@<v>` and `pkg:npm/axe-core@<v>` in `.github/dependency-review-config.json` in the same change. MPL-2.0's file-level copyleft does not propagate to consumers using the package as a library; the carve-out is bounded. Do NOT promote `MPL-2.0` to the project-wide `allow-licenses` — Cloudflare's `lightningcss` (Tailwind v4 transitive) is already MPL-2.0 in main and grandfathered, but new MPL-2.0 deps should still surface as deliberate decisions rather than slip in silently.
-- **Location**: `.github/dependency-review-config.json` (`allow-dependencies-licenses`); direct dep declared in `apps/web/package.json`.
+### No sub-AA palette token
+
+- **Trigger**: a PR proposes a new foreground token that doesn't clear WCAG 1.4.3 AA (4.5:1 for normal text, 3:1 for large) against every surface in `packages/ui/src/tokens.ts` SURFACES.
+- **Action**: don't ship it. Tailwind's `text-[var(--color-foo)]` lets any palette token be applied to any text element with no per-call-site review, so a sub-AA token in the shared palette is a foot-gun: the caller cannot tell from the class name that the contrast is unsafe, and a single muted-text token can produce dozens of AA-failing surfaces before anyone notices. If a specific call site genuinely needs sub-AA contrast under a 1.4.3 exemption (decorative non-text, brand mark, etc.), declare the hex inline at the call site with the rationale visible — keep the palette honest. The `tokens.test.ts` Layer-A gate enforces the rule at `pnpm test`.
+- **Location**: `packages/ui/src/tokens.ts` (FOREGROUNDS), `packages/ui/src/styles.css` (palette declarations), `packages/ui/test/tokens.test.ts` (the gate).
 
 ## Repository internals — opportunistic migrations
 

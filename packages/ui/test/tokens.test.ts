@@ -21,10 +21,8 @@ import {
  *   2. WCAG 1.4.3 AA gate — every foreground tagged `body` must clear
  *      4.5:1 against every general surface (`bg`, `surface`, `surface-2`)
  *      in BOTH light and dark themes. `large`-tagged foregrounds clear
- *      3:1. `decor`-tagged foregrounds are exempt — they exist for
- *      explicit non-text / sub-text-floor use. This catches the M6
- *      regression class at its source: declaring a body-text token
- *      whose contrast doesn't meet AA.
+ *      3:1. A future foreground that fails its floor surfaces as a
+ *      test failure, not a documentation problem.
  */
 
 const __filename = fileURLToPath(import.meta.url);
@@ -55,7 +53,6 @@ describe("WCAG 1.4.3 — body foregrounds clear AA contrast on every surface", (
     ];
 
   for (const fg of FOREGROUNDS) {
-    if (fg.role === "decor") continue;
     const floor = fg.role === "body" ? BODY_FLOOR : LARGE_FLOOR;
     for (const theme of themes) {
       for (const bg of SURFACES) {
@@ -96,15 +93,5 @@ describe("WCAG 1.4.3 — soft callout pairs clear AA contrast", () => {
 describe("contrastRatio sanity", () => {
   it("white on black is 21:1 (max)", () => {
     expect(contrastRatio("#ffffff", "#000000")).toBeCloseTo(21, 0);
-  });
-  it("ink-3 on white is the M6-regression value", () => {
-    // Documents the pre-fix contrast for `--color-ink-3` on `--color-bg`,
-    // which led to the M6 inheritance bug. The role tag in `tokens.ts`
-    // now classifies ink-3 as `decor`, so it is exempt from the body-text
-    // assertion above — regressions are caught by component-level audits
-    // (axe-core in e2e), not here.
-    const ratio = contrastRatio("#8b8f98", "#ffffff");
-    expect(ratio).toBeGreaterThan(3);
-    expect(ratio).toBeLessThan(4.5);
   });
 });

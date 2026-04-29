@@ -5,24 +5,22 @@
  * `styles.css` and this file is caught by `tokens.test.ts`.
  *
  * The "role" annotations below classify each foreground token by the
- * highest-cost surface it should be used on:
+ * lowest-cost surface it should be used on:
  *
  * - `body`     — body text. Must clear WCAG 1.4.3 AA at 4.5:1 against
- *                every background it can render on.
+ *                every surface it can render on.
  * - `large`    — headlines, buttons (>= 18.66 px or >= 14 pt bold).
  *                3:1 floor.
- * - `decor`    — decorative / non-text use (icons that duplicate a
- *                text label, separator strokes, etc.). 3:1 floor for
- *                non-text contrast (1.4.11) when the element conveys
- *                state, otherwise no floor.
  *
- * The contrast test only fails if a `body`-tagged token would be
- * unreadable on a paired `surface`-tagged token. This keeps the gate
- * focused on actionable regressions and avoids false-positives on
- * decorative use.
+ * Sub-AA shades that would only be safe under a 1.4.3 exemption
+ * (decorative non-text, brand mark, etc.) belong inline at the call
+ * site where the rationale stays visible — Tailwind's
+ * `text-[var(--color-foo)]` lets any palette token be applied to any
+ * text element with no per-call-site review, so admitting a sub-AA
+ * shade into the shared palette would be a silent foot-gun.
  */
 
-type ContrastRole = "body" | "large" | "decor";
+type ContrastRole = "body" | "large";
 
 type ColorToken = {
   readonly name: string;
@@ -45,7 +43,6 @@ export const SURFACES: readonly ColorToken[] = [
 export const FOREGROUNDS: readonly ForegroundToken[] = [
   { name: "--color-ink", light: "#0f1115", dark: "#ebedf0", role: "body" },
   { name: "--color-ink-2", light: "#51555e", dark: "#a6abb5", role: "body" },
-  { name: "--color-ink-3", light: "#8b8f98", dark: "#6e7480", role: "decor" },
   { name: "--color-accent", light: "#3358d4", dark: "#7e9bff", role: "body" },
   { name: "--color-good", light: "#1f7a54", dark: "#5cc092", role: "body" },
   { name: "--color-warn", light: "#a85a00", dark: "#e3a764", role: "body" },
