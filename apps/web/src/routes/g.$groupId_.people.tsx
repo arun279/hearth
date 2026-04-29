@@ -42,7 +42,7 @@ function PeoplePage() {
 
   if (me.isLoading || !me.data?.data.user) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-[var(--color-ink-3)]">
+      <div className="flex min-h-screen items-center justify-center text-[var(--color-ink-2)]">
         Loading…
       </div>
     );
@@ -115,7 +115,7 @@ function PeoplePage() {
                 <section className="mt-6" aria-labelledby="profile-heading">
                   <h2
                     id="profile-heading"
-                    className="font-medium text-[11px] text-[var(--color-ink-3)] uppercase tracking-wide"
+                    className="font-medium text-[11px] text-[var(--color-ink-2)] uppercase tracking-wide"
                   >
                     Your profile in this group
                   </h2>
@@ -135,7 +135,7 @@ function PeoplePage() {
               <section className="mt-6 space-y-2" aria-labelledby="members-heading">
                 <h2
                   id="members-heading"
-                  className="font-medium text-[11px] text-[var(--color-ink-3)] uppercase tracking-wide"
+                  className="font-medium text-[11px] text-[var(--color-ink-2)] uppercase tracking-wide"
                 >
                   Members · {members.data?.entries.length ?? 0}
                 </h2>
@@ -180,7 +180,7 @@ function PeoplePage() {
               {myEntry && !archived ? (
                 <div className="mt-8 rounded-[var(--radius-md)] border border-[var(--color-rule)] border-dashed bg-[var(--color-surface-2)] p-3">
                   <div className="flex items-center gap-3">
-                    <div className="min-w-0 flex-1 text-[12px] text-[var(--color-ink-3)]">
+                    <div className="min-w-0 flex-1 text-[12px] text-[var(--color-ink-2)]">
                       Leaving the group ends your access. Past activity records stay attributed
                       unless you anonymize.
                     </div>

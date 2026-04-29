@@ -15,15 +15,16 @@ import {
   type StudyGroupId,
   type UserId,
 } from "@hearth/domain";
-import type {
-  AddLibraryRevisionInput,
-  AddLibraryStewardInput,
-  LibraryItemDetail,
-  LibraryItemListEntry,
-  LibraryItemRepository,
-  LibrarySearchOptions,
-  LibrarySearchPage,
-  RemoveLibraryStewardInput,
+import {
+  type AddLibraryRevisionInput,
+  type AddLibraryStewardInput,
+  type LibraryItemDetail,
+  type LibraryItemListEntry,
+  type LibraryItemRepository,
+  type LibrarySearchOptions,
+  type LibrarySearchPage,
+  markWrite,
+  type RemoveLibraryStewardInput,
 } from "@hearth/ports";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import type { CloudflareAdapterDeps } from "./deps.ts";
@@ -103,24 +104,51 @@ export function createLibraryItemRepository(
   const ids = createIdGenerator();
 
   return {
-    async create({ id, groupId, title, description, tags, uploadedBy, firstRevision, now }) {
-      await deps.gate.assertWritable();
-      const tagsJson = JSON.stringify(tags);
-      await deps.db.batch([
-        deps.db.insert(libraryItems).values({
+    create: markWrite(
+      async ({ id, groupId, title, description, tags, uploadedBy, firstRevision, now }) => {
+        await deps.gate.assertWritable();
+        const tagsJson = JSON.stringify(tags);
+        await deps.db.batch([
+          deps.db.insert(libraryItems).values({
+            id,
+            groupId,
+            title,
+            description,
+            tagsJson,
+            currentRevisionId: firstRevision.id,
+            uploadedBy,
+            retiredAt: null,
+            retiredBy: null,
+            createdAt: now,
+            updatedAt: now,
+          }),
+          deps.db.insert(libraryRevisions).values({
+            id: firstRevision.id,
+            libraryItemId: id,
+            revisionNumber: 1,
+            storageKey: firstRevision.storageKey,
+            mimeType: firstRevision.mimeType,
+            sizeBytes: firstRevision.sizeBytes,
+            originalFilename: firstRevision.originalFilename,
+            uploadedBy: firstRevision.uploadedBy,
+            uploadedAt: firstRevision.uploadedAt,
+          }),
+        ]);
+
+        const item: LibraryItem = {
           id,
           groupId,
           title,
           description,
-          tagsJson,
+          tags: [...tags],
           currentRevisionId: firstRevision.id,
           uploadedBy,
           retiredAt: null,
           retiredBy: null,
           createdAt: now,
           updatedAt: now,
-        }),
-        deps.db.insert(libraryRevisions).values({
+        };
+        const revision: LibraryRevision = {
           id: firstRevision.id,
           libraryItemId: id,
           revisionNumber: 1,
@@ -130,35 +158,10 @@ export function createLibraryItemRepository(
           originalFilename: firstRevision.originalFilename,
           uploadedBy: firstRevision.uploadedBy,
           uploadedAt: firstRevision.uploadedAt,
-        }),
-      ]);
-
-      const item: LibraryItem = {
-        id,
-        groupId,
-        title,
-        description,
-        tags: [...tags],
-        currentRevisionId: firstRevision.id,
-        uploadedBy,
-        retiredAt: null,
-        retiredBy: null,
-        createdAt: now,
-        updatedAt: now,
-      };
-      const revision: LibraryRevision = {
-        id: firstRevision.id,
-        libraryItemId: id,
-        revisionNumber: 1,
-        storageKey: firstRevision.storageKey,
-        mimeType: firstRevision.mimeType,
-        sizeBytes: firstRevision.sizeBytes,
-        originalFilename: firstRevision.originalFilename,
-        uploadedBy: firstRevision.uploadedBy,
-        uploadedAt: firstRevision.uploadedAt,
-      };
-      return { item, revisions: [revision], stewards: [], usedInCount: 0 };
-    },
+        };
+        return { item, revisions: [revision], stewards: [], usedInCount: 0 };
+      },
+    ),
 
     async byId(id) {
       const rows = await deps.db
@@ -212,7 +215,7 @@ export function createLibraryItemRepository(
       return enrichListEntries(deps, rows);
     },
 
-    async updateMetadata(id, patch) {
+    updateMetadata: markWrite(async (id, patch) => {
       await deps.gate.assertWritable();
       const existing = await deps.db
         .select()
@@ -253,9 +256,9 @@ export function createLibraryItemRepository(
         );
       }
       return toItem({ ...row, ...next });
-    },
+    }),
 
-    async markRetired(id, by, at) {
+    markRetired: markWrite(async (id, by, at) => {
       await deps.gate.assertWritable();
       // Conditional UPDATE — only fire when the row is currently living
       // so the second call is idempotent (no spurious updatedAt churn).
@@ -274,9 +277,9 @@ export function createLibraryItemRepository(
       const row = rows[0];
       if (!row) throw new DomainError("NOT_FOUND", "Library item not found.", "not_found");
       return toItem(row);
-    },
+    }),
 
-    async addRevision({ libraryItemId, revision }: AddLibraryRevisionInput) {
+    addRevision: markWrite(async ({ libraryItemId, revision }: AddLibraryRevisionInput) => {
       await deps.gate.assertWritable();
       const existing = await deps.db
         .select()
@@ -359,7 +362,7 @@ export function createLibraryItemRepository(
         updatedAt: now,
       });
       return { revision: inserted, item };
-    },
+    }),
 
     async listRevisions(itemId) {
       const rows = await deps.db
@@ -395,44 +398,49 @@ export function createLibraryItemRepository(
       return rows[0] ? toRevision(rows[0]) : null;
     },
 
-    async addSteward({ libraryItemId, userId, grantedBy, grantedAt }: AddLibraryStewardInput) {
-      await deps.gate.assertWritable();
-      const id = ids.generate();
-      // The UNIQUE `(library_item_id, user_id)` index is the duplicate
-      // guard. ON CONFLICT DO NOTHING keeps the call idempotent — calling
-      // twice surfaces the existing row to the caller.
-      const inserted = await deps.db
-        .insert(libraryStewards)
-        .values({ id, libraryItemId, userId, grantedAt, grantedBy })
-        .onConflictDoNothing()
-        .returning();
-      if (inserted[0]) return toStewardship(inserted[0]);
+    addSteward: markWrite(
+      async ({ libraryItemId, userId, grantedBy, grantedAt }: AddLibraryStewardInput) => {
+        await deps.gate.assertWritable();
+        const id = ids.generate();
+        // The UNIQUE `(library_item_id, user_id)` index is the duplicate
+        // guard. ON CONFLICT DO NOTHING keeps the call idempotent — calling
+        // twice surfaces the existing row to the caller.
+        const inserted = await deps.db
+          .insert(libraryStewards)
+          .values({ id, libraryItemId, userId, grantedAt, grantedBy })
+          .onConflictDoNothing()
+          .returning();
+        if (inserted[0]) return toStewardship(inserted[0]);
 
-      const existing = await deps.db
-        .select()
-        .from(libraryStewards)
-        .where(
-          and(eq(libraryStewards.libraryItemId, libraryItemId), eq(libraryStewards.userId, userId)),
-        )
-        .limit(1);
-      if (!existing[0]) {
-        throw new DomainError(
-          "INVARIANT_VIOLATION",
-          "Failed to insert or read steward row.",
-          "steward_insert_failed",
-        );
-      }
-      return toStewardship(existing[0]);
-    },
+        const existing = await deps.db
+          .select()
+          .from(libraryStewards)
+          .where(
+            and(
+              eq(libraryStewards.libraryItemId, libraryItemId),
+              eq(libraryStewards.userId, userId),
+            ),
+          )
+          .limit(1);
+        if (!existing[0]) {
+          throw new DomainError(
+            "INVARIANT_VIOLATION",
+            "Failed to insert or read steward row.",
+            "steward_insert_failed",
+          );
+        }
+        return toStewardship(existing[0]);
+      },
+    ),
 
-    async removeSteward({ libraryItemId, userId }: RemoveLibraryStewardInput) {
+    removeSteward: markWrite(async ({ libraryItemId, userId }: RemoveLibraryStewardInput) => {
       await deps.gate.assertWritable();
       await deps.db
         .delete(libraryStewards)
         .where(
           and(eq(libraryStewards.libraryItemId, libraryItemId), eq(libraryStewards.userId, userId)),
         );
-    },
+    }),
 
     async listStewards(itemId) {
       const rows = await deps.db
@@ -532,7 +540,7 @@ export function createLibraryItemRepository(
       return { entries, nextCursor };
     },
 
-    async restoreFtsIndex() {
+    restoreFtsIndex: markWrite(async () => {
       // The full restore path: a `wrangler d1 export | execute --file -`
       // recreates library_items rows via INSERT, which fires the
       // mirror trigger and naturally repopulates library_items_fts —
@@ -556,7 +564,7 @@ export function createLibraryItemRepository(
       `);
       const rows = await deps.db.select({ n: sql<number>`count(*)` }).from(libraryItems);
       return { rebuilt: Number(rows[0]?.n ?? 0) };
-    },
+    }),
   };
 }
 

@@ -1,4 +1,5 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -7,33 +8,34 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 /**
- * Files under `packages/domain/src/policy/**`, `packages/domain/src/visibility/**`,
- * and `packages/domain/src/library/**` must stay SPA-importable — no Node
- * globals, no async, no `Date.now()`, no `crypto.*`, no dynamic imports.
- * The SPA imports these modules to compute UI capabilities client-side
- * (policy/visibility) and to render Library cards / preview tag normalization
- * (library helpers); non-pure code would leak into the browser bundle or
- * depend on server-only APIs that don't exist there.
+ * Files under the SPA-pure directories of `packages/domain/src/` (see
+ * `policy-pure-dirs.cjs` at the repo root) must stay SPA-importable —
+ * no Node globals, no async, no `Date.now()`, no `crypto.*`, no
+ * dynamic imports. The SPA imports these modules to compute UI
+ * capabilities client-side and to render shared widgets; non-pure code
+ * would leak into the browser bundle or depend on server-only APIs.
  *
  * Dep-cruiser's `policy-purity-no-node-globals` rule catches imports of
  * Node built-ins but cannot detect inline expressions like `Date.now()`.
  * This test does a source-text pass to close that gap.
  *
- * Paired-gate invariant: this test's SCAN_DIRS list and the
- * `policy-purity-no-node-globals` rule's `from.path` regex in
- * `.dependency-cruiser.cjs` MUST scope identically. Broadening one
- * without the other leaves a hole — the test catches inline expressions
- * but not Node-built-in imports, and the dep-cruiser rule catches
- * imports but not inline expressions. When adding a directory here, add
- * it to the dep-cruiser rule too (and vice-versa).
- *
- * New files in any scanned dir are picked up automatically — the glob
- * below walks the source dirs, so there is no hand-maintained file list
- * that can drift.
+ * The directory list is the single-source-of-truth `policy-pure-dirs.cjs`
+ * — both this test and `.dependency-cruiser.cjs` derive their scope
+ * from it. The drift assertion below additionally pins the dep-cruiser
+ * regex to the SoT-derived value, so editing one side directly is
+ * caught at `pnpm test` time rather than via prose mirror-pointers.
  */
 
+const require = createRequire(import.meta.url);
+const REPO_ROOT = resolve(__dirname, "..", "..", "..");
+const purityConfig = require(resolve(REPO_ROOT, "policy-pure-dirs.cjs")) as {
+  readonly DIRS: readonly string[];
+  readonly depCruiserFromPath: string;
+  readonly scanDirs: readonly string[];
+};
+
 const PACKAGE_ROOT = resolve(__dirname, "..");
-const SCAN_DIRS = ["src/policy", "src/visibility", "src/library"] as const;
+const SCAN_DIRS = purityConfig.scanDirs;
 
 function* walk(dir: string): Generator<string> {
   for (const entry of readdirSync(dir)) {
@@ -76,4 +78,23 @@ describe("policy purity", () => {
       expect(stripped, "no global/globalThis").not.toMatch(/\bglobalThis\./);
     });
   }
+});
+
+describe("policy purity — paired-gate drift assertion", () => {
+  it("dep-cruiser policy-purity-no-node-globals rule's from.path matches the SoT", () => {
+    const cfg = require(resolve(REPO_ROOT, ".dependency-cruiser.cjs")) as {
+      readonly forbidden: ReadonlyArray<{
+        readonly name: string;
+        readonly from: { readonly path?: string };
+      }>;
+    };
+    const rule = cfg.forbidden.find((r) => r.name === "policy-purity-no-node-globals");
+    expect(
+      rule,
+      "policy-purity-no-node-globals rule must exist in dep-cruiser config",
+    ).toBeDefined();
+    expect(rule?.from.path, "dep-cruiser regex must match policy-pure-dirs.cjs").toBe(
+      purityConfig.depCruiserFromPath,
+    );
+  });
 });

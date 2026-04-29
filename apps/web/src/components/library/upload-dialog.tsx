@@ -230,17 +230,17 @@ export function UploadDialog({ open, onClose, groupId, libraryItemId, defaultTit
               : "border-[var(--color-rule)] bg-[var(--color-bg)] hover:bg-[var(--color-surface-2)]"
           }`}
         >
-          <UploadCloud size={20} aria-hidden className="text-[var(--color-ink-3)]" />
+          <UploadCloud size={20} aria-hidden className="text-[var(--color-ink-2)]" />
           <div className="font-medium text-[13px] text-[var(--color-ink)]">
             {file ? file.name : "Drag a file here, or click to choose"}
           </div>
-          <div className="text-[11px] text-[var(--color-ink-3)]">
+          <div className="text-[11px] text-[var(--color-ink-2)]">
             {file
               ? `${formatBytes(file.size)} · ${file.type || "unknown type"}`
               : `Up to ${formatBytes(MAX_LIBRARY_ITEM_BYTES)}. PDF, audio, video, images, or docs.`}
           </div>
           {quota.data ? (
-            <div className="text-[11px] text-[var(--color-ink-3)]">
+            <div className="text-[11px] text-[var(--color-ink-2)]">
               {formatBytes(quota.data.availableBytes)} free in this instance
             </div>
           ) : null}
@@ -266,7 +266,7 @@ export function UploadDialog({ open, onClose, groupId, libraryItemId, defaultTit
             aria-live="polite"
             aria-label={`Uploading: ${progressPercent}% complete`}
           >
-            <div className="flex items-baseline justify-between text-[11px] text-[var(--color-ink-3)]">
+            <div className="flex items-baseline justify-between text-[11px] text-[var(--color-ink-2)]">
               <span>Uploading…</span>
               <span className="font-mono">
                 {formatBytes(progress.loaded)} / {formatBytes(progress.total)}

@@ -24,7 +24,7 @@ export function Field({ label, hint, error, children, className }: FieldProps) {
   return (
     <div className={cn("space-y-1.5", className)}>
       <label htmlFor={id} className="block space-y-1.5">
-        <span className="block font-medium text-[11px] text-[var(--color-ink-3)] uppercase tracking-wide">
+        <span className="block font-medium text-[11px] text-[var(--color-ink-2)] uppercase tracking-wide">
           {label}
         </span>
         {children({ id, describedBy })}
@@ -38,7 +38,7 @@ export function Field({ label, hint, error, children, className }: FieldProps) {
           {error}
         </span>
       ) : hint ? (
-        <span id={describedBy} className="block text-[11px] text-[var(--color-ink-3)]">
+        <span id={describedBy} className="block text-[11px] text-[var(--color-ink-2)]">
           {hint}
         </span>
       ) : null}

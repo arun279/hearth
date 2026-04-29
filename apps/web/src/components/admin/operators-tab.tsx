@@ -98,7 +98,7 @@ export function OperatorsTab({ currentUserId }: Props) {
                   <Avatar name={label} src={op.image} size={28} />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-[13px] text-[var(--color-ink)]">{label}</div>
-                    <div className="truncate text-[11px] text-[var(--color-ink-3)]">
+                    <div className="truncate text-[11px] text-[var(--color-ink-2)]">
                       {op.email && op.name ? `${op.email} · ` : null}
                       granted {formatShortDate(op.grantedAt)}
                     </div>
@@ -121,7 +121,7 @@ export function OperatorsTab({ currentUserId }: Props) {
 
       {revoked.length > 0 ? (
         <section className="space-y-2">
-          <div className="flex items-center gap-2 font-medium text-[11px] text-[var(--color-ink-3)] uppercase tracking-wide">
+          <div className="flex items-center gap-2 font-medium text-[11px] text-[var(--color-ink-2)] uppercase tracking-wide">
             Revoked — audit trail
           </div>
           <ul
@@ -138,7 +138,7 @@ export function OperatorsTab({ currentUserId }: Props) {
                   <Avatar name={label} src={op.image} size={24} />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-[13px] line-through decoration-1">{label}</div>
-                    <div className="truncate text-[11px] text-[var(--color-ink-3)]">
+                    <div className="truncate text-[11px] text-[var(--color-ink-2)]">
                       revoked {op.revokedAt ? formatShortDate(op.revokedAt) : ""}
                       {op.revokedBy ? ` · by ${op.revokedBy}` : null}
                     </div>

@@ -57,7 +57,7 @@ function GroupHome() {
 
   if (me.isLoading || !me.data?.data.user) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-[var(--color-ink-3)]">
+      <div className="flex min-h-screen items-center justify-center text-[var(--color-ink-2)]">
         Loading…
       </div>
     );
@@ -174,7 +174,7 @@ function GroupHomeBody({
     <div className="mx-auto max-w-3xl px-5 py-8 md:px-8">
       <nav
         aria-label="Breadcrumb"
-        className="flex items-center gap-2 text-[12px] text-[var(--color-ink-3)]"
+        className="flex items-center gap-2 text-[12px] text-[var(--color-ink-2)]"
       >
         <Link to="/" search={{}} className="hover:text-[var(--color-ink-2)]">
           Your groups
@@ -219,7 +219,7 @@ function GroupHomeBody({
         <div className="flex items-center gap-3">
           <h2
             id="tracks-heading"
-            className="font-medium text-[11px] text-[var(--color-ink-3)] uppercase tracking-wide"
+            className="font-medium text-[11px] text-[var(--color-ink-2)] uppercase tracking-wide"
           >
             Learning Tracks · {counts.trackCount}
           </h2>
@@ -261,7 +261,7 @@ function GroupHomeBody({
         <div className="flex items-center gap-3">
           <h2
             id="people-heading"
-            className="font-medium text-[11px] text-[var(--color-ink-3)] uppercase tracking-wide"
+            className="font-medium text-[11px] text-[var(--color-ink-2)] uppercase tracking-wide"
           >
             People · {counts.memberCount}
           </h2>
@@ -287,7 +287,7 @@ function GroupHomeBody({
                   </span>
                   <Badge tone="accent">you</Badge>
                 </div>
-                <div className="mt-0.5 truncate text-[11px] text-[var(--color-ink-3)]">
+                <div className="mt-0.5 truncate text-[11px] text-[var(--color-ink-2)]">
                   {myMembership.role === "admin" ? "Group Admin" : "Member"}
                 </div>
               </div>
@@ -305,7 +305,7 @@ function GroupHomeBody({
         <div className="flex items-baseline justify-between">
           <h2
             id="library-heading"
-            className="font-medium text-[11px] text-[var(--color-ink-3)] uppercase tracking-wide"
+            className="font-medium text-[11px] text-[var(--color-ink-2)] uppercase tracking-wide"
           >
             Library · {counts.libraryItemCount}
           </h2>
@@ -334,7 +334,7 @@ function GroupHomeBody({
             }
           />
         ) : (
-          <p className="text-[12px] text-[var(--color-ink-3)]">
+          <p className="text-[12px] text-[var(--color-ink-2)]">
             {counts.libraryItemCount === 1 ? "1 item" : `${counts.libraryItemCount} items`} — view,
             download, or upload a revision from the Library page.
           </p>
@@ -379,7 +379,7 @@ function TrackRow({
             </div>
           ) : null}
         </div>
-        <span aria-hidden="true" className="text-[12px] text-[var(--color-ink-3)]">
+        <span aria-hidden="true" className="text-[12px] text-[var(--color-ink-2)]">
           →
         </span>
       </Link>

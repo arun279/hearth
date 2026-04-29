@@ -9,7 +9,7 @@ import type {
   TrackStructureEnvelope,
   UserId,
 } from "@hearth/domain";
-import type { SystemFlagRepository } from "@hearth/ports";
+import type { LibraryItemRepository, SystemFlagRepository, WriteMethods } from "@hearth/ports";
 import { describe, expect, it } from "vitest";
 import type { CloudflareAdapterDeps } from "../src/deps.ts";
 import {
@@ -99,7 +99,7 @@ describe("killswitch coverage (resilience invariant 2 + 3)", () => {
 
   const gid = "g_test" as Parameters<typeof groups.byId>[0];
 
-  const CASES: ReadonlyArray<readonly [string, () => Promise<unknown>]> = [
+  const CASES = [
     ["UserRepository.deactivate", () => users.deactivate(uid, uid)],
     ["UserRepository.reactivate", () => users.reactivate(uid)],
     ["UserRepository.setAttributionPreference", () => users.setAttributionPreference(uid, attrib)],
@@ -323,11 +323,33 @@ describe("killswitch coverage (resilience invariant 2 + 3)", () => {
     // through which the killswitch can stop the cron from mutating
     // R2 + D1. Treat it as a write method for invariant 2 + 3.
     ["PendingUploadsSweep", () => sweep(new Date())],
-  ];
+  ] as const;
 
   for (const [label, run] of CASES) {
     it(`${label} calls gate.assertWritable before touching storage`, async () => {
       await expect(run()).rejects.toBeInstanceOf(KillswitchBlocked);
     });
   }
+
+  // Type-level exhaustiveness for ports that have adopted the
+  // `Write<>` brand. If a new branded write method is added to
+  // `LibraryItemRepository` without a corresponding entry in CASES,
+  // `MissingLibraryLabels` resolves to a non-`never` union and the
+  // string-literal assignment fails `tsc` with a message naming the
+  // missing label(s). The runtime `expect` is incidental — the
+  // compile-time check is what catches the regression.
+  //
+  // To extend coverage to another port, add its branded type to the
+  // union after applying the `Write<>` brand to its mutating methods.
+  // See `docs/tripwires.md` for the migration tracker.
+  it("LibraryItemRepository: every branded write method is in CASES", () => {
+    type ExpectedLibraryLabels = `LibraryItemRepository.${WriteMethods<LibraryItemRepository>}`;
+    type CaseLabels = (typeof CASES)[number][0];
+    type MissingLibraryLabels = Exclude<ExpectedLibraryLabels, CaseLabels>;
+    type ExhaustiveCheck = [MissingLibraryLabels] extends [never]
+      ? "ok"
+      : `MISSING from CASES: ${MissingLibraryLabels}`;
+    const check: ExhaustiveCheck = "ok";
+    expect(check).toBe("ok");
+  });
 });

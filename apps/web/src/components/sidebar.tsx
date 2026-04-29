@@ -9,7 +9,7 @@ type Props = {
 };
 
 const SECTION_LABEL_CLASSES =
-  "px-1 pt-3 pb-1 font-medium text-[10px] text-[var(--color-ink-3)] uppercase tracking-wide";
+  "px-1 pt-3 pb-1 font-medium text-[10px] text-[var(--color-ink-2)] uppercase tracking-wide";
 
 const NAV_ITEM_CLASSES = cn(
   "flex items-center gap-2 rounded-[var(--radius-sm)] px-2 py-1.5 text-[13px]",
@@ -76,7 +76,7 @@ export function Sidebar({ me }: Props) {
       {me ? (
         <div className="rounded-[var(--radius-md)] border border-[var(--color-rule)] bg-[var(--color-bg)] px-2 py-2">
           <div className="flex items-center gap-1.5">
-            <div className="font-medium text-[10px] text-[var(--color-ink-3)] uppercase tracking-wide">
+            <div className="font-medium text-[10px] text-[var(--color-ink-2)] uppercase tracking-wide">
               Hearth Instance
             </div>
             <Badge tone="warn" className="ml-auto">
@@ -138,7 +138,7 @@ export function Sidebar({ me }: Props) {
             <div className="truncate font-medium text-[12px] text-[var(--color-ink)]">
               {me?.user?.name ?? "Member"}
             </div>
-            <div className="truncate text-[11px] text-[var(--color-ink-3)]">{roleLabel}</div>
+            <div className="truncate text-[11px] text-[var(--color-ink-2)]">{roleLabel}</div>
           </div>
         </div>
       ) : null}

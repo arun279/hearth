@@ -155,7 +155,7 @@ function DetailBody({
           {item.description ? (
             <p className="text-[13px] text-[var(--color-ink-2)]">{item.description}</p>
           ) : (
-            <p className="text-[12px] text-[var(--color-ink-3)] italic">No description.</p>
+            <p className="text-[12px] text-[var(--color-ink-2)] italic">No description.</p>
           )}
           {item.tags.length > 0 ? (
             <div className="mt-2 flex flex-wrap gap-1">
@@ -187,13 +187,13 @@ function DetailBody({
       <section aria-labelledby="revisions-heading">
         <h3
           id="revisions-heading"
-          className="mb-2 font-medium text-[10px] text-[var(--color-ink-3)] uppercase tracking-wide"
+          className="mb-2 font-medium text-[10px] text-[var(--color-ink-2)] uppercase tracking-wide"
         >
           Revisions
         </h3>
         <div className="overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-rule)]">
           {detail.revisions.length === 0 ? (
-            <p className="p-3 text-[12px] text-[var(--color-ink-3)] italic">No revisions yet.</p>
+            <p className="p-3 text-[12px] text-[var(--color-ink-2)] italic">No revisions yet.</p>
           ) : (
             detail.revisions.map((r, i) => {
               const isCurrent = r.id === item.currentRevisionId;
@@ -209,7 +209,7 @@ function DetailBody({
                   <span
                     className={cn(
                       "w-10 shrink-0 font-mono text-[11px]",
-                      isCurrent ? "text-[var(--color-accent)]" : "text-[var(--color-ink-3)]",
+                      isCurrent ? "text-[var(--color-accent)]" : "text-[var(--color-ink-2)]",
                     )}
                   >
                     r{r.revisionNumber}
@@ -219,7 +219,7 @@ function DetailBody({
                       {formatShortDate(r.uploadedAt)} · {formatBytes(r.sizeBytes)}
                     </div>
                     {r.originalFilename ? (
-                      <div className="mt-0.5 truncate text-[11px] text-[var(--color-ink-3)]">
+                      <div className="mt-0.5 truncate text-[11px] text-[var(--color-ink-2)]">
                         {r.originalFilename}
                       </div>
                     ) : null}
@@ -242,7 +242,7 @@ function DetailBody({
       <section aria-labelledby="stewards-heading">
         <h3
           id="stewards-heading"
-          className="mb-2 font-medium text-[10px] text-[var(--color-ink-3)] uppercase tracking-wide"
+          className="mb-2 font-medium text-[10px] text-[var(--color-ink-2)] uppercase tracking-wide"
         >
           Stewards
         </h3>
@@ -252,7 +252,7 @@ function DetailBody({
             <StewardChip key={s.id} kind="explicit" userId={s.userId} />
           ))}
           {detail.stewards.length === 0 ? (
-            <span className="text-[11px] text-[var(--color-ink-3)] italic">
+            <span className="text-[11px] text-[var(--color-ink-2)] italic">
               The uploader is the only Steward.
             </span>
           ) : null}
@@ -262,7 +262,7 @@ function DetailBody({
       <section aria-labelledby="usedin-heading">
         <h3
           id="usedin-heading"
-          className="mb-2 font-medium text-[10px] text-[var(--color-ink-3)] uppercase tracking-wide"
+          className="mb-2 font-medium text-[10px] text-[var(--color-ink-2)] uppercase tracking-wide"
         >
           Used in
         </h3>
@@ -306,7 +306,7 @@ function StewardChip(props: StewardChipProps) {
         </span>
       ) : (
         <>
-          <span className="font-medium text-[10px] text-[var(--color-ink-3)] uppercase tracking-wide">
+          <span className="font-medium text-[10px] text-[var(--color-ink-2)] uppercase tracking-wide">
             Steward
           </span>
           <span

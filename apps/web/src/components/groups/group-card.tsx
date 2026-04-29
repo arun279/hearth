@@ -39,7 +39,7 @@ export function GroupCard({ group, myRole }: Props) {
             size={16}
             strokeWidth={1.5}
             aria-hidden="true"
-            className="text-[var(--color-ink-3)] transition-transform group-hover:translate-x-0.5 group-hover:text-[var(--color-ink-2)]"
+            className="text-[var(--color-ink-2)] transition-transform group-hover:translate-x-0.5 group-hover:text-[var(--color-ink-2)]"
           />
         </div>
       </div>

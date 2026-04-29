@@ -16,7 +16,7 @@ export function GroupSubpageBreadcrumb({ groupId, groupName, currentLabel }: Pro
   return (
     <nav
       aria-label="Breadcrumb"
-      className="flex items-center gap-2 text-[12px] text-[var(--color-ink-3)]"
+      className="flex items-center gap-2 text-[12px] text-[var(--color-ink-2)]"
     >
       <Link to="/" search={{}} className="hover:text-[var(--color-ink-2)]">
         Your groups
