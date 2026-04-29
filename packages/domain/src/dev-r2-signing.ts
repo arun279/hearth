@@ -1,18 +1,21 @@
 /**
- * Dev-only HMAC signer + verifier for the worker-mediated R2 upload
- * proxy. Production never reaches this code — when `devProxy` is set on
- * `ObjectStorageConfig`, the adapter signs URLs against this scheme and
- * a dev-only worker route validates them.
+ * Dev-only HMAC signer + verifier + URL builder for the worker-mediated
+ * R2 upload proxy. Production never reaches this code — when
+ * `R2_DEV_PROXY=1`, the adapter signs URLs against this scheme and the
+ * api package's dev-only worker route validates them.
  *
  * Why an HMAC and not session auth? The browser PUTs `credentials:
  * "omit"` on the upload (so a leaked URL can't ride a victim's cookie
- * cross-origin to a real R2 bucket), and the dev proxy keeps that
- * shape so the SPA path is byte-identical to production. The HMAC is
- * the credential.
+ * cross-origin to a real R2 bucket), and the dev proxy keeps that shape
+ * so the SPA path is byte-identical to production. The HMAC is the
+ * credential.
  *
- * Pure utilities — no `env` capture so the tests can drive the helper
- * directly. The worker passes a per-request `secret` (BETTER_AUTH_SECRET
- * by default).
+ * Pure utilities — no `env` capture, no Workers types, no Node imports
+ * (Web Crypto + TextEncoder are universal). Lives in `packages/domain`
+ * so both `packages/adapters/cloudflare` (URL builder) and
+ * `packages/api` (route verifier) can import the same canonical
+ * representation; the architecture forbids `api → adapters` and
+ * duplicating these primitives risks divergence.
  */
 
 const ENCODER = new TextEncoder();
@@ -39,14 +42,14 @@ function toHex(buf: ArrayBuffer): string {
  * the URL too, so a presigned URL can't be re-purposed to upload
  * different MIME types. GET signing leaves it out.
  */
-function canonical(input: SignInput): string {
+function canonical(input: DevProxySignInput): string {
   const base = `${input.method}:${input.key}:${input.expiresAtMs}`;
   return input.method === "PUT" && input.contentType !== undefined
     ? `${base}:${input.contentType}`
     : base;
 }
 
-export type SignInput =
+export type DevProxySignInput =
   | {
       readonly method: "PUT";
       readonly key: string;
@@ -59,26 +62,26 @@ export type SignInput =
       readonly expiresAtMs: number;
     };
 
-export async function signDevProxy(input: SignInput, secret: string): Promise<string> {
+export async function signDevProxy(input: DevProxySignInput, secret: string): Promise<string> {
   const key = await importHmacKey(secret);
   const sig = await crypto.subtle.sign("HMAC", key, ENCODER.encode(canonical(input)));
   return toHex(sig);
 }
 
 export async function verifyDevProxy(
-  input: SignInput,
+  input: DevProxySignInput,
   signature: string,
   secret: string,
 ): Promise<boolean> {
   if (signature.length === 0) return false;
-  const key = await importHmacKey(secret);
-  // Hex → bytes. Reject malformed sig early so a non-hex string can't
-  // throw inside subtle.verify.
+  // Reject malformed sig early so a non-hex string can't throw inside
+  // subtle.verify.
   if (!/^[0-9a-f]+$/i.test(signature) || signature.length % 2 !== 0) return false;
   const sigBytes = new Uint8Array(signature.length / 2);
   for (let i = 0; i < sigBytes.length; i++) {
     sigBytes[i] = parseInt(signature.slice(i * 2, i * 2 + 2), 16);
   }
+  const key = await importHmacKey(secret);
   return crypto.subtle.verify("HMAC", key, sigBytes, ENCODER.encode(canonical(input)));
 }
 

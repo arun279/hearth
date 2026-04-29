@@ -296,7 +296,6 @@ export function UploadDialog({ open, onClose, groupId, libraryItemId, defaultTit
                   aria-describedby={describedBy}
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Primer — Beginner Spanish"
                   maxLength={200}
                   disabled={busy}
                 />

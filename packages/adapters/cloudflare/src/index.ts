@@ -2,16 +2,6 @@ export { createActivityRecordRepository } from "./activity-record-repository.ts"
 export { createClock } from "./clock.ts";
 export type { CloudflareAdapterDeps } from "./deps.ts";
 export {
-  buildDevProxyGetUrl,
-  buildDevProxyPutUrl,
-  DEV_PROXY_GET_PATH,
-  DEV_PROXY_PUBLIC_PATH,
-  DEV_PROXY_PUT_PATH,
-  type SignInput,
-  signDevProxy,
-  verifyDevProxy,
-} from "./dev-r2-proxy.ts";
-export {
   createDrizzleAdapter,
   type HearthDrizzle,
   retryTransient,

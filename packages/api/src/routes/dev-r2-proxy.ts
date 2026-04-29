@@ -1,57 +1,11 @@
 import { isAvatarKey, isLibraryKey } from "@hearth/domain";
+import {
+  DEV_PROXY_GET_PATH,
+  DEV_PROXY_PUBLIC_PATH,
+  DEV_PROXY_PUT_PATH,
+  verifyDevProxy,
+} from "@hearth/domain/dev-r2-signing";
 import { Hono } from "hono";
-
-/**
- * Path constants and HMAC verifier are duplicated here from the adapter
- * package to avoid a `packages/api → packages/adapters/cloudflare`
- * import (which the architecture rules forbid). They MUST stay in
- * lockstep with `packages/adapters/cloudflare/src/dev-r2-proxy.ts` —
- * a divergence test would be a strong follow-up.
- */
-const DEV_PROXY_PUT_PATH = "/api/v1/__r2/upload/";
-const DEV_PROXY_GET_PATH = "/api/v1/__r2/download/";
-const DEV_PROXY_PUBLIC_PATH = "/api/v1/__r2/public/";
-
-const ENCODER = new TextEncoder();
-
-async function importHmacKey(secret: string): Promise<CryptoKey> {
-  return crypto.subtle.importKey(
-    "raw",
-    ENCODER.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign", "verify"],
-  );
-}
-
-type VerifyInput =
-  | {
-      readonly method: "PUT";
-      readonly key: string;
-      readonly expiresAtMs: number;
-      readonly contentType: string;
-    }
-  | { readonly method: "GET"; readonly key: string; readonly expiresAtMs: number };
-
-function canonical(input: VerifyInput): string {
-  const base = `${input.method}:${input.key}:${input.expiresAtMs}`;
-  return input.method === "PUT" ? `${base}:${input.contentType}` : base;
-}
-
-async function verifyDevProxy(
-  input: VerifyInput,
-  signature: string,
-  secret: string,
-): Promise<boolean> {
-  if (signature.length === 0) return false;
-  if (!/^[0-9a-f]+$/i.test(signature) || signature.length % 2 !== 0) return false;
-  const sigBytes = new Uint8Array(signature.length / 2);
-  for (let i = 0; i < sigBytes.length; i++) {
-    sigBytes[i] = parseInt(signature.slice(i * 2, i * 2 + 2), 16);
-  }
-  const key = await importHmacKey(secret);
-  return crypto.subtle.verify("HMAC", key, sigBytes, ENCODER.encode(canonical(input)));
-}
 
 /**
  * Minimal R2 surface this route uses. Defined locally so `packages/api`
@@ -86,11 +40,13 @@ type R2BucketLike = {
  *        Disposition. Browsers follow the 200 directly.
  *
  *   GET  /api/v1/__r2/public/<key>
- *     -> public read receiver. No signature; mimics R2's public bucket
- *        for avatar rendering. The SPA renders these via
- *        `${R2_PUBLIC_ORIGIN}/${avatarKey}` and we set
- *        R2_PUBLIC_ORIGIN to `<worker>/api/v1/__r2/public` in dev so
- *        the existing avatar code path keeps working unchanged.
+ *     -> public read receiver, scoped to AVATAR keys only. The SPA
+ *        renders avatars via `${R2_PUBLIC_ORIGIN}/${avatarKey}` and we
+ *        set R2_PUBLIC_ORIGIN to `<worker>/api/v1/__r2/public` in dev so
+ *        the existing avatar code path keeps working unchanged. Library
+ *        revisions ship via the signed GET path above; the public route
+ *        deliberately rejects library keys so the dev permission shape
+ *        matches production (R2 public buckets only carry avatars).
  *
  * Auth model:
  *   - PUT/GET routes are authenticated by the HMAC, NOT by session
@@ -137,7 +93,7 @@ export function createDevR2ProxyRouter({ bucket, secret }: DevR2ProxyDeps) {
     .options("*", (c) => c.body(null, 204))
     .put(`${DEV_PROXY_PUT_PATH}*`, async (c) => {
       const key = decodeKeyFromPath(c.req.path, DEV_PROXY_PUT_PATH);
-      if (!isAcceptableKey(key)) return c.text("invalid key", 400);
+      if (!isAcceptableSignedKey(key)) return c.text("invalid key", 400);
 
       const expiresStr = c.req.query("expires");
       const sig = c.req.query("sig");
@@ -173,7 +129,7 @@ export function createDevR2ProxyRouter({ bucket, secret }: DevR2ProxyDeps) {
 
     .get(`${DEV_PROXY_GET_PATH}*`, async (c) => {
       const key = decodeKeyFromPath(c.req.path, DEV_PROXY_GET_PATH);
-      if (!isAcceptableKey(key)) return c.text("invalid key", 400);
+      if (!isAcceptableSignedKey(key)) return c.text("invalid key", 400);
 
       const expiresStr = c.req.query("expires");
       const sig = c.req.query("sig");
@@ -198,7 +154,11 @@ export function createDevR2ProxyRouter({ bucket, secret }: DevR2ProxyDeps) {
 
     .get(`${DEV_PROXY_PUBLIC_PATH}*`, async (c) => {
       const key = decodeKeyFromPath(c.req.path, DEV_PROXY_PUBLIC_PATH);
-      if (!isAcceptableKey(key)) return c.text("invalid key", 400);
+      // Avatars only on the unsigned public route; library keys must
+      // route through the signed GET path. Production's R2 public
+      // bucket only carries avatars, so anything else here is a
+      // dev-only divergence we explicitly refuse.
+      if (key.length === 0 || !isAvatarKey(key)) return c.text("invalid key", 400);
       const obj = await bucket.get(key);
       if (!obj) return c.text("not found", 404);
       const headers = new Headers();
@@ -222,6 +182,6 @@ function decodeKeyFromPath(path: string, prefix: string): string {
   return decodeURIComponent(path.slice(idx + prefix.length));
 }
 
-function isAcceptableKey(key: string): boolean {
+function isAcceptableSignedKey(key: string): boolean {
   return key.length > 0 && (isAvatarKey(key) || isLibraryKey(key));
 }

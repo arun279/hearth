@@ -268,7 +268,7 @@ function DetailBody({
         </h3>
         <p className="text-[12px] text-[var(--color-ink-2)]">
           {detail.usedInCount === 0
-            ? "Not yet used in any activity."
+            ? "Not yet used."
             : `Used in ${detail.usedInCount} ${detail.usedInCount === 1 ? "activity" : "activities"}.`}
         </p>
       </section>

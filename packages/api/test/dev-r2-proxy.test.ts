@@ -192,7 +192,7 @@ describe("dev R2 proxy routes", () => {
     expect(res.status).toBe(404);
   });
 
-  it("public GET serves any acceptable key without a signature", async () => {
+  it("public GET serves an avatar key without a signature", async () => {
     const bucket = new FakeR2();
     const avatarKey = "avatars/u_x/g_y/k_z";
     await bucket.put(avatarKey, new TextEncoder().encode("png-bytes"), {
@@ -202,6 +202,20 @@ describe("dev R2 proxy routes", () => {
     const res = await app.request(`/api/v1/__r2/public/${avatarKey}`, { method: "GET" });
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toBe("image/png");
+  });
+
+  it("public GET refuses library keys — they require the signed GET path", async () => {
+    // Production's R2 public bucket only carries avatars; library
+    // revisions are reachable solely via short-lived signed URLs.
+    // The dev proxy enforces the same shape so a leaked library key
+    // can't be fetched without authorization in dev either.
+    const bucket = new FakeR2();
+    await bucket.put(VALID_KEY, new TextEncoder().encode("body"), {
+      httpMetadata: { contentType: "text/markdown" },
+    });
+    const app = harness(bucket);
+    const res = await app.request(`/api/v1/__r2/public/${VALID_KEY}`, { method: "GET" });
+    expect(res.status).toBe(400);
   });
 
   it("OPTIONS preflight returns 204 with the CORS allow-list headers", async () => {
@@ -272,9 +286,11 @@ describe("dev R2 proxy routes", () => {
     expect(res.status).toBe(403);
   });
 
-  it("public GET 404s a missing key and 400s an unknown prefix", async () => {
+  it("public GET 404s a missing avatar key and 400s an unknown prefix", async () => {
     const app = harness(new FakeR2());
-    const missing = await app.request(`/api/v1/__r2/public/${VALID_KEY}`, { method: "GET" });
+    const missing = await app.request("/api/v1/__r2/public/avatars/u_a/g_b/k_c", {
+      method: "GET",
+    });
     expect(missing.status).toBe(404);
     const bad = await app.request("/api/v1/__r2/public/junk/oops", { method: "GET" });
     expect(bad.status).toBe(400);

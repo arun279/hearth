@@ -14,7 +14,8 @@
     "./parts": "./src/parts/index.ts",
     "./parts/*": "./src/parts/*.ts",
     "./library": "./src/library/index.ts",
-    "./library/*": "./src/library/*.ts"
+    "./library/*": "./src/library/*.ts",
+    "./dev-r2-signing": "./src/dev-r2-signing.ts"
   },
   "imports": {
     "#*": "./src/*"

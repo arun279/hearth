@@ -1,4 +1,9 @@
 import { isAvatarKey, isLibraryKey } from "@hearth/domain";
+import {
+  buildDevProxyGetUrl,
+  buildDevProxyPutUrl,
+  signDevProxy,
+} from "@hearth/domain/dev-r2-signing";
 import type {
   ObjectHead,
   ObjectStorage,
@@ -7,7 +12,6 @@ import type {
   PresignedPutInput,
 } from "@hearth/ports";
 import { AwsClient } from "aws4fetch";
-import { buildDevProxyGetUrl, buildDevProxyPutUrl, signDevProxy } from "./dev-r2-proxy.ts";
 import type { KillswitchGate } from "./killswitch.ts";
 
 export type ObjectStorageConfig = {
