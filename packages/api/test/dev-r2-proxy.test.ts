@@ -174,10 +174,10 @@ describe("dev R2 proxy routes", () => {
     const app = harness(bucket);
     const expiresAtMs = Date.now() + 60_000;
     const sig = await signGet(VALID_KEY, expiresAtMs);
-    const url = `/api/v1/__r2/download/${VALID_KEY}?expires=${expiresAtMs}&sig=${sig}&disposition=${encodeURIComponent('attachment; filename="primer.md"')}`;
+    const url = `/api/v1/__r2/download/${VALID_KEY}?expires=${expiresAtMs}&sig=${sig}&disposition=${encodeURIComponent('attachment; filename="primer.txt"')}`;
     const res = await app.request(url, { method: "GET" });
     expect(res.status).toBe(200);
-    expect(res.headers.get("Content-Disposition")).toContain("primer.md");
+    expect(res.headers.get("Content-Disposition")).toContain("primer.txt");
     expect(res.headers.get("Content-Type")).toBe("text/markdown");
     expect(await res.text()).toBe("hello");
   });
