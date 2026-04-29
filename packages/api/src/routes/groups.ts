@@ -17,6 +17,7 @@ import {
   requestAvatarUpload,
   requestLibraryUpload,
   revokeGroupInvitation,
+  searchLibrary,
   setGroupAdmin,
   unarchiveGroup,
   updateGroupMetadata,
@@ -83,6 +84,19 @@ const attributionField = z.enum(["preserve_name", "anonymize"]);
 const leaveBody = z.object({ attribution: attributionField.optional() }).optional();
 
 const setRoleBody = z.object({ role: z.enum(["participant", "admin"]) });
+
+/**
+ * Search query parameters. `q` accepts up to 200 characters — well over
+ * any realistic phrase but small enough to keep request lines short.
+ * `limit` and `cursor` are optional; the use case clamps `limit` and
+ * tolerates a malformed cursor by returning an empty page rather than a
+ * 400, so a stale URL never wedges the page.
+ */
+const librarySearchQuery = z.object({
+  q: z.string().trim().max(200).default(""),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+  cursor: z.string().min(1).max(512).optional(),
+});
 
 const updateProfileBody = z
   .object({
@@ -693,6 +707,40 @@ export const groupsRoutes = new Hono<AppBindings>()
       try {
         const result = await listLibraryItems(
           { actor: getUserId(c), groupId: groupId as StudyGroupId },
+          {
+            users: c.var.ports.users,
+            groups: c.var.ports.groups,
+            policy: c.var.ports.policy,
+            library: c.var.ports.libraryItems,
+          },
+        );
+        return c.json(result);
+      } catch (err) {
+        return problemResponse(c, mapUnknown(err));
+      }
+    },
+  )
+
+  .get(
+    "/:groupId/library/search",
+    zValidator("param", groupIdParam, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    zValidator("query", librarySearchQuery, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    async (c) => {
+      const { groupId } = c.req.valid("param");
+      const { q, limit, cursor } = c.req.valid("query");
+      try {
+        const result = await searchLibrary(
+          {
+            actor: getUserId(c),
+            groupId: groupId as StudyGroupId,
+            query: q,
+            ...(limit !== undefined ? { limit } : {}),
+            ...(cursor !== undefined ? { cursor } : {}),
+          },
           {
             users: c.var.ports.users,
             groups: c.var.ports.groups,

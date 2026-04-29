@@ -143,8 +143,11 @@ Try signing in with a different Google account to see the friendly rejection sta
 | Regenerate D1 migrations after a schema change | `pnpm db:generate` then commit the new file |
 | Regenerate TanStack Router file tree           | `pnpm --filter @hearth/web generate:routes` |
 | Verify Better Auth schema hasn't drifted       | `pnpm db:check-auth`                        |
+| Rebuild the library FTS5 search index          | `pnpm restore:fts` (`-- --remote` for prod) |
 | Run a single package's tests                   | `pnpm --filter @hearth/auth test`           |
 | Format                                         | `pnpm format`                               |
+
+The FTS5 rebuild is normally unnecessary — the AFTER INSERT mirror trigger keeps the index in lockstep with `library_items`. Reach for it when the search results page disagrees with the library list (e.g., after a hand-edited D1 import or a corrupted segment), or as the final step of a restore drill.
 
 ## 7. Adding approved emails
 

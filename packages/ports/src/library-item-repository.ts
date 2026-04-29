@@ -78,10 +78,6 @@ export type RemoveLibraryStewardInput = {
  * the *only* place that touches D1 + R2; every mutation calls
  * `gate.assertWritable()` first (resilience invariants 2 + 3 — see the
  * killswitch-coverage CI test).
- *
- * `search` is declared here so the M7 search route can compose against
- * the same port; the M6 adapter implements it as a `byGroup`-style
- * fallback that ignores the query string until M7 wires FTS5.
  */
 export interface LibraryItemRepository {
   // ── Items ─────────────────────────────────────────────────────────
@@ -145,4 +141,41 @@ export interface LibraryItemRepository {
    * across the activity tables; M8 keeps the index up to date.
    */
   usedInCount(itemId: LibraryItemId): Promise<number>;
+
+  // ── Search ────────────────────────────────────────────────────────
+  /**
+   * Group-scoped FTS5 search across title, description, and tag values.
+   * `query` is the already-normalized FTS5 MATCH expression (the use
+   * case calls `normalizeSearchQuery` and short-circuits empty/too-short
+   * input — the adapter trusts the call site for input shape).
+   * Retired items are excluded — they remain reachable by id for old
+   * activity-record links but should not surface in search results.
+   *
+   * Pagination uses an opaque keyset cursor; `nextCursor` is `null` once
+   * the result set is exhausted. Default ordering is FTS5 `rank` ASC
+   * (bm25 — most relevant first), tie-broken by `updatedAt` DESC then
+   * `id` ASC for cursor stability across concurrent inserts.
+   */
+  search(groupId: StudyGroupId, options: LibrarySearchOptions): Promise<LibrarySearchPage>;
+
+  /**
+   * Rebuild the FTS5 index from `library_items` — invoked by the
+   * restore script after `wrangler d1 export | execute --file -`, which
+   * does not include virtual-table content.
+   */
+  restoreFtsIndex(): Promise<{ readonly rebuilt: number }>;
 }
+
+export type LibrarySearchOptions = {
+  /** Already-normalized FTS5 MATCH expression. */
+  readonly query: string;
+  /** 1–100 inclusive; the use case clamps before calling. */
+  readonly limit: number;
+  /** Opaque cursor returned by a prior call, or `null` for the first page. */
+  readonly cursor: string | null;
+};
+
+export type LibrarySearchPage = {
+  readonly entries: readonly LibraryItemListEntry[];
+  readonly nextCursor: string | null;
+};

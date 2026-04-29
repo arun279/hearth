@@ -87,6 +87,7 @@ const libraryItemKey = (itemId: string) => ["library", "item", itemId] as const;
 
 function invalidateLibrary(qc: QueryClient, groupId: string, itemId?: string) {
   qc.invalidateQueries({ queryKey: libraryListKey(groupId) });
+  qc.invalidateQueries({ queryKey: ["library", "search", groupId] });
   qc.invalidateQueries({ queryKey: ["library", "quota", groupId] });
   qc.invalidateQueries({ queryKey: ["groups", "detail", groupId] });
   if (itemId) qc.invalidateQueries({ queryKey: libraryItemKey(itemId) });
@@ -101,6 +102,43 @@ export function useLibraryList(groupId: string, enabled: boolean) {
       await assertOk(res);
       return (await res.json()) as LibraryListResult;
     },
+  });
+}
+
+type LibrarySearchResult = {
+  readonly entries: readonly LibraryListEntry[];
+  readonly nextCursor: string | null;
+};
+
+const librarySearchKey = (groupId: string, query: string) =>
+  ["library", "search", groupId, query] as const;
+
+/**
+ * Search the group's library by title, description, or tag value.
+ * `query` is the live, undebounced input — the caller is responsible
+ * for debouncing and gating `enabled` on a non-empty query so this hook
+ * stays a pure cache. The use case treats too-short queries as 200 +
+ * empty, so it's safe to leave `enabled` true for one- or two-character
+ * inputs; gating off the empty case is purely an optimization to keep
+ * the network panel quiet during clears.
+ */
+export function useLibrarySearch(groupId: string, query: string, enabled: boolean) {
+  return useQuery({
+    queryKey: librarySearchKey(groupId, query),
+    enabled,
+    queryFn: async (): Promise<LibrarySearchResult> => {
+      const res = await api.g[":groupId"].library.search.$get({
+        param: { groupId },
+        query: { q: query },
+      });
+      await assertOk(res);
+      return (await res.json()) as LibrarySearchResult;
+    },
+    // Search results are fresh per keystroke; once the user types more,
+    // this entry is replaced rather than refetched. A short staleTime
+    // keeps a transient back-button to the library out of the network
+    // panel.
+    staleTime: 30_000,
   });
 }
 

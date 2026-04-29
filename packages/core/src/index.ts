@@ -40,6 +40,7 @@ export * from "./use-cases/revoke-group-invitation.ts";
 export * from "./use-cases/revoke-instance-operator.ts";
 export * from "./use-cases/save-contribution-policy.ts";
 export * from "./use-cases/save-track-structure.ts";
+export * from "./use-cases/search-library.ts";
 export * from "./use-cases/set-group-admin.ts";
 export * from "./use-cases/unarchive-group.ts";
 export * from "./use-cases/update-group-metadata.ts";
