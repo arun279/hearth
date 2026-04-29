@@ -96,6 +96,7 @@ export async function requestAvatarUpload(
     storageKey: key,
     declaredSizeBytes: input.sizeBytes,
     declaredMimeType: input.mimeType,
+    originalFilename: null,
     createdAt: input.now,
     expiresAt,
   });

@@ -4,6 +4,7 @@ import { adminRoutes } from "./routes/admin.ts";
 import { groupsRoutes } from "./routes/groups.ts";
 import { instanceRoutes } from "./routes/instance.ts";
 import { invitationsRoutes } from "./routes/invitations.ts";
+import { libraryRoutes } from "./routes/library.ts";
 import { meRoutes } from "./routes/me.ts";
 import { tracksRoutes } from "./routes/tracks.ts";
 
@@ -21,6 +22,7 @@ export function createApiRouter() {
     .route("/instance", instanceRoutes)
     .route("/g", groupsRoutes)
     .route("/tracks", tracksRoutes)
+    .route("/library", libraryRoutes)
     .route("/invitations", invitationsRoutes)
     .route("/admin", adminRoutes);
   return app;
@@ -44,3 +46,4 @@ export {
   problemResponse,
   unknownErrorProblem,
 } from "./problem.ts";
+export { createDevR2ProxyRouter } from "./routes/dev-r2-proxy.ts";

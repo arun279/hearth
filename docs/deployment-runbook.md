@@ -166,3 +166,15 @@ No deploy is needed — the Worker reads `env.KILLSWITCH_TOKEN` per request.
 | Unexpected billing notification from Cloudflare | POST `/admin/killswitch` with `mode=disabled`. Confirm no payment method is attached to the account.                                               |
 | Google OAuth broken after a client rotation     | Update `GOOGLE_OAUTH_CLIENT_ID` + `_SECRET` secrets, redeploy (versions-upload is enough — no code change needed).                                 |
 | Operator lost killswitch token                  | Use wrangler CLI access (via the server's local-only shell) to run `wrangler secret put KILLSWITCH_TOKEN` with a new value.                        |
+
+## 7. Library byte-quota tuning
+
+The Library upload flow trips at 80% of a per-instance R2 byte budget so a runaway upload pattern doesn't quietly slide past the free-tier ceiling. Two knobs:
+
+- **Budget**: `INSTANCE_R2_BYTE_BUDGET` in `packages/domain/src/library/mime.ts` defaults to 10 GB (the free-tier ceiling). Raise it only if the bucket plan was upgraded and the operator is willing to pay for storage past 10 GB.
+- **Trip ratio**: `INSTANCE_R2_BUDGET_TRIP_RATIO` defaults to 0.80. Lower it to leave more headroom for finalize-after-PUT races; raise it cautiously.
+- **Per-upload cap**: `MAX_LIBRARY_ITEM_BYTES` defaults to 95 MB. Per-revision; raising it past the free-tier egress budget is risky because every download chews against it.
+
+When the trip fires, the use case responds with HTTP 422 `byte_quota_exceeded` — the SPA `<UploadDialog>` surfaces the message verbatim. Operators see no automatic alert today; M17 wires the byte-counter into the hourly poller so a runaway pattern shows up on the admin health surface.
+
+Inspect current usage with `pnpm exec wrangler r2 bucket info hearth-storage` (production) or follow the dev-runbook § "Inspecting R2" recipe (`--local` for dev).

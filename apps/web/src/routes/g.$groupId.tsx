@@ -302,16 +302,43 @@ function GroupHomeBody({
       </section>
 
       <section className="mt-6 space-y-2" aria-labelledby="library-heading">
-        <h2
-          id="library-heading"
-          className="font-medium text-[11px] text-[var(--color-ink-3)] uppercase tracking-wide"
-        >
-          Library · {counts.libraryItemCount}
-        </h2>
-        <EmptyState
-          title="The shared Library is empty"
-          description="Stewards upload PDFs, audio, and other materials here once the Library aggregate ships."
-        />
+        <div className="flex items-baseline justify-between">
+          <h2
+            id="library-heading"
+            className="font-medium text-[11px] text-[var(--color-ink-3)] uppercase tracking-wide"
+          >
+            Library · {counts.libraryItemCount}
+          </h2>
+          <Link
+            to="/g/$groupId/library"
+            params={{ groupId: g.id }}
+            search={{}}
+            className="text-[12px] text-[var(--color-accent)] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--color-bg)]"
+          >
+            Open Library →
+          </Link>
+        </div>
+        {counts.libraryItemCount === 0 ? (
+          <EmptyState
+            title="The shared Library is empty"
+            description="Upload PDFs, audio, video, and other materials. Activities can pin specific revisions so updates don't break old work."
+            action={
+              <Link
+                to="/g/$groupId/library"
+                params={{ groupId: g.id }}
+                search={{ upload: "open" }}
+                className="text-[13px] text-[var(--color-accent)] underline-offset-2 hover:underline"
+              >
+                Upload an item
+              </Link>
+            }
+          />
+        ) : (
+          <p className="text-[12px] text-[var(--color-ink-3)]">
+            {counts.libraryItemCount === 1 ? "1 item" : `${counts.libraryItemCount} items`} — view,
+            download, or upload a revision from the Library page.
+          </p>
+        )}
       </section>
     </div>
   );

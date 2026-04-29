@@ -22,9 +22,16 @@ export const libraryItems = sqliteTable(
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
   },
-  (t) => ({
-    byGroup: index("library_items_group_idx").on(t.groupId),
-  }),
+  (t) => [
+    /**
+     * Partial index — only living items participate in `byGroup` reads.
+     * Retired items still need to be reachable by id (download links on
+     * historical activity records), but the group library page filters
+     * them out by default and partial-indexing avoids paying their cost
+     * on the hot read path.
+     */
+    index("library_items_active_by_group_idx").on(t.groupId).where(sql`${t.retiredAt} IS NULL`),
+  ],
 );
 
 export const libraryRevisions = sqliteTable(
@@ -44,12 +51,7 @@ export const libraryRevisions = sqliteTable(
       .references(() => users.id),
     uploadedAt: integer("uploaded_at", { mode: "timestamp_ms" }).notNull(),
   },
-  (t) => ({
-    itemRevisionUnique: uniqueIndex("library_revisions_item_number_idx").on(
-      t.libraryItemId,
-      t.revisionNumber,
-    ),
-  }),
+  (t) => [uniqueIndex("library_revisions_item_number_idx").on(t.libraryItemId, t.revisionNumber)],
 );
 
 export const libraryStewards = sqliteTable(
@@ -67,9 +69,7 @@ export const libraryStewards = sqliteTable(
       .notNull()
       .references(() => users.id),
   },
-  (t) => ({
-    itemUserUnique: uniqueIndex("library_stewards_item_user_idx").on(t.libraryItemId, t.userId),
-  }),
+  (t) => [uniqueIndex("library_stewards_item_user_idx").on(t.libraryItemId, t.userId)],
 );
 
 // NOTE: library_items_fts (FTS5 virtual table + triggers) is hand-written SQL in migrations/,
@@ -94,6 +94,7 @@ export const pendingUploads = sqliteTable(
     revisionId: text("revision_id").notNull(),
     declaredSizeBytes: integer("declared_size_bytes").notNull(),
     declaredMimeType: text("declared_mime_type").notNull(),
+    originalFilename: text("original_filename"),
     context: text("context").notNull(),
     pendingContributionId: text("pending_contribution_id"),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),

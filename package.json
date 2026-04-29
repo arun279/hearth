@@ -25,7 +25,7 @@
     "e2e": "turbo run e2e",
     "lint": "biome check .",
     "format": "biome format --write .",
-    "check:arch": "depcruise --config .dependency-cruiser.cjs packages apps",
+    "check:arch": "NODE_OPTIONS=--max-old-space-size=4096 depcruise --config .dependency-cruiser.cjs packages apps",
     "check:knip": "knip",
     "dev": "turbo run dev --parallel",
     "db:generate": "pnpm --filter @hearth/db db:generate",

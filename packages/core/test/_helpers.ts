@@ -11,6 +11,7 @@ import type {
   IdGenerator,
   InstanceAccessPolicyRepository,
   LearningTrackRepository,
+  LibraryItemRepository,
   ObjectStorage,
   StudyGroupRepository,
   UploadCoordinationRepository,
@@ -227,4 +228,25 @@ export function makeIds(values: ReadonlyArray<string>): IdGenerator {
   return {
     generate: vi.fn(() => values[i++ % values.length] ?? `id_${i}`),
   };
+}
+
+export function makeLibrary(overrides: Partial<LibraryItemRepository> = {}): LibraryItemRepository {
+  return {
+    create: vi.fn(),
+    byId: vi.fn(async () => null),
+    detail: vi.fn(async () => null),
+    byGroup: vi.fn(async () => []),
+    updateMetadata: vi.fn(),
+    markRetired: vi.fn(),
+    addRevision: vi.fn(),
+    listRevisions: vi.fn(async () => []),
+    currentRevision: vi.fn(async () => null),
+    revisionById: vi.fn(async () => null),
+    addSteward: vi.fn(),
+    removeSteward: vi.fn(),
+    listStewards: vi.fn(async () => []),
+    isSteward: vi.fn(async () => false),
+    usedInCount: vi.fn(async () => 0),
+    ...overrides,
+  } as LibraryItemRepository;
 }

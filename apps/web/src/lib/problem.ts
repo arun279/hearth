@@ -77,9 +77,22 @@ const policyDenialMessages: Record<string, string> = {
   invitation_not_found: "This invitation is no longer valid.",
   invalid_avatar_size: "Avatars must be 512 KB or smaller.",
   invalid_avatar_mime: "Avatars must be PNG, JPEG, or WebP.",
-  upload_missing: "The upload didn't complete. Try again.",
-  upload_size_mismatch: "The uploaded file's size didn't match. Try again.",
+  upload_missing: "The upload didn't complete. Check your connection and try again.",
+  upload_size_mismatch:
+    "The uploaded file's size didn't match what was reserved. Pick the file again and retry.",
+  size_mismatch:
+    "The uploaded file's size didn't match what was reserved. Pick the file again and retry.",
   pending_upload_not_found: "Upload session expired. Start a new one.",
+  upload_expired: "Upload window expired. Pick the file and try again.",
+  byte_quota_exceeded:
+    "This upload would push the instance past its storage budget. Retire older items or ask an operator to expand the bucket.",
+  library_item_retired:
+    "This item is retired. Existing references keep working, but new uploads against it are paused.",
+  not_library_steward:
+    "Only the uploader, a Steward, a Group Admin, or an Instance Operator can do that.",
+  cannot_remove_uploader: "The original uploader is always a Steward and can't be removed.",
+  target_not_member: "Stewards must be current Group Members.",
+  revision_number_conflict: "Another revision was added at the same time. Try again.",
 };
 
 function problemMessage(problem: ApiProblem): string {

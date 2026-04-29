@@ -34,6 +34,14 @@ await applyD1Migrations(env.DB, env.TEST_MIGRATIONS);
  */
 beforeEach(async () => {
   await env.DB.batch([
+    // Children first so FK RESTRICT does not block parent deletes. Within
+    // the activity / library subtree: activity_library_refs depends on
+    // both learning_activities AND library_items, so it must precede
+    // both. library_revisions / library_stewards depend on library_items.
+    env.DB.prepare("DELETE FROM activity_library_refs"),
+    env.DB.prepare("DELETE FROM learning_activities"),
+    env.DB.prepare("DELETE FROM library_revisions"),
+    env.DB.prepare("DELETE FROM library_stewards"),
     env.DB.prepare("DELETE FROM library_items"),
     env.DB.prepare("DELETE FROM instance_operators"),
     env.DB.prepare("DELETE FROM approved_emails"),

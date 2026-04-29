@@ -16,11 +16,22 @@ export type {
   LearningTrackRepository,
   LearningTrackSummaryCounts,
 } from "./learning-track-repository.ts";
-export type { LibraryItemRepository } from "./library-item-repository.ts";
+export type {
+  AddLibraryRevisionInput,
+  AddLibraryStewardInput,
+  CreateLibraryItemInput,
+  CreateLibraryRevisionInput,
+  LibraryItemDetail,
+  LibraryItemListEntry,
+  LibraryItemRepository,
+  RemoveLibraryStewardInput,
+  UpdateLibraryMetadataInput,
+} from "./library-item-repository.ts";
 export type {
   ObjectHead,
   ObjectMetadata,
   ObjectStorage,
+  PresignedGetInput,
   PresignedPut,
   PresignedPutInput,
 } from "./object-storage.ts";

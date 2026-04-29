@@ -2,7 +2,9 @@ export type DomainErrorCode =
   | "FORBIDDEN"
   | "NOT_FOUND"
   | "CONFLICT"
+  | "GONE"
   | "INVARIANT_VIOLATION"
+  | "INSUFFICIENT_STORAGE"
   | "READ_ONLY"
   | "DISABLED";
 

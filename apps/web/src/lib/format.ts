@@ -35,3 +35,23 @@ export function formatRelative(target: Date | string, now: Date = new Date()): s
   if (Math.abs(days) <= 30) return RELATIVE.format(days, "day");
   return formatShortDate(date);
 }
+
+const SIZE_UNITS = ["B", "KB", "MB", "GB"] as const;
+
+/**
+ * Compact byte formatter — "4.2 MB", "412 KB". Used by the Library card
+ * for revision size. Keeps two significant digits at MB+ and rounds at
+ * KB so we never render "4.20 MB" when "4.2 MB" reads better.
+ */
+export function formatBytes(n: number): string {
+  if (!Number.isFinite(n) || n < 0) return "—";
+  let i = 0;
+  let v = n;
+  while (v >= 1024 && i < SIZE_UNITS.length - 1) {
+    v /= 1024;
+    i += 1;
+  }
+  if (i === 0) return `${Math.round(v)} ${SIZE_UNITS[i]}`;
+  if (i === 1) return `${Math.round(v)} ${SIZE_UNITS[i]}`;
+  return `${v.toFixed(1)} ${SIZE_UNITS[i]}`;
+}

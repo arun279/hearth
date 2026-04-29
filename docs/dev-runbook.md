@@ -187,21 +187,43 @@ Most flows past the group lifecycle (track activities, sessions, the People tab,
 
 ## 9. Inspecting R2 (avatars and library uploads)
 
-The Worker writes uploaded avatars to the R2 binding named `STORAGE` under keys shaped `avatars/<userId>/<groupId>/<sha>`. To see what's in the local bucket while the dev Worker is running, pass `--local` so Wrangler reads the Miniflare-backed bucket rather than the production R2 namespace:
+The Worker writes uploads to the R2 binding named `STORAGE` under two prefixes:
+
+- `avatars/<userId>/<groupId>/<sha>` — group-membership avatars.
+- `library/<groupId>/<itemId>/<revisionId>` — Library Item revisions.
+
+To see what's in the local bucket while the dev Worker is running, pass `--local` so Wrangler reads the Miniflare-backed bucket rather than the production R2 namespace:
 
 ```bash
 # Newest objects first, capped at 50 — `--local` is load-bearing.
 pnpm exec wrangler r2 object list hearth-storage --local --limit 50
 
-# Inspect a specific avatar.
+# Inspect a specific avatar / library object.
 pnpm exec wrangler r2 object get hearth-storage avatars/<userId>/<groupId>/<sha> --local --pipe | file -
+pnpm exec wrangler r2 object get hearth-storage library/<groupId>/<itemId>/<revisionId> --local --pipe | file -
 ```
 
 If a `pending_uploads` row sticks around past its `expiresAt` even after the cron has fired, look at the corresponding R2 key here — if R2 has the object but the row is gone, the sweep didn't run; if neither, both halves cleaned up.
 
-The `<groupId>` segment is what `finalizeAvatarUpload` asserts against — see also the killswitch coverage test (`packages/adapters/cloudflare/test/killswitch-coverage.test.ts`) for the resilience invariant that `gate.assertWritable()` runs before any R2 write.
+The `<groupId>` segment is what `finalizeAvatarUpload` asserts against and what `requestLibraryUpload` mints into the `pending_uploads` storage key — see also the killswitch coverage test (`packages/adapters/cloudflare/test/killswitch-coverage.test.ts`) for the resilience invariant that `gate.assertWritable()` runs before any R2 write.
 
-> **Deferred scope.** M3 ships only avatar uploads through this pipeline. The admin direct-add member endpoint (`POST /api/v1/g/:groupId/members`) and the generic library `<UploadDialog>` are deferred to later milestones. Today, members enter a group via `POST /g/:groupId/invitations` → `POST /invitations/consume`; library uploads do not exist yet.
+### Testing the library upload pipeline
+
+The four-step direct-to-R2 flow uses the same machinery as avatars but with longer-lived item identity. To exercise it locally:
+
+1. Sign in as a Group Member (e.g. `pnpm local-session --seed`) and visit `/g/<groupId>/library`.
+2. Click `+ Upload`, pick a small PDF / audio / video file, give it a title, and submit. The dialog shows three stages: **Reserving** (presign + write `pending_uploads`), **Uploading** (PUT directly to R2 — the request goes to Miniflare's R2 simulator on `wrangler dev`), and **Finalizing** (server `headObject` + the atomic `library_items` + `library_revisions` insert).
+3. Inspect with `wrangler r2 object list hearth-storage --local --prefix library/`.
+4. Add a revision: open the item from the list, click `Upload new revision`. The new revision becomes the current one; downloading from the item card always serves the current revision.
+5. Retire the item from its detail modal — the row stays readable, but new uploads against the same item id return 409 `library_item_retired`.
+
+The 80% byte-quota trip is enforced by `requestLibraryUpload`. To exercise it locally without uploading several GB, set `LIBRARY_R2_BYTE_BUDGET=100000000` (≈ 100 MB) in your `.dev.vars` and reload the dev worker. The trip ratio also has an env override (`LIBRARY_R2_BUDGET_TRIP_RATIO`, range `(0, 1]`). Production typically leaves both unset; the domain defaults (10 GB / 0.8) apply.
+
+The hourly cron handler (`pending-uploads-sweep`) reaps abandoned uploads. Manually fire it during dev by hitting Wrangler's local scheduler endpoint:
+
+```bash
+curl 'http://localhost:8787/cdn-cgi/handler/scheduled?cron=0%20*%20*%20*%20*'
+```
 
 ## 10. Resetting local state
 
