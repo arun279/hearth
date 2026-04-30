@@ -42,7 +42,7 @@ function TrackPeopleRoute() {
 
   if (me.isLoading || !me.data?.data.user) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-[var(--color-ink-3)]">
+      <div className="flex min-h-screen items-center justify-center text-[var(--color-ink-2)]">
         Loading…
       </div>
     );
@@ -148,7 +148,7 @@ function TrackPeopleBody({
     <div className="mx-auto max-w-3xl px-5 py-8 md:px-8">
       <nav
         aria-label="Breadcrumb"
-        className="flex items-center gap-2 text-[12px] text-[var(--color-ink-3)]"
+        className="flex items-center gap-2 text-[12px] text-[var(--color-ink-2)]"
       >
         <Link to="/" search={{}} className="hover:text-[var(--color-ink-2)]">
           Your groups
@@ -226,7 +226,7 @@ function TrackPeopleBody({
       {isCurrentEnrollee ? (
         <Callout tone="neutral" className="mt-6">
           <div className="flex items-start justify-between gap-3">
-            <p className="text-[12px] text-[var(--color-ink-3)]">
+            <p className="text-[12px] text-[var(--color-ink-2)]">
               {isLastFacilitator
                 ? "You're the only facilitator on this track. Promote another facilitator before leaving — otherwise the track would be left without supervision."
                 : "Leaving the track preserves your past activity records."}
@@ -336,7 +336,7 @@ function TrackPeopleBody({
 
 function SectionHeading({ children }: { readonly children: React.ReactNode }) {
   return (
-    <h2 className="mt-6 mb-2 font-medium text-[11px] text-[var(--color-ink-3)] uppercase tracking-wide">
+    <h2 className="mt-6 mb-2 font-medium text-[11px] text-[var(--color-ink-2)] uppercase tracking-wide">
       {children}
     </h2>
   );

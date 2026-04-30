@@ -97,7 +97,7 @@ export function AvatarUploader({
           <div className="text-[13px] text-[var(--color-ink)]" data-user-id={userId}>
             Your avatar in {group.name}
           </div>
-          <div className="text-[11px] text-[var(--color-ink-3)]">
+          <div className="text-[11px] text-[var(--color-ink-2)]">
             PNG, JPEG, or WebP. Auto-resized to 256×256.
           </div>
         </div>

@@ -1,3 +1,5 @@
+export type { Write, WriteMethods } from "./_brand.ts";
+export { markWrite } from "./_brand.ts";
 export type { ActivityRecordRepository } from "./activity-record-repository.ts";
 export type { Clock } from "./clock.ts";
 export type { IdGenerator } from "./id-generator.ts";
@@ -24,6 +26,8 @@ export type {
   LibraryItemDetail,
   LibraryItemListEntry,
   LibraryItemRepository,
+  LibrarySearchOptions,
+  LibrarySearchPage,
   RemoveLibraryStewardInput,
   UpdateLibraryMetadataInput,
 } from "./library-item-repository.ts";

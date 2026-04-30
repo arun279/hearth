@@ -63,7 +63,7 @@ export function InvitationsPanel({ group, enabled, onInvite }: Props) {
       <div className="flex flex-wrap items-center gap-3">
         <h2
           id="invitations-heading"
-          className="font-medium text-[11px] text-[var(--color-ink-3)] uppercase tracking-wide"
+          className="font-medium text-[11px] text-[var(--color-ink-2)] uppercase tracking-wide"
         >
           Pending invitations ·{" "}
           {entries.filter((e) => e.status === "pending" || e.status === "pending_approval").length}
@@ -76,11 +76,11 @@ export function InvitationsPanel({ group, enabled, onInvite }: Props) {
       </div>
 
       {isLoading ? (
-        <div className="rounded-[var(--radius-md)] border border-[var(--color-rule)] bg-[var(--color-surface)] p-3 text-[12px] text-[var(--color-ink-3)]">
+        <div className="rounded-[var(--radius-md)] border border-[var(--color-rule)] bg-[var(--color-surface)] p-3 text-[12px] text-[var(--color-ink-2)]">
           Loading invitations…
         </div>
       ) : entries.length === 0 ? (
-        <div className="rounded-[var(--radius-md)] border border-[var(--color-rule)] bg-[var(--color-surface)] p-3 text-[12px] text-[var(--color-ink-3)]">
+        <div className="rounded-[var(--radius-md)] border border-[var(--color-rule)] bg-[var(--color-surface)] p-3 text-[12px] text-[var(--color-ink-2)]">
           No invitations outstanding.
         </div>
       ) : (
@@ -108,7 +108,7 @@ export function InvitationsPanel({ group, enabled, onInvite }: Props) {
                     size={14}
                     strokeWidth={1.5}
                     aria-hidden="true"
-                    className="shrink-0 text-[var(--color-ink-3)]"
+                    className="shrink-0 text-[var(--color-ink-2)]"
                   />
                   <div className="min-w-0 flex-1 text-[13px]">
                     <div
@@ -118,7 +118,7 @@ export function InvitationsPanel({ group, enabled, onInvite }: Props) {
                       {inv.email ?? "open invitation"}
                     </div>
                     <div
-                      className="mt-0.5 truncate text-[11px] text-[var(--color-ink-3)]"
+                      className="mt-0.5 truncate text-[11px] text-[var(--color-ink-2)]"
                       title={`Created ${formatShortDate(inv.createdAt)} · expires ${formatShortDate(inv.expiresAt)}`}
                     >
                       Created {formatShortDate(inv.createdAt)} · expires{" "}

@@ -46,7 +46,7 @@ export function MemberRow({
           <span className="truncate text-[13px] text-[var(--color-ink)]">{displayName}</span>
           {isMe ? <Badge tone="accent">you</Badge> : null}
         </div>
-        <div className="mt-0.5 truncate text-[11px] text-[var(--color-ink-3)]">
+        <div className="mt-0.5 truncate text-[11px] text-[var(--color-ink-2)]">
           {membership.role === "admin" ? (
             <span className="inline-flex items-center gap-1">
               <Shield size={11} aria-hidden="true" /> Group Admin

@@ -17,9 +17,8 @@ function invalidateAll(qc: QueryClient) {
   qc.invalidateQueries({ queryKey: ["instance"] });
 }
 
-type ApprovedEmailsPage = {
+type ApprovedEmailsList = {
   readonly entries: readonly ApprovedEmail[];
-  readonly nextCursor: string | null;
 };
 
 type OperatorsPage = {
@@ -38,14 +37,21 @@ export function useInstanceSettings(enabled: boolean) {
   });
 }
 
+// TODO(approved-emails-pagination): the server returns `nextCursor` on
+// this list, but at v1 instance scale (~dozens of approved emails) the
+// SPA renders the first page in full. If an instance ever grows past
+// the API's default page size, swap this hook for useInfiniteQuery and
+// surface a "Load more" affordance — the cursor plumbing is already
+// wired server-side.
 export function useApprovedEmails(enabled: boolean) {
   return useQuery({
     queryKey: approvedEmailsKey,
     enabled,
-    queryFn: async (): Promise<ApprovedEmailsPage> => {
+    queryFn: async (): Promise<ApprovedEmailsList> => {
       const res = await api.instance["approved-emails"].$get({ query: {} });
       await assertOk(res);
-      return (await res.json()) as ApprovedEmailsPage;
+      const body = (await res.json()) as { readonly entries: readonly ApprovedEmail[] };
+      return { entries: body.entries };
     },
   });
 }

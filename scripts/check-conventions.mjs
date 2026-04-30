@@ -216,6 +216,206 @@ function findUncommittedMarkdownReferences(files) {
 }
 
 /**
+ * A file that calls `useQuery(` AND references `nextCursor` is shipping
+ * half-finished pagination: a paginated endpoint's response includes
+ * `nextCursor`, which `useQuery` cannot thread into the next page.
+ * Such endpoints must be consumed by `useInfiniteQuery` so the cursor
+ * round-trips and the user can fetch beyond page 1. Catches the M7
+ * shape where the server returned `nextCursor` but the SPA used
+ * `useQuery` and silently lost every result past the first page.
+ *
+ * @param {string[]} files
+ * @returns {{ ref: string, location: string, line: string }[]}
+ */
+function findUseQueryWithCursorShape(files) {
+  const USE_QUERY_PATTERN = /\buseQuery\s*\(/;
+  const USE_INFINITE_PATTERN = /\buseInfiniteQuery\s*\(/;
+  const NEXT_CURSOR_PATTERN = /\bnextCursor\b/;
+  const SCRIPT_BASENAME = "scripts/check-conventions.mjs";
+  /** @type {{ ref: string, location: string, line: string }[]} */
+  const hits = [];
+
+  for (const file of files) {
+    if (file.endsWith(SCRIPT_BASENAME)) continue;
+    if (!/\.(ts|tsx)$/.test(file)) continue;
+    if (!file.startsWith("apps/web/")) continue;
+    let text;
+    try {
+      text = readFileSync(file, "utf8");
+    } catch {
+      continue;
+    }
+    // Strip comments before scanning so legitimate fix-later TODOs
+    // (which may explain why `nextCursor` was deferred) don't read as
+    // executable references to the field.
+    const stripped = stripTsComments(text);
+    if (!USE_QUERY_PATTERN.test(stripped)) continue;
+    if (!NEXT_CURSOR_PATTERN.test(stripped)) continue;
+    // If the file also contains useInfiniteQuery, the useQuery call may
+    // be on a non-paginated endpoint sharing the file with a paginated
+    // one. Fall through and assume the author handled both paths
+    // explicitly — the alternative is a noisy false-positive on every
+    // hook module that mixes query shapes.
+    if (USE_INFINITE_PATTERN.test(stripped)) continue;
+
+    const lines = text.split("\n");
+    for (const [i, line] of lines.entries()) {
+      if (USE_QUERY_PATTERN.test(line)) {
+        hits.push({
+          ref: "useQuery on paginated (nextCursor) endpoint",
+          location: `${file}:${i + 1}`,
+          line: line.trim(),
+        });
+        break;
+      }
+    }
+  }
+  return hits;
+}
+
+/**
+ * Strip TypeScript block + line comments so source-text scans don't
+ * misread comment prose as executable code. Approximate (no string-literal
+ * awareness) but sufficient for the conventions checks that consume it.
+ */
+function stripTsComments(text) {
+  return text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+}
+
+/**
+ * Every TS/TSX file that calls `useQuery(` or `useInfiniteQuery(` must
+ * also reference `isError` somewhere in its source. Catches the failure
+ * mode where a component reads `data` and `isLoading` but forgets
+ * `isError`, so a server 5xx falls through to the empty-state branch
+ * and the user is told their query had no results when actually the
+ * request failed.
+ *
+ * The check is file-scoped rather than line-scoped because the
+ * destructure may be split across lines, may name the query result
+ * (e.g. `const search = useLibrarySearch(...); search.isError`), or
+ * may pass the whole result to a child component. File-level "must
+ * mention isError" is permissive enough to allow legitimate variations
+ * but strict enough to catch the M7 bug shape.
+ *
+ * @param {string[]} files
+ * @returns {{ ref: string, location: string, line: string }[]}
+ */
+function findQueryWithoutIsErrorHandling(files) {
+  const QUERY_CALL_PATTERN = /\b(?:useQuery|useInfiniteQuery)\s*\(/;
+  const IS_ERROR_PATTERN = /\bisError\b/;
+  const SCRIPT_BASENAME = "scripts/check-conventions.mjs";
+  /** @type {{ ref: string, location: string, line: string }[]} */
+  const hits = [];
+
+  for (const file of files) {
+    if (file.endsWith(SCRIPT_BASENAME)) continue;
+    if (!/\.(ts|tsx)$/.test(file)) continue;
+    // Component / route files are where rendering happens — they're the
+    // ones that must branch on isError to render an honest error state.
+    // Hook-definition files (apps/web/src/hooks/) are pure data plumbing
+    // that delegate isError to their consumers; the consumer is the
+    // accountable file.
+    const isRoute = file.startsWith("apps/web/src/routes/");
+    const isComponent = file.startsWith("apps/web/src/components/");
+    if (!isRoute && !isComponent) continue;
+    let text;
+    try {
+      text = readFileSync(file, "utf8");
+    } catch {
+      continue;
+    }
+    const lines = text.split("\n");
+    let firstCallLine = -1;
+    let firstCallText = "";
+    for (const [i, line] of lines.entries()) {
+      if (QUERY_CALL_PATTERN.test(line)) {
+        firstCallLine = i;
+        firstCallText = line.trim();
+        break;
+      }
+    }
+    if (firstCallLine < 0) continue;
+    if (IS_ERROR_PATTERN.test(text)) continue;
+    hits.push({
+      ref: "useQuery/useInfiniteQuery without isError",
+      location: `${file}:${firstCallLine + 1}`,
+      line: firstCallText,
+    });
+  }
+  return hits;
+}
+
+/**
+ * Every `check:<name>` reference in committed Markdown must resolve to
+ * a script declared in the root `package.json`. Catches prose that
+ * claims a `check:something` gate exists when no such script does —
+ * the failure mode is documenting an "enforced" rule that is in fact
+ * honor-system, which violates the project's real-gates principle.
+ *
+ * Only `check:`-prefixed names are matched; generic `pnpm <name>`
+ * mentions are intentionally not flagged because pnpm forwards bare
+ * binaries (`pnpm biome`, `pnpm wrangler`, …) to `node_modules/.bin`,
+ * so a name not in `package.json#scripts` is not necessarily fictional.
+ * Fenced code blocks and URL contexts are skipped same as the
+ * markdown-reference check above.
+ *
+ * @param {string[]} files
+ * @returns {{ ref: string, location: string, line: string }[]}
+ */
+function findFictionalCheckScripts(files) {
+  /** @type {Set<string>} */
+  const declared = new Set();
+  try {
+    const pkg = JSON.parse(readFileSync("package.json", "utf8"));
+    if (pkg && typeof pkg === "object" && pkg.scripts && typeof pkg.scripts === "object") {
+      for (const name of Object.keys(pkg.scripts)) declared.add(name);
+    }
+  } catch {
+    return [];
+  }
+
+  const CHECK_PATTERN = /(?<![\w-])(check:[a-z][a-z0-9:_-]*)\b/g;
+  const URL_PATTERN = /(?:[a-z][a-z0-9+.-]*:\/\/|www\.)\S+/gi;
+  const FENCE_LINE_PATTERN = /^```/;
+
+  const SCRIPT_BASENAME = "scripts/check-conventions.mjs";
+  /** @type {{ ref: string, location: string, line: string }[]} */
+  const hits = [];
+
+  for (const file of files) {
+    if (file.endsWith(SCRIPT_BASENAME)) continue;
+    if (!/\.(md|mdx)$/.test(file)) continue;
+    let text;
+    try {
+      text = readFileSync(file, "utf8");
+    } catch {
+      continue;
+    }
+    let inFence = false;
+    const lines = text.split("\n");
+    for (const [i, line] of lines.entries()) {
+      if (FENCE_LINE_PATTERN.test(line)) {
+        inFence = !inFence;
+        continue;
+      }
+      if (inFence) continue;
+      const sanitized = line.replace(URL_PATTERN, "");
+
+      CHECK_PATTERN.lastIndex = 0;
+      let m = CHECK_PATTERN.exec(sanitized);
+      while (m !== null) {
+        const ref = m[1];
+        if (ref && !declared.has(ref)) {
+          hits.push({ ref, location: `${file}:${i + 1}`, line: line.trim() });
+        }
+        m = CHECK_PATTERN.exec(sanitized);
+      }
+    }
+  }
+  return hits;
+}
+
+/**
  * Files that MUST contain a specific pattern. Complement to the
  * forbidden-pattern rules above — for load-bearing configuration where
  * absence of a directive is the bug.
@@ -337,6 +537,42 @@ if (uncommittedMdRefs.length > 0) {
   for (const h of uncommittedMdRefs) console.error(`  ${h.location}: ${h.line}    [${h.ref}]`);
   console.error(
     "  Why: every markdown filename mentioned in committed code must resolve to a doc actually committed to this repo. Pointing at a maintainer-only doc that lives outside the repo (or a doc that hasn't been committed yet) leaves the reference dangling for anyone cloning. Inline the rationale, commit the doc, or rename the mention away.\n",
+  );
+  fail = true;
+}
+
+const useQueryCursorHits = findUseQueryWithCursorShape(files);
+if (useQueryCursorHits.length > 0) {
+  console.error(
+    '\nConvention violation — useQuery on paginated endpoint (rule "no-paginated-usequery"):',
+  );
+  for (const h of useQueryCursorHits) console.error(`  ${h.location}: ${h.line}`);
+  console.error(
+    "  Why: a paginated endpoint's response includes `nextCursor`, which useQuery cannot thread into the next page. The cursor round-trip requires useInfiniteQuery + getNextPageParam. Using useQuery silently strands every result past the first page (the M7 ship-pattern). Switch the hook to useInfiniteQuery and surface a 'Load more' affordance, or drop the pagination metadata if v1 doesn't need it.\n",
+  );
+  fail = true;
+}
+
+const queryNoErrorHits = findQueryWithoutIsErrorHandling(files);
+if (queryNoErrorHits.length > 0) {
+  console.error(
+    '\nConvention violation — query without isError handling (rule "react-query-must-handle-isError"):',
+  );
+  for (const h of queryNoErrorHits) console.error(`  ${h.location}: ${h.line}`);
+  console.error(
+    "  Why: a component using useQuery / useInfiniteQuery that reads data + isLoading but forgets isError will render its empty-state branch on a server 5xx — telling the user their query returned no matches when in fact the request failed (Nielsen #9: help users recognize, diagnose, and recover from errors). Reference isError somewhere in the file (the destructure, a banner branch, or a forwarded prop on a child).\n",
+  );
+  fail = true;
+}
+
+const fictionalScripts = findFictionalCheckScripts(files);
+if (fictionalScripts.length > 0) {
+  console.error(
+    '\nConvention violation — fictional check script (rule "no-fictional-check-script"):',
+  );
+  for (const h of fictionalScripts) console.error(`  ${h.location}: ${h.line}    [${h.ref}]`);
+  console.error(
+    "  Why: prose that claims a `check:<name>` gate enforces a rule must point at a real script in the root package.json. Documenting an enforced rule that is in fact honor-system violates the project's real-gates principle (CLAUDE.md § Quality gates). Either wire the script or rephrase to drop the enforcement claim.\n",
   );
   fail = true;
 }

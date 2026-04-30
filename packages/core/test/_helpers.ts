@@ -247,6 +247,8 @@ export function makeLibrary(overrides: Partial<LibraryItemRepository> = {}): Lib
     listStewards: vi.fn(async () => []),
     isSteward: vi.fn(async () => false),
     usedInCount: vi.fn(async () => 0),
+    search: vi.fn(async () => ({ entries: [], nextCursor: null })),
+    restoreFtsIndex: vi.fn(async () => ({ rebuilt: 0 })),
     ...overrides,
   } as LibraryItemRepository;
 }

@@ -1,7 +1,7 @@
 import type { LibraryItemId } from "@hearth/domain";
-import { Button, Callout, EmptyState, Skeleton } from "@hearth/ui";
+import { Button, Callout, cn, EmptyState, Input, Skeleton } from "@hearth/ui";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { Plus } from "lucide-react";
+import { Plus, Search, X } from "lucide-react";
 import { useState } from "react";
 import { z } from "zod";
 import { GroupPageShell } from "../components/groups/group-page-shell.tsx";
@@ -9,11 +9,15 @@ import { GroupSubpageBreadcrumb } from "../components/groups/group-subpage-bread
 import { LibraryItemCard } from "../components/library/library-item-card.tsx";
 import { LibraryItemDetail } from "../components/library/library-item-detail.tsx";
 import { UploadDialog } from "../components/library/upload-dialog.tsx";
+import { useDebouncedValue } from "../hooks/use-debounced-value.ts";
 import { useDocumentTitle } from "../hooks/use-document-title.ts";
 import { useGroup } from "../hooks/use-groups.ts";
-import { useLibraryList } from "../hooks/use-library.ts";
+import { type LibraryListEntry, useLibraryList, useLibrarySearch } from "../hooks/use-library.ts";
 import { useMeContext } from "../hooks/use-me-context.ts";
 import { loadMeContextOrNull } from "../lib/me-context.ts";
+
+const SEARCH_DEBOUNCE_MS = 200;
+const SEARCH_MIN_LENGTH = 2;
 
 const searchSchema = z.object({
   /** When set, the detail modal opens scoped to this item. */
@@ -47,9 +51,20 @@ function LibraryPage() {
   const [uploadOpenLocal, setUploadOpenLocal] = useState(false);
   const uploadOpen = uploadOpenLocal || search.upload === "open";
 
+  const [searchInput, setSearchInput] = useState("");
+  const trimmedInput = searchInput.trim();
+  const debouncedQuery = useDebouncedValue(searchInput, SEARCH_DEBOUNCE_MS).trim();
+  const isSearching = debouncedQuery.length >= SEARCH_MIN_LENGTH;
+  const isSubMinLength = trimmedInput.length > 0 && trimmedInput.length < SEARCH_MIN_LENGTH;
+  const searchResults = useLibrarySearch(
+    params.groupId,
+    debouncedQuery,
+    signedIn && group.data !== undefined && isSearching,
+  );
+
   if (me.isLoading || !me.data?.data.user) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-[var(--color-ink-3)]">
+      <div className="flex min-h-screen items-center justify-center text-[var(--color-ink-2)]">
         Loading…
       </div>
     );
@@ -61,7 +76,15 @@ function LibraryPage() {
         const { group: g } = detail;
         const archived = g.status === "archived";
         const canUpload = list.data?.caps.canUpload === true && !archived;
-        const entries = list.data?.entries ?? [];
+        const listEntries = list.data?.entries ?? [];
+        const searchEntries: readonly LibraryListEntry[] =
+          searchResults.data?.pages.flatMap((page) => page.entries) ?? [];
+        const entries = isSearching ? searchEntries : listEntries;
+        const showSearchBox = listEntries.length > 0 || trimmedInput.length > 0;
+        const searchLoading = isSearching && searchResults.isLoading;
+        const searchError = isSearching && searchResults.isError;
+        const canLoadMore = isSearching && searchResults.hasNextPage === true;
+        const loadingMore = searchResults.isFetchingNextPage;
 
         const closeUpload = () => {
           setUploadOpenLocal(false);
@@ -93,7 +116,7 @@ function LibraryPage() {
                     update one source and every track stays in sync.
                   </p>
                 </div>
-                {canUpload && entries.length > 0 ? (
+                {canUpload && listEntries.length > 0 ? (
                   <Button size="sm" variant="primary" onClick={() => setUploadOpenLocal(true)}>
                     <Plus size={12} strokeWidth={1.75} aria-hidden /> Upload
                   </Button>
@@ -107,41 +130,142 @@ function LibraryPage() {
                 </Callout>
               ) : null}
 
+              {showSearchBox ? (
+                <div className="mt-5">
+                  <label htmlFor="library-search-input" className="sr-only">
+                    Search library
+                  </label>
+                  <div className="relative">
+                    <Search
+                      size={14}
+                      strokeWidth={1.75}
+                      aria-hidden
+                      className={cn(
+                        "pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2",
+                        "text-[var(--color-ink-2)]",
+                      )}
+                    />
+                    <Input
+                      id="library-search-input"
+                      type="search"
+                      placeholder="Search by title, description, or tag"
+                      value={searchInput}
+                      onChange={(e) => setSearchInput(e.target.value)}
+                      className="pl-8 pr-10"
+                      aria-controls="library-results"
+                      aria-describedby={isSubMinLength ? "library-search-hint" : undefined}
+                    />
+                    {searchInput.length > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => setSearchInput("")}
+                        className={cn(
+                          "absolute top-1/2 right-0 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-r-[var(--radius-md)]",
+                          "text-[var(--color-ink-2)] hover:text-[var(--color-ink)]",
+                          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]",
+                        )}
+                        aria-label="Clear search"
+                      >
+                        <X size={12} strokeWidth={1.75} aria-hidden />
+                      </button>
+                    ) : null}
+                  </div>
+                  {isSubMinLength ? (
+                    <p
+                      id="library-search-hint"
+                      className="mt-1.5 text-[12px] text-[var(--color-ink-2)]"
+                    >
+                      Keep typing — search starts at {SEARCH_MIN_LENGTH} characters.
+                    </p>
+                  ) : null}
+                  <div role="status" aria-live="polite" className="sr-only">
+                    {searchError
+                      ? "Search failed. Try again."
+                      : searchLoading
+                        ? "Searching…"
+                        : isSearching
+                          ? `${searchEntries.length} ${searchEntries.length === 1 ? "match" : "matches"}${canLoadMore ? ", more available" : ""}`
+                          : ""}
+                  </div>
+                </div>
+              ) : null}
+
               <section className="mt-6" aria-labelledby="library-heading">
                 <h2 id="library-heading" className="sr-only">
                   Library items
                 </h2>
-                {list.isLoading ? (
-                  <div className="space-y-2">
-                    <Skeleton className="h-14 w-full" />
-                    <Skeleton className="h-14 w-full" />
-                    <Skeleton className="h-14 w-full" />
-                  </div>
-                ) : entries.length === 0 ? (
-                  <EmptyState
-                    title="No library items yet"
-                    description={
-                      canUpload
-                        ? "Upload a PDF, audio, or video here. Activities can pin specific revisions so updates don't break old work."
-                        : "Once a steward uploads materials, you'll see them here."
-                    }
-                    action={
-                      canUpload ? (
-                        <Button onClick={() => setUploadOpenLocal(true)}>
-                          <Plus size={12} aria-hidden /> Upload your first item
-                        </Button>
-                      ) : undefined
-                    }
-                  />
-                ) : (
-                  <ul className="overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-rule)] bg-[var(--color-surface)] divide-y divide-[var(--color-rule)]">
-                    {entries.map((entry) => (
-                      <li key={entry.item.id}>
-                        <LibraryItemCard entry={entry} onSelect={openItem} />
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                {searchError ? (
+                  <Callout tone="danger" title="Search failed" className="mb-4">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <span>
+                        Couldn't reach the library search. Check your connection and try again.
+                      </span>
+                      <Button size="sm" variant="secondary" onClick={() => searchResults.refetch()}>
+                        Try again
+                      </Button>
+                    </div>
+                  </Callout>
+                ) : null}
+                <div id="library-results">
+                  {(isSearching ? searchLoading : list.isLoading) ? (
+                    <div className="space-y-2">
+                      <Skeleton className="h-14 w-full" />
+                      <Skeleton className="h-14 w-full" />
+                      <Skeleton className="h-14 w-full" />
+                    </div>
+                  ) : entries.length === 0 ? (
+                    isSearching ? (
+                      searchError ? null : (
+                        <EmptyState
+                          title="No matching items"
+                          description={`Nothing in the library matches "${debouncedQuery}". Try a different keyword or tag.`}
+                          action={
+                            <Button variant="secondary" onClick={() => setSearchInput("")}>
+                              Show all items
+                            </Button>
+                          }
+                        />
+                      )
+                    ) : (
+                      <EmptyState
+                        title="No library items yet"
+                        description={
+                          canUpload
+                            ? "Upload a PDF, audio, or video here. Activities can pin specific revisions so updates don't break old work."
+                            : "Once a steward uploads materials, you'll see them here."
+                        }
+                        action={
+                          canUpload ? (
+                            <Button onClick={() => setUploadOpenLocal(true)}>
+                              <Plus size={12} aria-hidden /> Upload your first item
+                            </Button>
+                          ) : undefined
+                        }
+                      />
+                    )
+                  ) : (
+                    <>
+                      <ul className="overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-rule)] bg-[var(--color-surface)] divide-y divide-[var(--color-rule)]">
+                        {entries.map((entry) => (
+                          <li key={entry.item.id}>
+                            <LibraryItemCard entry={entry} onSelect={openItem} />
+                          </li>
+                        ))}
+                      </ul>
+                      {canLoadMore ? (
+                        <div className="mt-4 flex justify-center">
+                          <Button
+                            variant="secondary"
+                            onClick={() => searchResults.fetchNextPage()}
+                            disabled={loadingMore}
+                          >
+                            {loadingMore ? "Loading…" : "Load more"}
+                          </Button>
+                        </div>
+                      ) : null}
+                    </>
+                  )}
+                </div>
               </section>
             </div>
 

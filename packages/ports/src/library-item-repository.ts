@@ -7,6 +7,7 @@ import type {
   StudyGroupId,
   UserId,
 } from "@hearth/domain";
+import type { Write } from "./_brand.ts";
 
 /**
  * One row in the group-scoped library list. Includes the cheap
@@ -78,10 +79,15 @@ export type RemoveLibraryStewardInput = {
  * the *only* place that touches D1 + R2; every mutation calls
  * `gate.assertWritable()` first (resilience invariants 2 + 3 — see the
  * killswitch-coverage CI test).
- *
- * `search` is declared here so the M7 search route can compose against
- * the same port; the M6 adapter implements it as a `byGroup`-style
- * fallback that ignores the query string until M7 wires FTS5.
+ */
+/**
+ * Mutating methods (those that touch D1 / R2) carry the `Write<>`
+ * brand on their function signature. The brand is phantom-typed: it
+ * leaves the runtime shape unchanged but lets the killswitch-coverage
+ * test enumerate writes via the `WriteMethods<T>` mapped type. Adding
+ * a new write here without a matching CASES entry in
+ * `packages/adapters/cloudflare/test/killswitch-coverage.test.ts` is a
+ * compile error rather than a silent test gap.
  */
 export interface LibraryItemRepository {
   // ── Items ─────────────────────────────────────────────────────────
@@ -90,7 +96,7 @@ export interface LibraryItemRepository {
    * D1 batch (single SQLite transaction). The orphan invariant — every
    * item has at least one revision — is satisfied at row 0.
    */
-  create(input: CreateLibraryItemInput): Promise<LibraryItemDetail>;
+  create: Write<(input: CreateLibraryItemInput) => Promise<LibraryItemDetail>>;
 
   byId(id: LibraryItemId): Promise<LibraryItem | null>;
 
@@ -98,13 +104,15 @@ export interface LibraryItemRepository {
 
   byGroup(groupId: StudyGroupId): Promise<readonly LibraryItemListEntry[]>;
 
-  updateMetadata(id: LibraryItemId, patch: UpdateLibraryMetadataInput): Promise<LibraryItem>;
+  updateMetadata: Write<
+    (id: LibraryItemId, patch: UpdateLibraryMetadataInput) => Promise<LibraryItem>
+  >;
 
   /**
    * Set `retired_at` / `retired_by`. Idempotent: re-retiring already-
    * retired items returns the existing row.
    */
-  markRetired(id: LibraryItemId, by: UserId, at: Date): Promise<LibraryItem>;
+  markRetired: Write<(id: LibraryItemId, by: UserId, at: Date) => Promise<LibraryItem>>;
 
   // ── Revisions ─────────────────────────────────────────────────────
   /**
@@ -114,9 +122,12 @@ export interface LibraryItemRepository {
    *   3) bump library_items.currentRevisionId + updatedAt
    * Returns the created revision and the updated item snapshot.
    */
-  addRevision(
-    input: AddLibraryRevisionInput,
-  ): Promise<{ revision: LibraryRevision; item: LibraryItem }>;
+  addRevision: Write<
+    (input: AddLibraryRevisionInput) => Promise<{
+      revision: LibraryRevision;
+      item: LibraryItem;
+    }>
+  >;
 
   listRevisions(itemId: LibraryItemId): Promise<readonly LibraryRevision[]>;
 
@@ -125,9 +136,9 @@ export interface LibraryItemRepository {
   revisionById(revisionId: LibraryRevisionId): Promise<LibraryRevision | null>;
 
   // ── Stewards ──────────────────────────────────────────────────────
-  addSteward(input: AddLibraryStewardInput): Promise<LibraryStewardship>;
+  addSteward: Write<(input: AddLibraryStewardInput) => Promise<LibraryStewardship>>;
 
-  removeSteward(input: RemoveLibraryStewardInput): Promise<void>;
+  removeSteward: Write<(input: RemoveLibraryStewardInput) => Promise<void>>;
 
   listStewards(itemId: LibraryItemId): Promise<readonly LibraryStewardship[]>;
 
@@ -145,4 +156,41 @@ export interface LibraryItemRepository {
    * across the activity tables; M8 keeps the index up to date.
    */
   usedInCount(itemId: LibraryItemId): Promise<number>;
+
+  // ── Search ────────────────────────────────────────────────────────
+  /**
+   * Group-scoped FTS5 search across title, description, and tag values.
+   * `query` is the already-normalized FTS5 MATCH expression (the use
+   * case calls `normalizeSearchQuery` and short-circuits empty/too-short
+   * input — the adapter trusts the call site for input shape).
+   * Retired items are excluded — they remain reachable by id for old
+   * activity-record links but should not surface in search results.
+   *
+   * Pagination uses an opaque keyset cursor; `nextCursor` is `null` once
+   * the result set is exhausted. Default ordering is FTS5 `rank` ASC
+   * (bm25 — most relevant first), tie-broken by `updatedAt` DESC then
+   * `id` ASC for cursor stability across concurrent inserts.
+   */
+  search(groupId: StudyGroupId, options: LibrarySearchOptions): Promise<LibrarySearchPage>;
+
+  /**
+   * Rebuild the FTS5 index from `library_items` — invoked by the
+   * restore script after `wrangler d1 export | execute --file -`, which
+   * does not include virtual-table content.
+   */
+  restoreFtsIndex: Write<() => Promise<{ readonly rebuilt: number }>>;
 }
+
+export type LibrarySearchOptions = {
+  /** Already-normalized FTS5 MATCH expression. */
+  readonly query: string;
+  /** 1–100 inclusive; the use case clamps before calling. */
+  readonly limit: number;
+  /** Opaque cursor returned by a prior call, or `null` for the first page. */
+  readonly cursor: string | null;
+};
+
+export type LibrarySearchPage = {
+  readonly entries: readonly LibraryItemListEntry[];
+  readonly nextCursor: string | null;
+};

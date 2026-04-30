@@ -70,7 +70,7 @@ function TrackHome() {
 
   if (me.isLoading || !me.data?.data.user) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-[var(--color-ink-3)]">
+      <div className="flex min-h-screen items-center justify-center text-[var(--color-ink-2)]">
         Loading…
       </div>
     );
@@ -213,7 +213,7 @@ function TrackHomeBody({
 
       <nav
         aria-label="Breadcrumb"
-        className="flex items-center gap-2 text-[12px] text-[var(--color-ink-3)]"
+        className="flex items-center gap-2 text-[12px] text-[var(--color-ink-2)]"
       >
         <Link to="/" search={{}} className="hover:text-[var(--color-ink-2)]">
           Your groups
@@ -379,14 +379,14 @@ function FacilitatorBar({
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-[var(--color-ink-2)]">
       <div className="flex items-center gap-2">
-        <span className="text-[var(--color-ink-3)]">Facilitators</span>
+        <span className="text-[var(--color-ink-2)]">Facilitators</span>
         <span className="font-mono tabular-nums">{facilitatorCount}</span>
       </div>
-      <span aria-hidden="true" className="text-[var(--color-ink-3)]">
+      <span aria-hidden="true" className="text-[var(--color-ink-2)]">
         ·
       </span>
       <div>
-        <span className="text-[var(--color-ink-3)]">Enrolled </span>
+        <span className="text-[var(--color-ink-2)]">Enrolled </span>
         <span className="font-mono tabular-nums">{enrollmentCount}</span>
       </div>
     </div>

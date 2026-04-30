@@ -105,7 +105,7 @@ export function ApprovedEmailsTab() {
   return (
     <div className="space-y-5">
       <section className="space-y-3 rounded-[var(--radius-md)] border border-[var(--color-rule)] bg-[var(--color-surface)] p-3.5">
-        <div className="font-medium text-[11px] text-[var(--color-ink-3)] uppercase tracking-wide">
+        <div className="font-medium text-[11px] text-[var(--color-ink-2)] uppercase tracking-wide">
           Add an email
         </div>
         <form className="space-y-3" noValidate onSubmit={onAdd}>
@@ -218,7 +218,7 @@ export function ApprovedEmailsTab() {
                 <div className="truncate font-mono text-[13px] text-[var(--color-ink)]">
                   {row.email}
                 </div>
-                <div className="truncate text-[11px] text-[var(--color-ink-3)]">
+                <div className="truncate text-[11px] text-[var(--color-ink-2)]">
                   added {formatShortDate(row.addedAt)}
                   {row.note ? ` · ${row.note}` : null}
                 </div>

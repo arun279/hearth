@@ -5,7 +5,13 @@ import type {
   LibraryRevision,
   LibraryStewardship,
 } from "@hearth/domain";
-import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  type QueryClient,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { api } from "../lib/api-client.ts";
 import { assertOk } from "../lib/problem.ts";
 
@@ -87,6 +93,7 @@ const libraryItemKey = (itemId: string) => ["library", "item", itemId] as const;
 
 function invalidateLibrary(qc: QueryClient, groupId: string, itemId?: string) {
   qc.invalidateQueries({ queryKey: libraryListKey(groupId) });
+  qc.invalidateQueries({ queryKey: ["library", "search", groupId] });
   qc.invalidateQueries({ queryKey: ["library", "quota", groupId] });
   qc.invalidateQueries({ queryKey: ["groups", "detail", groupId] });
   if (itemId) qc.invalidateQueries({ queryKey: libraryItemKey(itemId) });
@@ -101,6 +108,46 @@ export function useLibraryList(groupId: string, enabled: boolean) {
       await assertOk(res);
       return (await res.json()) as LibraryListResult;
     },
+  });
+}
+
+type LibrarySearchPage = {
+  readonly entries: readonly LibraryListEntry[];
+  readonly nextCursor: string | null;
+};
+
+const librarySearchKey = (groupId: string, query: string) =>
+  ["library", "search", groupId, query] as const;
+
+/**
+ * Search the group's library by title, description, or tag value with
+ * keyset pagination. The hook uses `useInfiniteQuery` so the SPA can
+ * render a "Load more" affordance without manual cursor plumbing — each
+ * page's `nextCursor` is threaded into the next request automatically.
+ *
+ * `query` is the live, undebounced input — the caller is responsible
+ * for debouncing and gating `enabled` on a non-empty query so this hook
+ * stays a pure cache.
+ */
+export function useLibrarySearch(groupId: string, query: string, enabled: boolean) {
+  return useInfiniteQuery({
+    queryKey: librarySearchKey(groupId, query),
+    enabled,
+    initialPageParam: null as string | null,
+    getNextPageParam: (last: LibrarySearchPage) => last.nextCursor,
+    queryFn: async ({ pageParam }): Promise<LibrarySearchPage> => {
+      const res = await api.g[":groupId"].library.search.$get({
+        param: { groupId },
+        query: pageParam === null ? { q: query } : { q: query, cursor: pageParam },
+      });
+      await assertOk(res);
+      return (await res.json()) as LibrarySearchPage;
+    },
+    // Search results are fresh per keystroke; once the user types more,
+    // this entry is replaced rather than refetched. A short staleTime
+    // keeps a transient back-button to the library out of the network
+    // panel.
+    staleTime: 30_000,
   });
 }
 

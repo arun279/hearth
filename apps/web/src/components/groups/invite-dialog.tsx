@@ -132,7 +132,7 @@ export function InviteDialog({ open, onClose, group }: Props) {
               />
             )}
           </Field>
-          <p className="text-[12px] text-[var(--color-ink-3)] leading-relaxed">
+          <p className="text-[12px] text-[var(--color-ink-2)] leading-relaxed">
             Share this link with <strong>{result.email}</strong> via whatever channel works — Hearth
             doesn't send email in v1. They'll sign in with Google, then the link admits them.
           </p>
@@ -143,7 +143,7 @@ export function InviteDialog({ open, onClose, group }: Props) {
               Operator before sign-in will succeed.
             </Callout>
           )}
-          <div className="text-[11px] text-[var(--color-ink-3)]">
+          <div className="text-[11px] text-[var(--color-ink-2)]">
             Single-use · expires in 14 days · revoke from the invitations list.
           </div>
         </div>

@@ -15,15 +15,18 @@ import {
   type StudyGroupId,
   type UserId,
 } from "@hearth/domain";
-import type {
-  AddLibraryRevisionInput,
-  AddLibraryStewardInput,
-  LibraryItemDetail,
-  LibraryItemListEntry,
-  LibraryItemRepository,
-  RemoveLibraryStewardInput,
+import {
+  type AddLibraryRevisionInput,
+  type AddLibraryStewardInput,
+  type LibraryItemDetail,
+  type LibraryItemListEntry,
+  type LibraryItemRepository,
+  type LibrarySearchOptions,
+  type LibrarySearchPage,
+  markWrite,
+  type RemoveLibraryStewardInput,
 } from "@hearth/ports";
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import type { CloudflareAdapterDeps } from "./deps.ts";
 import { createIdGenerator } from "./id-generator.ts";
 
@@ -101,24 +104,51 @@ export function createLibraryItemRepository(
   const ids = createIdGenerator();
 
   return {
-    async create({ id, groupId, title, description, tags, uploadedBy, firstRevision, now }) {
-      await deps.gate.assertWritable();
-      const tagsJson = JSON.stringify(tags);
-      await deps.db.batch([
-        deps.db.insert(libraryItems).values({
+    create: markWrite(
+      async ({ id, groupId, title, description, tags, uploadedBy, firstRevision, now }) => {
+        await deps.gate.assertWritable();
+        const tagsJson = JSON.stringify(tags);
+        await deps.db.batch([
+          deps.db.insert(libraryItems).values({
+            id,
+            groupId,
+            title,
+            description,
+            tagsJson,
+            currentRevisionId: firstRevision.id,
+            uploadedBy,
+            retiredAt: null,
+            retiredBy: null,
+            createdAt: now,
+            updatedAt: now,
+          }),
+          deps.db.insert(libraryRevisions).values({
+            id: firstRevision.id,
+            libraryItemId: id,
+            revisionNumber: 1,
+            storageKey: firstRevision.storageKey,
+            mimeType: firstRevision.mimeType,
+            sizeBytes: firstRevision.sizeBytes,
+            originalFilename: firstRevision.originalFilename,
+            uploadedBy: firstRevision.uploadedBy,
+            uploadedAt: firstRevision.uploadedAt,
+          }),
+        ]);
+
+        const item: LibraryItem = {
           id,
           groupId,
           title,
           description,
-          tagsJson,
+          tags: [...tags],
           currentRevisionId: firstRevision.id,
           uploadedBy,
           retiredAt: null,
           retiredBy: null,
           createdAt: now,
           updatedAt: now,
-        }),
-        deps.db.insert(libraryRevisions).values({
+        };
+        const revision: LibraryRevision = {
           id: firstRevision.id,
           libraryItemId: id,
           revisionNumber: 1,
@@ -128,35 +158,10 @@ export function createLibraryItemRepository(
           originalFilename: firstRevision.originalFilename,
           uploadedBy: firstRevision.uploadedBy,
           uploadedAt: firstRevision.uploadedAt,
-        }),
-      ]);
-
-      const item: LibraryItem = {
-        id,
-        groupId,
-        title,
-        description,
-        tags: [...tags],
-        currentRevisionId: firstRevision.id,
-        uploadedBy,
-        retiredAt: null,
-        retiredBy: null,
-        createdAt: now,
-        updatedAt: now,
-      };
-      const revision: LibraryRevision = {
-        id: firstRevision.id,
-        libraryItemId: id,
-        revisionNumber: 1,
-        storageKey: firstRevision.storageKey,
-        mimeType: firstRevision.mimeType,
-        sizeBytes: firstRevision.sizeBytes,
-        originalFilename: firstRevision.originalFilename,
-        uploadedBy: firstRevision.uploadedBy,
-        uploadedAt: firstRevision.uploadedAt,
-      };
-      return { item, revisions: [revision], stewards: [], usedInCount: 0 };
-    },
+        };
+        return { item, revisions: [revision], stewards: [], usedInCount: 0 };
+      },
+    ),
 
     async byId(id) {
       const rows = await deps.db
@@ -207,76 +212,10 @@ export function createLibraryItemRepository(
         .from(libraryItems)
         .where(eq(libraryItems.groupId, groupId))
         .orderBy(desc(libraryItems.updatedAt));
-      if (rows.length === 0) return [];
-
-      const itemIds = rows.map((r) => r.id);
-      const currentRevisionIds = rows
-        .map((r) => r.currentRevisionId)
-        .filter((v): v is string => v !== null);
-
-      const itemIdList = sql.join(
-        itemIds.map((v) => sql`${v}`),
-        sql`, `,
-      );
-      const currentRevisionList =
-        currentRevisionIds.length === 0
-          ? null
-          : sql.join(
-              currentRevisionIds.map((v) => sql`${v}`),
-              sql`, `,
-            );
-
-      // Three small lookup queries: revisions for the item-row pointers,
-      // steward count grouped by item, used-in count grouped by item.
-      // SQLite's planner prefers the IN form here over correlated
-      // sub-selects on a v1-sized library; the round-trip cost is
-      // dominated by D1 connection latency, which is amortized by the
-      // Promise.all.
-      const [revisionRows, stewardRows, usedInRows] = await Promise.all([
-        currentRevisionList
-          ? deps.db
-              .select()
-              .from(libraryRevisions)
-              .where(sql`${libraryRevisions.id} IN (${currentRevisionList})`)
-          : Promise.resolve([] as Array<typeof libraryRevisions.$inferSelect>),
-        deps.db
-          .select({
-            libraryItemId: libraryStewards.libraryItemId,
-            count: sql<number>`count(*)`,
-          })
-          .from(libraryStewards)
-          .where(sql`${libraryStewards.libraryItemId} IN (${itemIdList})`)
-          .groupBy(libraryStewards.libraryItemId),
-        deps.db
-          .select({
-            libraryItemId: activityLibraryRefs.libraryItemId,
-            count: sql<number>`count(*)`,
-          })
-          .from(activityLibraryRefs)
-          .where(sql`${activityLibraryRefs.libraryItemId} IN (${itemIdList})`)
-          .groupBy(activityLibraryRefs.libraryItemId),
-      ]);
-
-      const revisionByItemId = new Map<string, LibraryRevision>();
-      for (const r of revisionRows) {
-        revisionByItemId.set(r.libraryItemId, toRevision(r));
-      }
-      const stewardCountByItemId = new Map<string, number>(
-        stewardRows.map((r) => [r.libraryItemId, Number(r.count)]),
-      );
-      const usedInByItemId = new Map<string, number>(
-        usedInRows.map((r) => [r.libraryItemId, Number(r.count)]),
-      );
-
-      return rows.map((r) => ({
-        item: toItem(r),
-        currentRevision: revisionByItemId.get(r.id) ?? null,
-        stewardCount: stewardCountByItemId.get(r.id) ?? 0,
-        usedInCount: usedInByItemId.get(r.id) ?? 0,
-      }));
+      return enrichListEntries(deps, rows);
     },
 
-    async updateMetadata(id, patch) {
+    updateMetadata: markWrite(async (id, patch) => {
       await deps.gate.assertWritable();
       const existing = await deps.db
         .select()
@@ -317,9 +256,9 @@ export function createLibraryItemRepository(
         );
       }
       return toItem({ ...row, ...next });
-    },
+    }),
 
-    async markRetired(id, by, at) {
+    markRetired: markWrite(async (id, by, at) => {
       await deps.gate.assertWritable();
       // Conditional UPDATE — only fire when the row is currently living
       // so the second call is idempotent (no spurious updatedAt churn).
@@ -338,9 +277,9 @@ export function createLibraryItemRepository(
       const row = rows[0];
       if (!row) throw new DomainError("NOT_FOUND", "Library item not found.", "not_found");
       return toItem(row);
-    },
+    }),
 
-    async addRevision({ libraryItemId, revision }: AddLibraryRevisionInput) {
+    addRevision: markWrite(async ({ libraryItemId, revision }: AddLibraryRevisionInput) => {
       await deps.gate.assertWritable();
       const existing = await deps.db
         .select()
@@ -423,7 +362,7 @@ export function createLibraryItemRepository(
         updatedAt: now,
       });
       return { revision: inserted, item };
-    },
+    }),
 
     async listRevisions(itemId) {
       const rows = await deps.db
@@ -459,44 +398,49 @@ export function createLibraryItemRepository(
       return rows[0] ? toRevision(rows[0]) : null;
     },
 
-    async addSteward({ libraryItemId, userId, grantedBy, grantedAt }: AddLibraryStewardInput) {
-      await deps.gate.assertWritable();
-      const id = ids.generate();
-      // The UNIQUE `(library_item_id, user_id)` index is the duplicate
-      // guard. ON CONFLICT DO NOTHING keeps the call idempotent — calling
-      // twice surfaces the existing row to the caller.
-      const inserted = await deps.db
-        .insert(libraryStewards)
-        .values({ id, libraryItemId, userId, grantedAt, grantedBy })
-        .onConflictDoNothing()
-        .returning();
-      if (inserted[0]) return toStewardship(inserted[0]);
+    addSteward: markWrite(
+      async ({ libraryItemId, userId, grantedBy, grantedAt }: AddLibraryStewardInput) => {
+        await deps.gate.assertWritable();
+        const id = ids.generate();
+        // The UNIQUE `(library_item_id, user_id)` index is the duplicate
+        // guard. ON CONFLICT DO NOTHING keeps the call idempotent — calling
+        // twice surfaces the existing row to the caller.
+        const inserted = await deps.db
+          .insert(libraryStewards)
+          .values({ id, libraryItemId, userId, grantedAt, grantedBy })
+          .onConflictDoNothing()
+          .returning();
+        if (inserted[0]) return toStewardship(inserted[0]);
 
-      const existing = await deps.db
-        .select()
-        .from(libraryStewards)
-        .where(
-          and(eq(libraryStewards.libraryItemId, libraryItemId), eq(libraryStewards.userId, userId)),
-        )
-        .limit(1);
-      if (!existing[0]) {
-        throw new DomainError(
-          "INVARIANT_VIOLATION",
-          "Failed to insert or read steward row.",
-          "steward_insert_failed",
-        );
-      }
-      return toStewardship(existing[0]);
-    },
+        const existing = await deps.db
+          .select()
+          .from(libraryStewards)
+          .where(
+            and(
+              eq(libraryStewards.libraryItemId, libraryItemId),
+              eq(libraryStewards.userId, userId),
+            ),
+          )
+          .limit(1);
+        if (!existing[0]) {
+          throw new DomainError(
+            "INVARIANT_VIOLATION",
+            "Failed to insert or read steward row.",
+            "steward_insert_failed",
+          );
+        }
+        return toStewardship(existing[0]);
+      },
+    ),
 
-    async removeSteward({ libraryItemId, userId }: RemoveLibraryStewardInput) {
+    removeSteward: markWrite(async ({ libraryItemId, userId }: RemoveLibraryStewardInput) => {
       await deps.gate.assertWritable();
       await deps.db
         .delete(libraryStewards)
         .where(
           and(eq(libraryStewards.libraryItemId, libraryItemId), eq(libraryStewards.userId, userId)),
         );
-    },
+    }),
 
     async listStewards(itemId) {
       const rows = await deps.db
@@ -523,5 +467,198 @@ export function createLibraryItemRepository(
         .where(eq(activityLibraryRefs.libraryItemId, itemId));
       return Number(rows[0]?.n ?? 0);
     },
+
+    async search(groupId, options: LibrarySearchOptions): Promise<LibrarySearchPage> {
+      const { query, limit, cursor } = options;
+      const fetchSize = limit + 1;
+      const cursorPosition = decodeSearchCursor(cursor);
+
+      // Two-step query so Drizzle handles the column-mapping for
+      // library_items rows. Step 1 raw-SQLs the FTS5 join to get hit
+      // ids + rank + updated_at in result order (the only place we
+      // can read FTS5's `rank` pseudo-column); step 2 fetches the full
+      // typed rows via the schema-aware query builder.
+      //
+      // bm25 scores are negative — more negative means a stronger
+      // match, so ASC = most relevant first. Tie-break by recency, then
+      // id, so the cursor's three-tuple is total-order-stable across
+      // concurrent inserts and updates.
+      const matchExpr = query;
+      const cursorPredicate = cursorPosition
+        ? sql`AND (
+            h.rank > ${cursorPosition.rank}
+            OR (h.rank = ${cursorPosition.rank} AND li.updated_at < ${cursorPosition.updatedAtMs})
+            OR (h.rank = ${cursorPosition.rank} AND li.updated_at = ${cursorPosition.updatedAtMs} AND li.id > ${cursorPosition.id})
+          )`
+        : sql``;
+
+      type HitRow = {
+        readonly library_item_id: string;
+        readonly rank: number;
+        readonly updated_at: number;
+      };
+      const hits = await deps.db.all<HitRow>(sql`
+        WITH hits AS (
+          SELECT library_item_id, rank
+          FROM library_items_fts
+          WHERE library_items_fts MATCH ${matchExpr}
+        )
+        SELECT h.library_item_id AS library_item_id, h.rank AS rank, li.updated_at AS updated_at
+        FROM hits h
+        JOIN library_items li ON li.id = h.library_item_id
+        WHERE li.group_id = ${groupId}
+          AND li.retired_at IS NULL
+          ${cursorPredicate}
+        ORDER BY h.rank ASC, li.updated_at DESC, li.id ASC
+        LIMIT ${fetchSize}
+      `);
+
+      const visible = hits.slice(0, limit);
+      const lastVisible = visible.at(-1);
+      const nextCursor =
+        hits.length > limit && lastVisible
+          ? encodeSearchCursor({
+              rank: lastVisible.rank,
+              updatedAtMs: lastVisible.updated_at,
+              id: lastVisible.library_item_id,
+            })
+          : null;
+
+      if (visible.length === 0) return { entries: [], nextCursor };
+
+      const orderedIds = visible.map((h) => h.library_item_id);
+      const itemRows = await deps.db
+        .select()
+        .from(libraryItems)
+        .where(inArray(libraryItems.id, orderedIds));
+      const itemRowsById = new Map(itemRows.map((r) => [r.id, r] as const));
+      const orderedRows = orderedIds
+        .map((id) => itemRowsById.get(id))
+        .filter((r): r is typeof libraryItems.$inferSelect => r !== undefined);
+
+      const entries = await enrichListEntries(deps, orderedRows);
+      return { entries, nextCursor };
+    },
+
+    restoreFtsIndex: markWrite(async () => {
+      // The full restore path: a `wrangler d1 export | execute --file -`
+      // recreates library_items rows via INSERT, which fires the
+      // mirror trigger and naturally repopulates library_items_fts —
+      // no rebuild needed. This method is the defensive fallback for
+      // drift between library_items and library_items_fts (a botched
+      // import that bypassed triggers, an FTS segment file rotting on
+      // disk, etc.). It wipes the index and rebuilds it row-by-row
+      // from library_items, mirroring the AFTER INSERT trigger's
+      // exact projection (every row, retired or living — the retired
+      // filter lives at search time, not at index time).
+      await deps.gate.assertWritable();
+      await deps.db.run(sql`DELETE FROM library_items_fts`);
+      await deps.db.run(sql`
+        INSERT INTO library_items_fts (library_item_id, title, description, tags)
+        SELECT
+          id,
+          title,
+          coalesce(description, ''),
+          coalesce((SELECT group_concat(value, ' ') FROM json_each(tags_json)), '')
+        FROM library_items
+      `);
+      const rows = await deps.db.select({ n: sql<number>`count(*)` }).from(libraryItems);
+      return { rebuilt: Number(rows[0]?.n ?? 0) };
+    }),
   };
+}
+
+/**
+ * Three keyset-style lookup queries plus the in-memory fold that the
+ * `byGroup` and `search` paths both need to assemble `LibraryItemListEntry`
+ * rows. Three small queries instead of a denormalized join: SQLite's
+ * planner prefers IN over correlated sub-selects on a v1-sized library,
+ * and the round-trip cost is dominated by D1 connection latency, which
+ * the Promise.all amortizes.
+ */
+async function enrichListEntries(
+  deps: Pick<CloudflareAdapterDeps, "db">,
+  itemRows: ReadonlyArray<typeof libraryItems.$inferSelect>,
+): Promise<LibraryItemListEntry[]> {
+  if (itemRows.length === 0) return [];
+
+  const orderedIds = itemRows.map((r) => r.id);
+  const currentRevisionIds = itemRows
+    .map((r) => r.currentRevisionId)
+    .filter((v): v is string => v !== null);
+
+  const [revisionRows, stewardRows, usedInRows] = await Promise.all([
+    currentRevisionIds.length === 0
+      ? Promise.resolve([] as Array<typeof libraryRevisions.$inferSelect>)
+      : deps.db
+          .select()
+          .from(libraryRevisions)
+          .where(inArray(libraryRevisions.id, currentRevisionIds)),
+    deps.db
+      .select({
+        libraryItemId: libraryStewards.libraryItemId,
+        count: sql<number>`count(*)`,
+      })
+      .from(libraryStewards)
+      .where(inArray(libraryStewards.libraryItemId, orderedIds))
+      .groupBy(libraryStewards.libraryItemId),
+    deps.db
+      .select({
+        libraryItemId: activityLibraryRefs.libraryItemId,
+        count: sql<number>`count(*)`,
+      })
+      .from(activityLibraryRefs)
+      .where(inArray(activityLibraryRefs.libraryItemId, orderedIds))
+      .groupBy(activityLibraryRefs.libraryItemId),
+  ]);
+
+  const revisionByItemId = new Map<string, LibraryRevision>();
+  for (const r of revisionRows) {
+    revisionByItemId.set(r.libraryItemId, toRevision(r));
+  }
+  const stewardCountByItemId = new Map<string, number>(
+    stewardRows.map((r) => [r.libraryItemId, Number(r.count)]),
+  );
+  const usedInByItemId = new Map<string, number>(
+    usedInRows.map((r) => [r.libraryItemId, Number(r.count)]),
+  );
+
+  return itemRows.map((row) => ({
+    item: toItem(row),
+    currentRevision: revisionByItemId.get(row.id) ?? null,
+    stewardCount: stewardCountByItemId.get(row.id) ?? 0,
+    usedInCount: usedInByItemId.get(row.id) ?? 0,
+  }));
+}
+
+type SearchCursor = {
+  readonly rank: number;
+  readonly updatedAtMs: number;
+  readonly id: string;
+};
+
+function encodeSearchCursor(cursor: SearchCursor): string {
+  return btoa(JSON.stringify(cursor));
+}
+
+function decodeSearchCursor(encoded: string | null): SearchCursor | null {
+  if (encoded === null) return null;
+  try {
+    const decoded = JSON.parse(atob(encoded)) as unknown;
+    if (
+      typeof decoded === "object" &&
+      decoded !== null &&
+      "rank" in decoded &&
+      "updatedAtMs" in decoded &&
+      "id" in decoded &&
+      typeof decoded.rank === "number" &&
+      typeof decoded.updatedAtMs === "number" &&
+      typeof decoded.id === "string"
+    ) {
+      return decoded as SearchCursor;
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }

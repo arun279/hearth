@@ -100,11 +100,21 @@ Each entry names the **pinned tool**, the **condition** that triggers a reassess
 
 ## Supply-chain + licensing
 
-### `spark-md5@3.0.2` per-package carve-out on dep-review (current pin: `jscpd@^4.0.9`)
+## Design system
 
-- **Trigger**: `jscpd` swaps its hash backend away from `spark-md5`, OR `jscpd` is replaced with another duplicate-detector, OR `spark-md5` publishes a new version (the carve-out is version-pinned, so a bump turns the gate red until the version string here is updated).
-- **Action**: drop the `allow-dependencies-licenses: 'pkg:npm/spark-md5@3.0.2'` line from `.github/workflows/dep-review.yml`. The carve-out is intentionally pinned to one package and one version so any future WTFPL-touched dependency surfaces in dep-review and prompts a deliberate review — promoting `WTFPL` to the project-wide `allow-licenses` would silence that signal across the whole tree. If a `spark-md5` minor/patch bump arrives, update the version in the carve-out string in the same PR; if a different package introduces WTFPL, evaluate its provenance from scratch rather than extending this carve-out.
-- **Location**: `.github/workflows/dep-review.yml` (`allow-dependencies-licenses`); transitive owner via `@jscpd/tokenizer`.
+### No sub-AA palette token
+
+- **Trigger**: a PR proposes a new foreground token that doesn't clear WCAG 1.4.3 AA (4.5:1 for normal text, 3:1 for large) against every surface in `packages/ui/src/tokens.ts` SURFACES.
+- **Action**: don't ship it. Tailwind's `text-[var(--color-foo)]` lets any palette token be applied to any text element with no per-call-site review, so a sub-AA token in the shared palette is a foot-gun: the caller cannot tell from the class name that the contrast is unsafe, and a single muted-text token can produce dozens of AA-failing surfaces before anyone notices. If a specific call site genuinely needs sub-AA contrast under a 1.4.3 exemption (decorative non-text, brand mark, etc.), declare the hex inline at the call site with the rationale visible — keep the palette honest. The `tokens.test.ts` Layer-A gate enforces the rule at `pnpm test`.
+- **Location**: `packages/ui/src/tokens.ts` (FOREGROUNDS), `packages/ui/src/styles.css` (palette declarations), `packages/ui/test/tokens.test.ts` (the gate).
+
+## Repository internals — opportunistic migrations
+
+### `Write<F>` brand on repository ports — opportunistic migration (currently applied to: `LibraryItemRepository` only)
+
+- **Trigger**: a future PR touches mutating methods on a repository port that hasn't yet adopted the brand. The 16 ports without it are: `UserRepository`, `InstanceAccessPolicyRepository`, `InstanceSettingsRepository`, `StudyGroupRepository`, `LearningTrackRepository`, `LearningActivityRepository`, `ActivityRecordRepository`, `StudySessionRepository`, `UploadCoordinationRepository`, `SystemFlagRepository`, `ObjectStorage`, `Scheduler`, plus three skeleton-stub repos.
+- **Action**: on that PR, brand the touched port's mutating methods with `Write<F>` (from `packages/ports/src/_brand.ts`). Update the implementation methods in `packages/adapters/cloudflare/src/<repo>.ts` to use `markWrite(...)`. Extend the type union in `packages/adapters/cloudflare/test/killswitch-coverage.test.ts` (the `ExpectedLibraryLabels` template-literal type) to include the newly branded port. Tsc will then enforce that every branded write method has a CASES entry. The migration is opportunistic — no need for a sweep PR — but DO migrate any port you're already editing rather than leaving the next session to find half-branded surfaces.
+- **Location**: `packages/ports/src/_brand.ts` (the brand machinery + this rationale); `packages/adapters/cloudflare/test/killswitch-coverage.test.ts` (the type-level enforcement site).
 
 ## How to remove an entry
 

@@ -440,6 +440,9 @@ importers:
       '@hearth/tsconfig':
         specifier: workspace:*
         version: link:../tsconfig
+      '@types/node':
+        specifier: ^22.9.0
+        version: 22.19.17
       '@types/react':
         specifier: 'catalog:'
         version: 19.2.14
@@ -452,6 +455,9 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 5.9.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.0(@opentelemetry/api@1.9.1)(@types/node@22.19.17)(vite@8.0.9(@types/node@22.19.17)(esbuild@0.27.7)(jiti@2.6.1)(tsx@4.21.0)(yaml@2.8.3))
 
 packages:
 

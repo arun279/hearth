@@ -31,7 +31,7 @@ function HomeComponent() {
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-[var(--color-ink-3)]">
+      <div className="flex min-h-screen items-center justify-center text-[var(--color-ink-2)]">
         Loading…
       </div>
     );

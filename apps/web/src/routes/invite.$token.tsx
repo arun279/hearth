@@ -259,7 +259,7 @@ function Centered({
         </Link>
         {instanceName ? (
           <div className="ml-2 rounded-[var(--radius-sm)] border border-[var(--color-rule)] bg-[var(--color-surface)] px-2 py-0.5 text-[11px] text-[var(--color-ink-2)]">
-            <span className="font-medium text-[10px] text-[var(--color-ink-3)] uppercase tracking-wide">
+            <span className="font-medium text-[10px] text-[var(--color-ink-2)] uppercase tracking-wide">
               Hearth Instance ·{" "}
             </span>
             {instanceName}

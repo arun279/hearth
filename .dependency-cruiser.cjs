@@ -100,9 +100,10 @@ module.exports = {
     {
       name: "policy-purity-no-node-globals",
       severity: "error",
-      comment: "packages/domain/policy and /visibility must stay SPA-safe: no Node globals.",
+      comment:
+        "SPA-pure directories under packages/domain/src/ must not import Node built-ins. The directory list and the regex are derived from policy-pure-dirs.cjs (single source of truth shared with the policy-purity vitest source-text scan).",
       from: {
-        path: "^packages/domain/src/(policy|visibility)/",
+        path: require("./policy-pure-dirs.cjs").depCruiserFromPath,
       },
       to: {
         path: ["^node:", "^fs$", "^path$", "^crypto$", "^buffer$", "^process$"],

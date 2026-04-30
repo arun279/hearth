@@ -7,7 +7,7 @@ export type TextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement> & {
 
 const base =
   "w-full rounded-[var(--radius-md)] border border-[var(--color-rule)] bg-[var(--color-bg)] " +
-  "px-2.5 py-2 text-[13px] text-[var(--color-ink)] placeholder:text-[var(--color-ink-3)] " +
+  "px-2.5 py-2 text-[13px] text-[var(--color-ink)] placeholder:text-[var(--color-ink-2)] " +
   "focus:border-[var(--color-accent)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent-soft)] " +
   "disabled:opacity-60 disabled:cursor-not-allowed";
 

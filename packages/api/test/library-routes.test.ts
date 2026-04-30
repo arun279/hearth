@@ -233,6 +233,8 @@ function makeLibraryPort(overrides: Partial<LibraryItemRepository> = {}): Librar
     listStewards: vi.fn(async () => []),
     isSteward: vi.fn(async () => false),
     usedInCount: vi.fn(async () => 0),
+    search: vi.fn(async () => ({ entries: [], nextCursor: null })),
+    restoreFtsIndex: vi.fn(async () => ({ rebuilt: 0 })),
     ...overrides,
   } as LibraryItemRepository;
 }
@@ -889,5 +891,123 @@ describe("DELETE /api/v1/library/:itemId/stewards/:userId", () => {
     });
     expect(res.status).toBe(204);
     expect(removeSteward).toHaveBeenCalled();
+  });
+});
+
+describe("GET /api/v1/g/:groupId/library/search", () => {
+  it("short-circuits empty queries with a 200 + empty entries (no repo call)", async () => {
+    const search = vi.fn();
+    const app = harness({
+      userId: actorId,
+      ports: {
+        users: makeUsersPort(),
+        groups: makeGroupsPort(),
+        policy: makePolicyPort(),
+        libraryItems: makeLibraryPort({ search }),
+      },
+    });
+    const res = await app.request(`/api/v1/g/${gid}/library/search?q=`, {
+      method: "GET",
+      headers: { cookie: "session=stub" },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      readonly entries: readonly unknown[];
+      readonly nextCursor: string | null;
+    };
+    expect(body.entries).toEqual([]);
+    expect(body.nextCursor).toBeNull();
+    expect(search).not.toHaveBeenCalled();
+  });
+
+  it("forwards a normalized query and returns the entries + nextCursor", async () => {
+    const search = vi.fn(async () => ({
+      entries: [{ item: livingItem, currentRevision: revision, stewardCount: 0, usedInCount: 0 }],
+      nextCursor: "next_cursor_token",
+    }));
+    const app = harness({
+      userId: actorId,
+      ports: {
+        users: makeUsersPort(),
+        groups: makeGroupsPort(),
+        policy: makePolicyPort(),
+        libraryItems: makeLibraryPort({ search }),
+      },
+    });
+    const res = await app.request(`/api/v1/g/${gid}/library/search?q=spanish&limit=5`, {
+      method: "GET",
+      headers: { cookie: "session=stub" },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      readonly entries: ReadonlyArray<{ readonly item: { readonly id: string } }>;
+      readonly nextCursor: string | null;
+    };
+    expect(body.entries).toHaveLength(1);
+    expect(body.entries[0]?.item.id).toBe(itemId);
+    expect(body.nextCursor).toBe("next_cursor_token");
+    expect(search).toHaveBeenCalledWith(
+      gid,
+      expect.objectContaining({
+        query: '"spanish"',
+        limit: 5,
+      }),
+    );
+  });
+
+  it("404s on a non-member viewer (existence not leaked via 403)", async () => {
+    const groups = makeGroupsPort();
+    groups.membership = vi.fn(async () => null);
+    const app = harness({
+      userId: actorId,
+      ports: {
+        users: makeUsersPort(),
+        groups,
+        policy: makePolicyPort(),
+        libraryItems: makeLibraryPort(),
+      },
+    });
+    const res = await app.request(`/api/v1/g/${gid}/library/search?q=spanish`, {
+      method: "GET",
+      headers: { cookie: "session=stub" },
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it("400s when q exceeds the bound (route validation)", async () => {
+    const app = harness({
+      userId: actorId,
+      ports: {
+        users: makeUsersPort(),
+        groups: makeGroupsPort(),
+        policy: makePolicyPort(),
+        libraryItems: makeLibraryPort(),
+      },
+    });
+    const oversized = "x".repeat(201);
+    const res = await app.request(`/api/v1/g/${gid}/library/search?q=${oversized}`, {
+      method: "GET",
+      headers: { cookie: "session=stub" },
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("round-trips an opaque cursor", async () => {
+    const search = vi.fn(async () => ({ entries: [], nextCursor: null }));
+    const app = harness({
+      userId: actorId,
+      ports: {
+        users: makeUsersPort(),
+        groups: makeGroupsPort(),
+        policy: makePolicyPort(),
+        libraryItems: makeLibraryPort({ search }),
+      },
+    });
+    const res = await app.request(`/api/v1/g/${gid}/library/search?q=spanish&cursor=abc%3D`, {
+      method: "GET",
+      headers: { cookie: "session=stub" },
+    });
+    expect(res.status).toBe(200);
+    expect(search).toHaveBeenCalledWith(gid, expect.objectContaining({ cursor: "abc=" }));
   });
 });

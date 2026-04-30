@@ -1,5 +1,5 @@
 {
   "extends": "@hearth/tsconfig/worker.json",
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "test/*.test.ts"],
   "exclude": ["node_modules", "dist"]
 }

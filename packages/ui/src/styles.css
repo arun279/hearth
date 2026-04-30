@@ -19,7 +19,6 @@
 
   --color-ink: #0f1115;
   --color-ink-2: #51555e;
-  --color-ink-3: #8b8f98;
 
   --color-rule: #eaecef;
   --color-rule-strong: #d7dae0;
@@ -69,7 +68,6 @@
 
   --color-ink: #ebedf0;
   --color-ink-2: #a6abb5;
-  --color-ink-3: #6e7480;
 
   --color-rule: #22262e;
   --color-rule-strong: #2e333d;
@@ -104,6 +102,19 @@
   html:not(.light) {
     color-scheme: dark;
   }
+}
+
+/*
+ * Hide the WebKit-rendered cancel/clear button on `<input type="search">`.
+ * Surfaces that need a clear affordance ship their own button so the icon
+ * vocabulary, hit area, and accessible name stay under our control; the
+ * native control would render a second `×` glyph next to ours and read
+ * inconsistently to assistive tech.
+ */
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-decoration {
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 html, body {
