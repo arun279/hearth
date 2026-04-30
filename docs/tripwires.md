@@ -100,12 +100,6 @@ Each entry names the **pinned tool**, the **condition** that triggers a reassess
 
 ## Supply-chain + licensing
 
-### `spark-md5@3.0.2` per-package carve-out on dep-review (current pin: `jscpd@^4.0.9`)
-
-- **Trigger**: `jscpd` swaps its hash backend away from `spark-md5`, OR `jscpd` is replaced with another duplicate-detector, OR `spark-md5` publishes a new version (the carve-out is version-pinned, so a bump turns the gate red until the version string here is updated).
-- **Action**: drop the `pkg:npm/spark-md5@3.0.2` entry from `.github/dependency-review-config.json`'s `allow-dependencies-licenses` list. The carve-out is intentionally pinned to one package and one version so any future WTFPL-touched dependency surfaces in dep-review and prompts a deliberate review — promoting `WTFPL` to the project-wide `allow-licenses` would silence that signal across the whole tree. If a `spark-md5` minor/patch bump arrives, update the version in the carve-out string in the same PR; if a different package introduces WTFPL, evaluate its provenance from scratch rather than extending this carve-out.
-- **Location**: `.github/dependency-review-config.json` (`allow-dependencies-licenses`); transitive owner via `@jscpd/tokenizer`.
-
 ## Design system
 
 ### No sub-AA palette token
