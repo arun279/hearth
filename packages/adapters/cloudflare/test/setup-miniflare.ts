@@ -36,8 +36,13 @@ beforeEach(async () => {
   await env.DB.batch([
     // Children first so FK RESTRICT does not block parent deletes. Within
     // the activity / library subtree: activity_library_refs depends on
-    // both learning_activities AND library_items, so it must precede
-    // both. library_revisions / library_stewards depend on library_items.
+    // both learning_activities AND library_items; activity_prerequisites
+    // and activity_suggested_sequences both reference learning_activities
+    // twice (activityId + the linked activity id) so they must precede
+    // the parent table. library_revisions / library_stewards depend on
+    // library_items.
+    env.DB.prepare("DELETE FROM activity_prerequisites"),
+    env.DB.prepare("DELETE FROM activity_suggested_sequences"),
     env.DB.prepare("DELETE FROM activity_library_refs"),
     env.DB.prepare("DELETE FROM learning_activities"),
     env.DB.prepare("DELETE FROM library_revisions"),

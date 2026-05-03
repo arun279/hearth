@@ -16,6 +16,7 @@ export { Field, type FieldProps } from "./field.tsx";
 export { IconButton, type IconButtonProps } from "./icon-button.tsx";
 export { Input, type InputProps } from "./input.tsx";
 export { Modal, type ModalProps } from "./modal.tsx";
+export { PartIcon, partKindLabel } from "./part-icon.tsx";
 export { Skeleton, type SkeletonProps } from "./skeleton.tsx";
 export {
   panelIdFor,

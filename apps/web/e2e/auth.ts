@@ -49,6 +49,13 @@ export function resetInstanceState(): void {
     // into groups. Drop enrollments first, then orphaned tracks (whose
     // parent group has no surviving members), then groups (orphans only).
     "DELETE FROM track_enrollments WHERE user_id LIKE 'u_e2e_%' OR track_id IN (SELECT t.id FROM tracks t WHERE t.group_id IN (SELECT g.id FROM groups g WHERE NOT EXISTS (SELECT 1 FROM group_memberships m WHERE m.group_id = g.id)))",
+    // M8 dependents: edge tables FK into learning_activities (twice
+    // each — both columns), so drop edges first. Then activities (FK
+    // into tracks). The orphan-track filter scopes the cascade to
+    // e2e-only data; a developer's real activities survive.
+    "DELETE FROM activity_prerequisites WHERE activity_id IN (SELECT a.id FROM learning_activities a WHERE a.track_id IN (SELECT t.id FROM tracks t WHERE t.group_id IN (SELECT g.id FROM groups g WHERE NOT EXISTS (SELECT 1 FROM group_memberships m WHERE m.group_id = g.id))))",
+    "DELETE FROM activity_suggested_sequences WHERE activity_id IN (SELECT a.id FROM learning_activities a WHERE a.track_id IN (SELECT t.id FROM tracks t WHERE t.group_id IN (SELECT g.id FROM groups g WHERE NOT EXISTS (SELECT 1 FROM group_memberships m WHERE m.group_id = g.id))))",
+    "DELETE FROM learning_activities WHERE track_id IN (SELECT t.id FROM tracks t WHERE t.group_id IN (SELECT g.id FROM groups g WHERE NOT EXISTS (SELECT 1 FROM group_memberships m WHERE m.group_id = g.id)))",
     "DELETE FROM tracks WHERE group_id IN (SELECT g.id FROM groups g WHERE NOT EXISTS (SELECT 1 FROM group_memberships m WHERE m.group_id = g.id))",
     // M6 dependents: revisions / stewards / activity refs FK into
     // library_items; library_items FK into groups + users. Children

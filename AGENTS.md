@@ -11,7 +11,7 @@ packages/api      → packages/core, packages/ports
 packages/auth     → packages/ports, packages/domain, better-auth  (NEVER drizzle, NEVER adapters)
 packages/core     → packages/domain, packages/ports, zod           (nothing else)
 packages/adapters/cloudflare → packages/ports, packages/db, drizzle-orm, @cloudflare/workers-types, @paralleldrive/cuid2
-packages/domain   → (leaf — pure TS, no runtime deps)
+packages/domain   → leaf; zod (the one runtime dep, used by `parts/` + `activity/` schemas)
 packages/ports    → packages/domain  (pure interfaces)
 ```
 
