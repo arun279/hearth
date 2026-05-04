@@ -265,6 +265,21 @@ function makeUploadsPort(
   };
 }
 
+/**
+ * Minimal `LearningActivityRepository` stub used by the library-detail
+ * route handlers to satisfy the new "Used in N activities" projection
+ * — `getLibraryItem` calls `activitiesUsingLibraryItem` to populate the
+ * `usedIn` field. The default returns an empty list (item isn't
+ * referenced by any activity); tests can override per case.
+ */
+function makeActivitiesPort(overrides: Partial<Ports["activities"]> = {}): Ports["activities"] {
+  return {
+    ...throwingProxy<Ports["activities"]>("activities"),
+    activitiesUsingLibraryItem: vi.fn(async () => []),
+    ...overrides,
+  } as Ports["activities"];
+}
+
 describe("GET /api/v1/g/:groupId/library", () => {
   it("returns the byGroup payload + canUpload cap", async () => {
     const app = harness({
@@ -421,6 +436,7 @@ describe("GET /api/v1/library/:itemId", () => {
         groups: makeGroupsPort(),
         policy: makePolicyPort(),
         libraryItems: makeLibraryPort(),
+        activities: makeActivitiesPort(),
       },
     });
     const res = await app.request(`/api/v1/library/${itemId}`, {
@@ -580,6 +596,7 @@ describe("GET /api/v1/library/:itemId/download — error paths", () => {
           byId: vi.fn(async () => ({ ...livingItem, currentRevisionId: null })),
           detail: vi.fn(async () => detached),
         }),
+        activities: makeActivitiesPort(),
         storage: makeStoragePort(),
       },
     });
@@ -603,6 +620,7 @@ describe("GET /api/v1/library/:itemId/download — error paths", () => {
         groups: makeGroupsPort(),
         policy: makePolicyPort(),
         libraryItems: makeLibraryPort({ detail: vi.fn(async () => noFilename) }),
+        activities: makeActivitiesPort(),
         storage: makeStoragePort(),
       },
     });
@@ -624,6 +642,7 @@ describe("GET /api/v1/library/:itemId/download", () => {
         groups: makeGroupsPort(),
         policy: makePolicyPort(),
         libraryItems: makeLibraryPort(),
+        activities: makeActivitiesPort(),
         storage: makeStoragePort(),
       },
     });
@@ -793,6 +812,7 @@ describe("GET /api/v1/library/:itemId/revisions/:revisionId/download", () => {
         groups: makeGroupsPort(),
         policy: makePolicyPort(),
         libraryItems: makeLibraryPort(),
+        activities: makeActivitiesPort(),
         storage: makeStoragePort(),
       },
     });
@@ -813,6 +833,7 @@ describe("GET /api/v1/library/:itemId/revisions/:revisionId/download", () => {
         groups: makeGroupsPort(),
         policy: makePolicyPort(),
         libraryItems: makeLibraryPort(),
+        activities: makeActivitiesPort(),
         storage: makeStoragePort(),
       },
     });

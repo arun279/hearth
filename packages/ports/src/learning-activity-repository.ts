@@ -11,13 +11,23 @@ import type {
   LearningTrackId,
   PostClosePolicy,
 } from "@hearth/domain";
+import type { Write } from "./_brand.ts";
 
 /**
  * Patch shape for `update`. Each field is independently optional so the
  * caller can patch any subset of the activity body. `window` /
- * `postClosePolicy` accept `null` as the explicit "clear" signal. The
- * adapter performs the id-preserving merge for `parts` (Part ids carry
- * forward) so `part_progress.partId` references survive a no-op edit.
+ * `postClosePolicy` accept `null` as the explicit "clear" signal.
+ *
+ * Part ids are caller-owned: the adapter persists `patch.parts` exactly
+ * as supplied, so a Part whose id matches the prior version's keeps its
+ * id (and the M11 `part_progress.partId` references that pin to it
+ * survive). The composer satisfies this by mounting the prior parts
+ * into its draft state on edit, mutating in place, and minting fresh
+ * ids only when `addPart` fires. The Zod `partIdRef` schema rejects any
+ * Part whose id is missing or empty, so a caller cannot accidentally
+ * publish a list that would orphan progress rows; what the caller
+ * cannot do is rely on the adapter to "match by content" and re-derive
+ * ids — there is no semantic-equality oracle for arbitrary Part bodies.
  *
  * Children (library refs, prereqs, suggested-sequences) live on
  * separate tables and are wholesale-replaced by their dedicated port
@@ -45,16 +55,27 @@ export type ActivityLibraryRefRow = {
 
 export interface LearningActivityRepository {
   /**
+   * Mutating methods (those that touch D1) carry the `Write<>` brand so
+   * the killswitch-coverage test can enumerate them at compile time. A
+   * new branded method without a corresponding CASES entry in
+   * `packages/adapters/cloudflare/test/killswitch-coverage.test.ts`
+   * fails `tsc` with the missing label named in the error. Reads stay
+   * unbranded. The brand is type-only (no runtime cost).
+   */
+
+  /**
    * Insert a new Learning Activity row + its library refs in one D1 batch.
    * `gate.assertWritable()` runs first (resilience invariant 2). Envelope
    * shapes are re-validated structurally inside the adapter as defense in
    * depth — a malformed envelope from a non-route caller still cannot
    * land. Returns the realized aggregate (including the freshly-minted id).
    */
-  create(input: {
-    readonly draft: LearningActivityDraft;
-    readonly createdBy: import("@hearth/domain").UserId;
-  }): Promise<LearningActivity>;
+  create: Write<
+    (input: {
+      readonly draft: LearningActivityDraft;
+      readonly createdBy: import("@hearth/domain").UserId;
+    }) => Promise<LearningActivity>
+  >;
 
   /**
    * Aggregate read: the activity row plus its library refs, prerequisites,
@@ -85,11 +106,13 @@ export interface LearningActivityRepository {
    * the ids future Part Progress rows will reference). The adapter
    * re-runs cycle detection inside its D1 transaction.
    */
-  update(input: {
-    readonly id: LearningActivityId;
-    readonly patch: LearningActivityPatch;
-    readonly by: import("@hearth/domain").UserId;
-  }): Promise<LearningActivity>;
+  update: Write<
+    (input: {
+      readonly id: LearningActivityId;
+      readonly patch: LearningActivityPatch;
+      readonly by: import("@hearth/domain").UserId;
+    }) => Promise<LearningActivity>
+  >;
 
   /**
    * Hard delete only when no `activity_records` reference the activity.
@@ -98,10 +121,12 @@ export interface LearningActivityRepository {
    * surfaces as `DomainError("CONFLICT", …)` with a code the SPA can
    * pattern-match to render the right error copy.
    */
-  delete(input: {
-    readonly id: LearningActivityId;
-    readonly by: import("@hearth/domain").UserId;
-  }): Promise<void>;
+  delete: Write<
+    (input: {
+      readonly id: LearningActivityId;
+      readonly by: import("@hearth/domain").UserId;
+    }) => Promise<void>
+  >;
 
   /**
    * Wholesale replace of the activity's library refs. The adapter does
@@ -111,13 +136,15 @@ export interface LearningActivityRepository {
    * rejected with `DomainError("INVARIANT_VIOLATION", …,
    * "pinned_revision_not_in_item")`.
    */
-  setLibraryRefs(input: {
-    readonly activityId: LearningActivityId;
-    readonly refs: ReadonlyArray<{
-      readonly libraryItemId: string;
-      readonly pinnedRevisionId: string | null;
-    }>;
-  }): Promise<readonly ActivityLibraryRefRow[]>;
+  setLibraryRefs: Write<
+    (input: {
+      readonly activityId: LearningActivityId;
+      readonly refs: ReadonlyArray<{
+        readonly libraryItemId: string;
+        readonly pinnedRevisionId: string | null;
+      }>;
+    }) => Promise<readonly ActivityLibraryRefRow[]>
+  >;
 
   listLibraryRefs(activityId: LearningActivityId): Promise<readonly ActivityLibraryRefRow[]>;
 
@@ -138,16 +165,20 @@ export interface LearningActivityRepository {
    * …, "cross_activity_prereq_cycle")`. Self-edges are pre-rejected by
    * the use case but defensively re-rejected here.
    */
-  setPrerequisites(input: {
-    readonly activityId: LearningActivityId;
-    readonly prerequisiteActivityIds: readonly LearningActivityId[];
-  }): Promise<readonly LearningActivityId[]>;
+  setPrerequisites: Write<
+    (input: {
+      readonly activityId: LearningActivityId;
+      readonly prerequisiteActivityIds: readonly LearningActivityId[];
+    }) => Promise<readonly LearningActivityId[]>
+  >;
 
   /** Wholesale replace of the activity's soft suggested-sequence edges. */
-  setSuggestedSequences(input: {
-    readonly activityId: LearningActivityId;
-    readonly nextActivityIds: readonly LearningActivityId[];
-  }): Promise<readonly LearningActivityId[]>;
+  setSuggestedSequences: Write<
+    (input: {
+      readonly activityId: LearningActivityId;
+      readonly nextActivityIds: readonly LearningActivityId[];
+    }) => Promise<readonly LearningActivityId[]>
+  >;
 
   /**
    * "What activities does this one depend on?" — used on activity-detail

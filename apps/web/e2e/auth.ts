@@ -55,6 +55,10 @@ export function resetInstanceState(): void {
     // e2e-only data; a developer's real activities survive.
     "DELETE FROM activity_prerequisites WHERE activity_id IN (SELECT a.id FROM learning_activities a WHERE a.track_id IN (SELECT t.id FROM tracks t WHERE t.group_id IN (SELECT g.id FROM groups g WHERE NOT EXISTS (SELECT 1 FROM group_memberships m WHERE m.group_id = g.id))))",
     "DELETE FROM activity_suggested_sequences WHERE activity_id IN (SELECT a.id FROM learning_activities a WHERE a.track_id IN (SELECT t.id FROM tracks t WHERE t.group_id IN (SELECT g.id FROM groups g WHERE NOT EXISTS (SELECT 1 FROM group_memberships m WHERE m.group_id = g.id))))",
+    // Scoped by activity_id (not library_item_id) so an e2e activity
+    // pointing at a non-e2e library item still releases the FK before
+    // the parent learning_activities row is deleted on the next line.
+    "DELETE FROM activity_library_refs WHERE activity_id IN (SELECT a.id FROM learning_activities a WHERE a.track_id IN (SELECT t.id FROM tracks t WHERE t.group_id IN (SELECT g.id FROM groups g WHERE NOT EXISTS (SELECT 1 FROM group_memberships m WHERE m.group_id = g.id))))",
     "DELETE FROM learning_activities WHERE track_id IN (SELECT t.id FROM tracks t WHERE t.group_id IN (SELECT g.id FROM groups g WHERE NOT EXISTS (SELECT 1 FROM group_memberships m WHERE m.group_id = g.id)))",
     "DELETE FROM tracks WHERE group_id IN (SELECT g.id FROM groups g WHERE NOT EXISTS (SELECT 1 FROM group_memberships m WHERE m.group_id = g.id))",
     // M6 dependents: revisions / stewards / activity refs FK into
@@ -62,6 +66,11 @@ export function resetInstanceState(): void {
     // first so SQLite's FK enforcement doesn't reject the parent
     // delete. Scoped to e2e-only items via uploaded_by / user_id /
     // ownership so a developer's real library survives the teardown.
+    // The first activity_library_refs sweep (in the M8 block above)
+    // cleared activity-side refs scoped by activity_id; this second
+    // sweep clears any non-e2e-activity refs that still point at
+    // e2e-uploaded items so the library_items delete on line 68
+    // doesn't trip the FK RESTRICT.
     "DELETE FROM activity_library_refs WHERE library_item_id IN (SELECT id FROM library_items WHERE uploaded_by LIKE 'u_e2e_%')",
     "DELETE FROM library_revisions WHERE uploaded_by LIKE 'u_e2e_%' OR library_item_id IN (SELECT id FROM library_items WHERE uploaded_by LIKE 'u_e2e_%')",
     "DELETE FROM library_stewards WHERE user_id LIKE 'u_e2e_%' OR granted_by LIKE 'u_e2e_%' OR library_item_id IN (SELECT id FROM library_items WHERE uploaded_by LIKE 'u_e2e_%')",

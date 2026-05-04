@@ -42,9 +42,18 @@ export function Modal({
 
   if (!open) return null;
 
+  // Outer container is a viewport-anchored flexbox so the panel can
+  // size itself relative to viewport height. The panel is a flex
+  // column whose body region (`flex-1 min-h-0 overflow-y-auto`)
+  // absorbs the scroll — keeping header + footer visible at the
+  // panel's edges. Without this, a tall body pushed the footer below
+  // the fold and the primary actions ("Cancel"/"Save") became
+  // unreachable without scrolling. Sticky-footer pattern per
+  // Nielsen #1 "Visibility of system status": primary actions stay
+  // visible regardless of scroll position.
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto px-4 py-10"
+      className="fixed inset-0 z-50 flex items-stretch justify-center px-4 py-10 sm:items-center"
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
@@ -60,7 +69,7 @@ export function Modal({
       <div
         ref={panelRef}
         className={cn(
-          "relative w-full rounded-[var(--radius-lg)] border bg-[var(--color-bg)] shadow-lg",
+          "relative flex max-h-full w-full flex-col rounded-[var(--radius-lg)] border bg-[var(--color-bg)] shadow-lg",
           tone === "danger" ? "border-[var(--color-danger-border)]" : "border-[var(--color-rule)]",
           SIZE[size],
         )}
@@ -90,10 +99,12 @@ export function Modal({
           ) : null}
         </div>
         {children !== undefined && children !== null && children !== false ? (
-          <div className="space-y-4 px-5 py-4 text-[13px]">{children}</div>
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4 text-[13px]">
+            {children}
+          </div>
         ) : null}
         {footer ? (
-          <div className="flex items-center justify-end gap-2 border-[var(--color-rule)] border-t px-5 py-3">
+          <div className="flex shrink-0 items-center justify-end gap-2 border-[var(--color-rule)] border-t px-5 py-3">
             {footer}
           </div>
         ) : null}

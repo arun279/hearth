@@ -129,6 +129,7 @@ function loadItemForRoute(c: Context<AppBindings>, itemId: LibraryItemId) {
       groups: c.var.ports.groups,
       policy: c.var.ports.policy,
       library: c.var.ports.libraryItems,
+      activities: c.var.ports.activities,
     },
   );
 }

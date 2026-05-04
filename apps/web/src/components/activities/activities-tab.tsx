@@ -1,4 +1,4 @@
-import { Button, EmptyState, Skeleton } from "@hearth/ui";
+import { Button, Callout, EmptyState, Skeleton } from "@hearth/ui";
 import { Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -39,6 +39,7 @@ export function ActivitiesTab({ groupId, trackId, canCreate }: Props) {
   const query = useTrackActivities(trackId, true);
   const items = query.data ?? [];
   const showSkeleton = query.isLoading;
+  const showError = query.isError && !query.isLoading;
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -53,9 +54,11 @@ export function ActivitiesTab({ groupId, trackId, canCreate }: Props) {
         <p className="text-[12px] text-[var(--color-ink-2)]">
           {showSkeleton
             ? "Loading…"
-            : items.length === 0
-              ? "Composed by facilitators; available to everyone enrolled."
-              : `${items.length} ${items.length === 1 ? "activity" : "activities"} on this track.`}
+            : showError
+              ? "Couldn't load activities."
+              : items.length === 0
+                ? "Composed by facilitators; available to everyone enrolled."
+                : `${items.length} ${items.length === 1 ? "activity" : "activities"} on this track.`}
         </p>
         {canCreate ? (
           <Button type="button" size="sm" variant="primary" onClick={() => setCreateOpen(true)}>
@@ -65,7 +68,25 @@ export function ActivitiesTab({ groupId, trackId, canCreate }: Props) {
         ) : null}
       </div>
 
-      {showSkeleton ? (
+      {showError ? (
+        // Without this branch, server errors collapse silently to the
+        // empty state — the same anti-pattern PR #17 caught on library
+        // search. The Try-again refetch lets the operator recover
+        // without a page reload.
+        <Callout tone="danger" title="Couldn't load activities">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <span>
+              {asUserMessage(
+                query.error,
+                "The Activities surface didn't return — check your connection and try again.",
+              )}
+            </span>
+            <Button size="sm" variant="secondary" onClick={() => query.refetch()}>
+              Try again
+            </Button>
+          </div>
+        </Callout>
+      ) : showSkeleton ? (
         <div className="space-y-2">
           <Skeleton className="h-[60px] w-full" />
           <Skeleton className="h-[60px] w-full" />

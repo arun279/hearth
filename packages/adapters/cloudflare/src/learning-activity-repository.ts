@@ -307,18 +307,50 @@ export function createLearningActivityRepository(
 
     delete: markWrite(async ({ id, by }) => {
       await deps.gate.assertWritable();
-      // Children first (RESTRICT FKs); refusal on records lives at the
-      // FK layer until M11's check in the use case is wired. The
-      // dependents check is the primary refusal path; this batch only
-      // succeeds when no other activity references this one.
-      await deps.db.batch([
+      // Conditional DELETE on the parent: refuse if the parent track is
+      // archived. The exists-clause walks tracks.status so a concurrent
+      // archive between the use case's read and this write surfaces as
+      // CONFLICT — the same race-resilience guarantee `update` carries
+      // (per AGENTS.md § "Conditional UPDATE on every status-guarded
+      // mutation"). The child deletes batch with the parent so all four
+      // either commit or none does; if the parent's `.returning()`
+      // comes back empty we know the row vanished or the track flipped
+      // archived, and the child cleanups are no-ops on a vanished id.
+      const childDeletes = [
         deps.db.delete(activityLibraryRefs).where(eq(activityLibraryRefs.activityId, id)),
         deps.db.delete(activityPrerequisites).where(eq(activityPrerequisites.activityId, id)),
         deps.db
           .delete(activitySuggestedSequences)
           .where(eq(activitySuggestedSequences.activityId, id)),
-        deps.db.delete(learningActivities).where(eq(learningActivities.id, id)),
-      ]);
+      ] as const;
+      const parentDelete = deps.db
+        .delete(learningActivities)
+        .where(
+          and(
+            eq(learningActivities.id, id),
+            sql`EXISTS (SELECT 1 FROM ${tracks} WHERE ${tracks.id} = ${learningActivities.trackId} AND ${tracks.status} != 'archived')`,
+          ),
+        )
+        .returning({ id: learningActivities.id });
+      const results = (await deps.db.batch([...childDeletes, parentDelete] as unknown as Parameters<
+        typeof deps.db.batch
+      >[0])) as readonly [unknown, unknown, unknown, ReadonlyArray<{ readonly id: string }>];
+      const deletedRows = results[3];
+      if (deletedRows.length === 0) {
+        const probe = await deps.db
+          .select({ id: learningActivities.id })
+          .from(learningActivities)
+          .where(eq(learningActivities.id, id))
+          .limit(1);
+        if (!probe[0]) {
+          throw new DomainError("NOT_FOUND", "Activity not found.", "not_found");
+        }
+        throw new DomainError(
+          "CONFLICT",
+          "Archived tracks do not allow Learning Activity deletes.",
+          "track_archived",
+        );
+      }
       void by;
     }),
 

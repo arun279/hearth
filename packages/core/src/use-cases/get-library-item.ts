@@ -1,5 +1,6 @@
 import {
   displayKindFor,
+  type LearningActivityId,
   type LibraryDisplayKind,
   type LibraryItemId,
   type UserId,
@@ -10,6 +11,7 @@ import { canRetireLibraryItem } from "@hearth/domain/policy/can-retire-library-i
 import { canUpdateLibraryMetadata } from "@hearth/domain/policy/can-update-library-metadata";
 import type {
   InstanceAccessPolicyRepository,
+  LearningActivityRepository,
   LibraryItemDetail,
   LibraryItemRepository,
   StudyGroupRepository,
@@ -29,10 +31,23 @@ export type LibraryItemCaps = {
   readonly canManageStewards: boolean;
 };
 
+export type LibraryItemUsedInEntry = {
+  readonly id: LearningActivityId;
+  readonly title: string;
+};
+
 export type GetLibraryItemResult = {
   readonly detail: LibraryItemDetail;
   readonly caps: LibraryItemCaps;
   readonly displayKind: LibraryDisplayKind;
+  /**
+   * Activities that currently reference this Library Item. Empty when
+   * the item hasn't been attached to any activity yet. The list is the
+   * friendly counterpart to the FK-RESTRICT error a steward sees on
+   * retire — surfacing the in-use list ahead of time lets the steward
+   * understand the consequence before the click.
+   */
+  readonly usedIn: readonly LibraryItemUsedInEntry[];
 };
 
 export type GetLibraryItemInput = {
@@ -45,6 +60,7 @@ export type GetLibraryItemDeps = {
   readonly groups: StudyGroupRepository;
   readonly policy: InstanceAccessPolicyRepository;
   readonly library: LibraryItemRepository;
+  readonly activities: LearningActivityRepository;
 };
 
 export async function getLibraryItem(
@@ -93,5 +109,7 @@ export async function getLibraryItem(
     "";
   const displayKind = displayKindFor(currentMime);
 
-  return { detail, caps, displayKind };
+  const usedIn = await deps.activities.activitiesUsingLibraryItem(input.itemId);
+
+  return { detail, caps, displayKind, usedIn };
 }

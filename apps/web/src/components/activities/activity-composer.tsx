@@ -143,16 +143,44 @@ export function ActivityComposer({
   const [draft, setDraft] = useState<Draft>(initial);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
 
   useEffect(() => {
     if (open) {
       setDraft(initial);
       setError(null);
+      setDiscardConfirmOpen(false);
     }
   }, [open, initial]);
 
+  // Dirty when the in-flight draft has diverged from the initial seed.
+  // A reference equality check on `draft` vs. `initial` is too tight (any
+  // setDraft call breaks identity), so compare the structural content via
+  // JSON. ReadonlySet -> Array conversion happens once per re-render via
+  // `serializeDraftForDirtyCheck` so the JSON is stable across reorders.
+  const isDirty = useMemo(
+    () =>
+      JSON.stringify(serializeDraftForDirtyCheck(draft)) !==
+      JSON.stringify(serializeDraftForDirtyCheck(initial)),
+    [draft, initial],
+  );
+
   const close = () => {
     if (submitting) return;
+    if (isDirty) {
+      // Esc / overlay click / Cancel all route through `close`. When
+      // dirty, intercept and confirm before discarding minutes of
+      // authoring work — Nielsen #3 "User control and freedom",
+      // Shneiderman #6 "Easy reversal." Pristine composers still close
+      // instantly so friction stays proportional to consequence.
+      setDiscardConfirmOpen(true);
+      return;
+    }
+    onClose();
+  };
+
+  const confirmDiscard = () => {
+    setDiscardConfirmOpen(false);
     onClose();
   };
 
@@ -230,158 +258,194 @@ export function ActivityComposer({
 
   const otherSiblings = siblings.filter((s) => s.id !== activity?.id);
 
+  // The discard-confirm Modal is rendered as a SIBLING of the parent
+  // composer Modal (not nested inside its body). Two stacked modals
+  // share the same z-50 fixed-position layer; nesting the confirm
+  // inside the parent's overflow-y-auto body would clip its
+  // `position: fixed` to the parent panel's bounds, leaving Cancel /
+  // Discard unclickable. The dialog-keyboard hook tracks topmost
+  // panels independently, so Esc on the confirm closes it (not the
+  // parent), and clicks on the parent's scrim are inerted while the
+  // confirm is open.
   return (
-    <Modal
-      open={open}
-      onClose={close}
-      size="lg"
-      title={activity ? "Edit activity" : "New activity"}
-      description={
-        activity
-          ? "Reordering Parts is safe — completed Part Progress is preserved across edits."
-          : "Compose an activity from one or more built-in Parts. Save to publish to the track."
-      }
-      footer={
-        <>
-          {deleteSlot ? (
-            // Asymmetric footer per Shneiderman #5/#6: destructive
-            // affordances stay distant from the primary "Save"
-            // button. Pushing Delete to the leading edge avoids
-            // muscle-memory mistakes while keeping the dialog single-row.
-            <div className="mr-auto">{deleteSlot}</div>
-          ) : null}
-          <Button variant="secondary" onClick={close} disabled={submitting}>
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            variant="primary"
-            onClick={submit}
-            disabled={submitting || draft.title.trim().length === 0 || draft.parts.length === 0}
-          >
-            {submitting ? "Saving…" : activity ? "Save changes" : "Create activity"}
-          </Button>
-        </>
-      }
-    >
-      <div className="space-y-5">
-        <Field label="Title">
-          {({ id, describedBy }) => (
-            <Input
-              id={id}
-              aria-describedby={describedBy}
-              maxLength={TITLE_MAX}
-              placeholder="e.g., Greetings & introductions"
-              value={draft.title}
-              onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
+    <>
+      <Modal
+        open={open}
+        onClose={close}
+        size="lg"
+        title={activity ? "Edit activity" : "New activity"}
+        description={
+          activity
+            ? "Reordering Parts is safe — completed Part Progress is preserved across edits."
+            : "Compose an activity from one or more built-in Parts. Save to publish to the track."
+        }
+        footer={
+          <>
+            {deleteSlot ? (
+              // Asymmetric footer per Shneiderman #5/#6: destructive
+              // affordances stay distant from the primary "Save"
+              // button. Pushing Delete to the leading edge avoids
+              // muscle-memory mistakes while keeping the dialog single-row.
+              <div className="mr-auto">{deleteSlot}</div>
+            ) : null}
+            <Button variant="secondary" onClick={close} disabled={submitting}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              onClick={submit}
+              // Stays enabled even when the form is incomplete: clicking
+              // surfaces the specific missing field via `setError(...)`
+              // above. A silent disabled CTA reads as "the system is
+              // broken" before "I forgot a field" — Nielsen #1 + #5.
               disabled={submitting}
-            />
-          )}
-        </Field>
-
-        <Field label="Description" hint="Optional — a sentence on what the activity is about.">
-          {({ id, describedBy }) => (
-            <Textarea
-              id={id}
-              aria-describedby={describedBy}
-              rows={2}
-              maxLength={DESCRIPTION_MAX}
-              placeholder="e.g., Read the primer, listen to the dialogue, write a short reflection."
-              value={draft.description}
-              onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
-              disabled={submitting}
-            />
-          )}
-        </Field>
-
-        <PartsEditor
-          groupId={groupId}
-          parts={draft.parts}
-          onAdd={addPart}
-          onRemove={removePart}
-          onMove={movePart}
-          onUpdate={updatePart}
-          disabled={submitting}
-        />
-
-        <AudienceFields
-          trackId={trackId}
-          audienceKind={draft.audienceKind}
-          selectedUserIds={draft.selectedUserIds}
-          onAudienceKindChange={(kind) => setDraft((d) => ({ ...d, audienceKind: kind }))}
-          onToggleUser={(userId) =>
-            setDraft((d) => {
-              const next = new Set(d.selectedUserIds);
-              if (next.has(userId)) {
-                next.delete(userId);
-              } else {
-                next.add(userId);
-              }
-              return { ...d, selectedUserIds: next };
-            })
-          }
-          disabled={submitting}
-        />
-
-        <WindowFields
-          opensAt={draft.opensAt}
-          dueAt={draft.dueAt}
-          closesAt={draft.closesAt}
-          postClose={draft.postClose}
-          onChange={(w) => setDraft((d) => ({ ...d, ...w }))}
-          disabled={submitting}
-        />
-
-        <Field
-          label="Completion rule"
-          hint="Honor-system is the v1 default. Auto-complete fires when every Part is marked done."
-        >
-          {({ id, describedBy }) => (
-            <select
-              id={id}
-              aria-describedby={describedBy}
-              className="h-9 w-full rounded-[var(--radius-sm)] border border-[var(--color-rule)] bg-[var(--color-bg)] px-3 text-[13px]"
-              value={draft.completionRule}
-              disabled={submitting}
-              onChange={(e) =>
-                setDraft((d) => ({
-                  ...d,
-                  completionRule: e.target.value as CompletionRule["kind"],
-                }))
-              }
             >
-              <option value="manual_mark">Honor-system — learner marks complete</option>
-              <option value="all_parts_complete">Auto — all Parts marked complete</option>
-            </select>
-          )}
-        </Field>
+              {submitting ? "Saving…" : activity ? "Save changes" : "Create activity"}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-5">
+          <Field label="Title" required>
+            {({ id, describedBy, required }) => (
+              <Input
+                id={id}
+                aria-describedby={describedBy}
+                required={required}
+                maxLength={TITLE_MAX}
+                placeholder="e.g., Greetings & introductions"
+                value={draft.title}
+                onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
+                disabled={submitting}
+              />
+            )}
+          </Field>
 
-        <CrossActivityFields
-          siblings={otherSiblings}
-          prereqIds={draft.selectedPrereqIds}
-          suggestedIds={draft.selectedSuggestedIds}
-          onTogglePrereq={(id) =>
-            setDraft((d) => ({ ...d, selectedPrereqIds: toggleInSet(d.selectedPrereqIds, id) }))
-          }
-          onToggleSuggested={(id) =>
-            setDraft((d) => ({
-              ...d,
-              selectedSuggestedIds: toggleInSet(d.selectedSuggestedIds, id),
-            }))
-          }
-          disabled={submitting}
-        />
+          <Field label="Description" hint="Optional — a sentence on what the activity is about.">
+            {({ id, describedBy }) => (
+              <Textarea
+                id={id}
+                aria-describedby={describedBy}
+                rows={2}
+                maxLength={DESCRIPTION_MAX}
+                placeholder="e.g., Read the primer, listen to the dialogue, write a short reflection."
+                value={draft.description}
+                onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
+                disabled={submitting}
+              />
+            )}
+          </Field>
 
-        {error ? (
-          <div
-            role="alert"
-            className="rounded-[var(--radius-sm)] border border-[var(--color-danger-border)] bg-[var(--color-danger-soft)] px-3 py-2 text-[12px] text-[var(--color-danger)]"
+          <PartsEditor
+            groupId={groupId}
+            parts={draft.parts}
+            onAdd={addPart}
+            onRemove={removePart}
+            onMove={movePart}
+            onUpdate={updatePart}
+            disabled={submitting}
+          />
+
+          <AudienceFields
+            trackId={trackId}
+            audienceKind={draft.audienceKind}
+            selectedUserIds={draft.selectedUserIds}
+            onAudienceKindChange={(kind) => setDraft((d) => ({ ...d, audienceKind: kind }))}
+            onToggleUser={(userId) =>
+              setDraft((d) => {
+                const next = new Set(d.selectedUserIds);
+                if (next.has(userId)) {
+                  next.delete(userId);
+                } else {
+                  next.add(userId);
+                }
+                return { ...d, selectedUserIds: next };
+              })
+            }
+            disabled={submitting}
+          />
+
+          <WindowFields
+            opensAt={draft.opensAt}
+            dueAt={draft.dueAt}
+            closesAt={draft.closesAt}
+            postClose={draft.postClose}
+            onChange={(w) => setDraft((d) => ({ ...d, ...w }))}
+            disabled={submitting}
+          />
+
+          <Field
+            label="Completion rule"
+            hint="Honor-system is the v1 default. Auto-complete fires when every Part is marked done."
           >
-            {error}
-          </div>
-        ) : null}
-      </div>
-    </Modal>
+            {({ id, describedBy }) => (
+              <select
+                id={id}
+                aria-describedby={describedBy}
+                className="h-9 w-full rounded-[var(--radius-sm)] border border-[var(--color-rule)] bg-[var(--color-bg)] px-3 text-[13px]"
+                value={draft.completionRule}
+                disabled={submitting}
+                onChange={(e) =>
+                  setDraft((d) => ({
+                    ...d,
+                    completionRule: e.target.value as CompletionRule["kind"],
+                  }))
+                }
+              >
+                <option value="manual_mark">Honor-system — learner marks complete</option>
+                <option value="all_parts_complete">Auto — all Parts marked complete</option>
+              </select>
+            )}
+          </Field>
+
+          <CrossActivityFields
+            siblings={otherSiblings}
+            prereqIds={draft.selectedPrereqIds}
+            suggestedIds={draft.selectedSuggestedIds}
+            onTogglePrereq={(id) =>
+              setDraft((d) => ({ ...d, selectedPrereqIds: toggleInSet(d.selectedPrereqIds, id) }))
+            }
+            onToggleSuggested={(id) =>
+              setDraft((d) => ({
+                ...d,
+                selectedSuggestedIds: toggleInSet(d.selectedSuggestedIds, id),
+              }))
+            }
+            disabled={submitting}
+          />
+
+          {error ? (
+            <div
+              role="alert"
+              className="rounded-[var(--radius-sm)] border border-[var(--color-danger-border)] bg-[var(--color-danger-soft)] px-3 py-2 text-[12px] text-[var(--color-danger)]"
+            >
+              {error}
+            </div>
+          ) : null}
+        </div>
+      </Modal>
+      <Modal
+        open={discardConfirmOpen}
+        onClose={() => setDiscardConfirmOpen(false)}
+        size="sm"
+        tone="danger"
+        title="Discard your changes?"
+        description="The composer has unsaved edits. Discarding closes the dialog and throws them away — this can't be undone."
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setDiscardConfirmOpen(false)}>
+              Keep editing
+            </Button>
+            <Button variant="primary" onClick={confirmDiscard}>
+              Discard
+            </Button>
+          </>
+        }
+      >
+        {null}
+      </Modal>
+    </>
   );
 }
 
@@ -681,7 +745,6 @@ function LibraryItemPickerBody({
 }) {
   const library = useLibraryList(groupId, true);
   const allowed = library.data?.entries.filter((e) => allowedKinds.includes(e.displayKind));
-  const selectedItem = allowed?.find((e) => e.item.id === part.libraryItemId);
 
   if (library.isLoading) {
     return <p className="text-[11px] text-[var(--color-ink-3)]">Loading library…</p>;
@@ -720,12 +783,6 @@ function LibraryItemPickerBody({
           );
         })}
       </select>
-      {selectedItem ? (
-        <p className="text-[11px] text-[var(--color-ink-3)]">
-          Activity uses the current revision of "{selectedItem.item.title}". Pinning a specific
-          revision lands in a follow-up control.
-        </p>
-      ) : null}
     </div>
   );
 }
@@ -814,25 +871,86 @@ function WindowFields({
           label="Post-close policy"
           hint="What happens after the close time. Required when a close time is set."
         >
-          {({ id }) => (
-            <select
-              id={id}
-              className="h-9 w-full rounded-[var(--radius-sm)] border border-[var(--color-rule)] bg-[var(--color-bg)] px-3 text-[13px]"
-              value={postClose ?? ""}
+          {({ describedBy }) => (
+            <PostCloseRadios
+              value={postClose}
+              describedBy={describedBy}
               disabled={disabled}
-              onChange={(e) => {
-                const next = e.target.value;
-                onChange({ postClose: next === "" ? null : (next as PostClosePolicy["kind"]) });
-              }}
-            >
-              <option value="">— pick what happens at close —</option>
-              <option value="visible_completable">Visible and still completable</option>
-              <option value="visible_locked">Visible but locked</option>
-              <option value="hidden">Hidden</option>
-            </select>
+              onChange={(next) => onChange({ postClose: next })}
+            />
           )}
         </Field>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * Three mutually-exclusive post-close consequences. Radios (not a
+ * `<select>`) so the consequence of each option is visible without a
+ * recall step — Nielsen #6 "Recognition over recall." Mirrors the
+ * Embed-provider radio pattern that already lives in this same dialog.
+ */
+const POST_CLOSE_OPTIONS: ReadonlyArray<{
+  readonly value: PostClosePolicy["kind"];
+  readonly label: string;
+  readonly hint: string;
+}> = [
+  {
+    value: "visible_completable",
+    label: "Visible · still completable",
+    hint: "Late completions still count toward the activity.",
+  },
+  {
+    value: "visible_locked",
+    label: "Visible · locked",
+    hint: "Readable, but no further completions.",
+  },
+  {
+    value: "hidden",
+    label: "Hidden",
+    hint: "Disappears from the track after close.",
+  },
+];
+
+function PostCloseRadios({
+  value,
+  describedBy,
+  disabled,
+  onChange,
+}: {
+  readonly value: PostClosePolicy["kind"] | null;
+  readonly describedBy?: string;
+  readonly disabled: boolean;
+  readonly onChange: (next: PostClosePolicy["kind"]) => void;
+}) {
+  return (
+    <div
+      role="radiogroup"
+      aria-describedby={describedBy}
+      aria-label="Post-close policy"
+      className="space-y-1.5"
+    >
+      {POST_CLOSE_OPTIONS.map((opt) => (
+        <label
+          key={opt.value}
+          className="flex cursor-pointer items-start gap-2 rounded-[var(--radius-sm)] px-2 py-1.5 hover:bg-[var(--color-surface-2)]"
+        >
+          <input
+            type="radio"
+            name="post-close-policy"
+            value={opt.value}
+            checked={value === opt.value}
+            disabled={disabled}
+            onChange={() => onChange(opt.value)}
+            className="mt-0.5 h-4 w-4"
+          />
+          <span className="min-w-0 flex-1">
+            <span className="block text-[13px] text-[var(--color-ink)]">{opt.label}</span>
+            <span className="block text-[11px] text-[var(--color-ink-3)]">{opt.hint}</span>
+          </span>
+        </label>
+      ))}
     </div>
   );
 }
@@ -1091,6 +1209,31 @@ function toggleInSet(set: ReadonlySet<string>, id: string): ReadonlySet<string> 
     next.add(id);
   }
   return next;
+}
+
+/**
+ * JSON-friendly projection of a Draft used to detect dirty state.
+ * `Set` is converted to a sorted array so the JSON is stable across
+ * insertion order; the rest of the fields are already structurally
+ * comparable. The output is opaque — only used as input to
+ * `JSON.stringify` for an equality check.
+ */
+function serializeDraftForDirtyCheck(draft: Draft): unknown {
+  return {
+    title: draft.title,
+    description: draft.description,
+    parts: draft.parts,
+    hardEdges: draft.hardEdges,
+    audienceKind: draft.audienceKind,
+    selectedUserIds: [...draft.selectedUserIds].sort(),
+    opensAt: draft.opensAt,
+    dueAt: draft.dueAt,
+    closesAt: draft.closesAt,
+    postClose: draft.postClose,
+    completionRule: draft.completionRule,
+    selectedPrereqIds: [...draft.selectedPrereqIds].sort(),
+    selectedSuggestedIds: [...draft.selectedSuggestedIds].sort(),
+  };
 }
 
 function msToLocal(ms: number | null): string {

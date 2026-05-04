@@ -42,6 +42,10 @@ export type LibraryItemDetailPayload = {
     readonly canManageStewards: boolean;
   };
   readonly displayKind: LibraryDisplayKind;
+  readonly usedIn: ReadonlyArray<{
+    readonly id: string;
+    readonly title: string;
+  }>;
 };
 
 type RequestUploadResult = {
