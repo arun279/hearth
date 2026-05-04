@@ -1,6 +1,6 @@
 import { Button, Callout, EmptyState, Skeleton } from "@hearth/ui";
 import { Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { toast } from "sonner";
 import {
   type ActivityComposerPayload,
@@ -13,8 +13,19 @@ import {
 } from "../../hooks/use-activities.ts";
 import { asUserMessage } from "../../lib/problem.ts";
 import { ConfirmActionDialog } from "../admin/confirm-action-dialog.tsx";
-import { ActivityComposer } from "./activity-composer.tsx";
 import { ActivityRow } from "./activity-row.tsx";
+
+// Lazy-load the composer chunk so participants viewing the Activities
+// tab don't pay its bundle cost until a facilitator clicks "+ New
+// activity" or opens a row. The composer carries the Modal primitive,
+// the audience roster, the library picker hook, and the radio + check-
+// list components — none of which the read-only row view needs.
+// Mounted conditionally below (`createOpen ? <Suspense>...</Suspense>
+// : null`) so the dynamic import fires on first open, not on tab
+// render.
+const ActivityComposer = lazy(() =>
+  import("./activity-composer.tsx").then((m) => ({ default: m.ActivityComposer })),
+);
 
 type Props = {
   readonly groupId: string;
@@ -117,25 +128,31 @@ export function ActivitiesTab({ groupId, trackId, canCreate }: Props) {
         </div>
       )}
 
-      <ActivityComposer
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        trackId={trackId}
-        groupId={groupId}
-        siblings={items}
-        activity={null}
-        onSubmit={onCreate}
-      />
+      {createOpen ? (
+        <Suspense fallback={null}>
+          <ActivityComposer
+            open
+            onClose={() => setCreateOpen(false)}
+            trackId={trackId}
+            groupId={groupId}
+            siblings={items}
+            activity={null}
+            onSubmit={onCreate}
+          />
+        </Suspense>
+      ) : null}
 
       {editId !== null ? (
-        <EditActivityDialog
-          key={editId}
-          groupId={groupId}
-          trackId={trackId}
-          activityId={editId}
-          siblings={items}
-          onClose={() => setEditId(null)}
-        />
+        <Suspense fallback={null}>
+          <EditActivityDialog
+            key={editId}
+            groupId={groupId}
+            trackId={trackId}
+            activityId={editId}
+            siblings={items}
+            onClose={() => setEditId(null)}
+          />
+        </Suspense>
       ) : null}
     </div>
   );

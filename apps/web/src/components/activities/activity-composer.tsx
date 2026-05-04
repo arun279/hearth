@@ -22,7 +22,7 @@ import {
   Textarea,
 } from "@hearth/ui";
 import { ArrowDown, ArrowUp, Plus, X } from "lucide-react";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { ActivityComposerPayload, ActivityListItem } from "../../hooks/use-activities.ts";
 import { useLibraryList } from "../../hooks/use-library.ts";
@@ -88,14 +88,17 @@ const TITLE_MAX = 200;
 const DESCRIPTION_MAX = 4_000;
 
 /**
- * Part kinds the composer offers in M8. The full domain catalog (in
- * `ACTIVITY_PART_KINDS`) lists 7 kinds, but `quiz` and `attend_session`
- * cannot land in production until their player surfaces ship: a quiz
- * needs the multi-question authoring UI + Player surface (M10), and
- * `attend_session` needs the Sessions surface to pick a `studySessionId`
- * from. Until then we hide them from the palette so no facilitator can
- * author an unsavable Part. The discriminated-union schema keeps the
- * other variants intact — when the player surfaces land we re-add the
+ * TODO(m10): re-add `quiz` (Player surface in M10) and
+ * `attend_session` (Sessions surface in M13) palette entries when
+ * their authoring surfaces land. Part kinds the composer offers in
+ * M8. The full domain catalog (in `ACTIVITY_PART_KINDS`) lists 7
+ * kinds, but `quiz` and `attend_session` cannot land in production
+ * until those player surfaces ship: a quiz needs the multi-question
+ * authoring UI + Player surface, and `attend_session` needs the
+ * Sessions surface to pick a `studySessionId` from. Until then we
+ * hide them from the palette so no facilitator can author an
+ * unsavable Part. The discriminated-union schema keeps the other
+ * variants intact — when the player surfaces land we re-add the
  * palette entries here.
  */
 const AUTHORABLE_PART_KINDS = [
@@ -109,6 +112,22 @@ const AUTHORABLE_PART_KINDS = [
 type AuthorablePartKind = (typeof AUTHORABLE_PART_KINDS)[number];
 
 /**
+ * TODO(m10): restructure as five-tab dialog (`Parts | Flow | Audience
+ * | Window | Completion`) when M10's player surface re-introduces
+ * `quiz` + `attend_session` palette entries — the long-scroll shape
+ * works today with the Modal primitive's sticky footer, but the
+ * per-section density that justifies tabs arrives with M10's content
+ * additions.
+ *
+ * TODO(m10): the Draft state carries `hardEdges` (the intra-Part
+ * `flow.prereqs[]` projection) and the serializer round-trips them,
+ * but no UI exposes wiring an edge between two Parts. The schema
+ * supports it; M8 simply ships no Flow editor. M10's player surface
+ * is the consumer of `flow.prereqs[]` (gates Part access by completion
+ * of upstream Parts) — without that consumer, a Flow editor would
+ * write data nothing reads. Wire the editor as a sibling section /
+ * tab when M10 lands.
+ *
  * Compose or edit a Learning Activity. The dialog mirrors the design
  * prototype: a single scrolled modal with discrete sections (Parts /
  * Audience / Window / Completion / Cross-activity dependencies). Arrow
@@ -144,6 +163,19 @@ export function ActivityComposer({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
+  // The alert is rendered at the bottom of the form body. With the
+  // sticky footer always visible, a Save click from `scrollTop=0` can
+  // place the alert below the visible viewport — the user gets no
+  // signal about which field is gating the action. Scroll the alert
+  // into view inside the modal's scrollable body on every `error`
+  // transition (first set + subsequent message changes during a
+  // fix-then-fail-elsewhere flow).
+  const errorRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (error && errorRef.current) {
+      errorRef.current.scrollIntoView({ block: "end", behavior: "smooth" });
+    }
+  }, [error]);
 
   useEffect(() => {
     if (open) {
@@ -307,6 +339,15 @@ export function ActivityComposer({
         }
       >
         <div className="space-y-5">
+          {/*
+           * TODO(m19): bump required-asterisk visual weight (bold +
+           * a "Required" pill) at M19 polish. The asterisk today
+           * matches the calm density of the rest of the dialog —
+           * borderline visible at default zoom. The inline submit
+           * error names the gating field on save, so the missed-
+           * field recovery path works either way; this is purely
+           * about pre-click discoverability of the requirement.
+           */}
           <Field label="Title" required>
             {({ id, describedBy, required }) => (
               <Input
@@ -417,6 +458,7 @@ export function ActivityComposer({
 
           {error ? (
             <div
+              ref={errorRef}
               role="alert"
               className="rounded-[var(--radius-sm)] border border-[var(--color-danger-border)] bg-[var(--color-danger-soft)] px-3 py-2 text-[12px] text-[var(--color-danger)]"
             >
@@ -437,7 +479,7 @@ export function ActivityComposer({
             <Button variant="secondary" onClick={() => setDiscardConfirmOpen(false)}>
               Keep editing
             </Button>
-            <Button variant="primary" onClick={confirmDiscard}>
+            <Button variant="danger" onClick={confirmDiscard}>
               Discard
             </Button>
           </>
@@ -554,6 +596,15 @@ function PartRow({
         <PartBody groupId={groupId} part={part} onUpdate={onUpdate} disabled={disabled} />
       </div>
       <div className="flex shrink-0 items-center gap-1">
+        {/*
+         * TODO(m19): add a drag handle via `@dnd-kit/sortable` at
+         * M19 polish. Keep the arrow buttons as the keyboard-
+         * accessible fallback — drag handles alone fail Tab-only
+         * users. Cost of arrow-only reorder scales as O(N) per move
+         * (up to N-1 clicks to move an item across an N-Part list),
+         * tolerable at the 3-4-Part case but rough at the schema's
+         * MAX_PARTS_PER_ACTIVITY (50).
+         */}
         <IconBtn
           label="Move up"
           onClick={onMoveUp}
@@ -955,6 +1006,17 @@ function PostCloseRadios({
   );
 }
 
+/**
+ * TODO(m11-m12): refresh the prereq + suggested-sequence helper copy
+ * once Activity Records (M11) and Visibility (M12) make prereq
+ * satisfaction observable to the learner. Today the copy is correct
+ * for the static state ("Pick zero or more activities a learner
+ * must complete first") because no completion signal exists yet;
+ * once records track per-Part progress and visibility ties prereq
+ * status to access, the copy gets richer (e.g., "blocks access
+ * until the learner has marked all Parts of the prereq complete").
+ * Re-evaluate when M11 lands — the truth-table gets more interesting.
+ */
 function CrossActivityFields({
   siblings,
   prereqIds,

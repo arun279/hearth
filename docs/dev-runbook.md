@@ -188,6 +188,23 @@ Most flows past the group lifecycle (track activities, sessions, the People tab,
 5. Consume the invitation as the second user — visit `/invite/<token>` in a second browser/profile (cookies don't share between profiles), or POST `/api/v1/invitations/consume` with `{ "token": "..." }`.
 6. The second user can now self-enroll in the track via the `Enroll` button on the track home, or you can promote them to facilitator from the People tab (the admin-only `Promote` action). The orphan-facilitator guard on group removal lights up once a track has at least one facilitator who is the _only_ facilitator on that track — the easiest way to reproduce that state is to invite a third user, promote them to facilitator on a different track, then try removing them from the group.
 
+## 8b. Composing your first Learning Activity
+
+Once a Study Group, a Learning Track, and at least one enrolled facilitator exist (see § 8a), you can compose Learning Activities. The composer is a single-scrolled modal; the create + edit paths share the same component.
+
+1. Visit `/g/<groupId>/t/<trackId>` and click `+ New activity` on the Activities tab. The button is gated on facilitator authority — Group Admins and Track Facilitators see it; participants don't.
+2. **Title** is required; the asterisk + the on-submit inline error (`role="alert"`) name it explicitly. Description is optional.
+3. **Add Parts** from the palette. Five kinds ship in M8: Reading, Audio, Video, Reflection, and Embed. Reading / Audio / Video each open a Library Item picker filtered to the matching display kind (PDF/doc/image for Reading, audio MIME for Audio, video MIME for Video). Reflection takes a prompt; Embed takes an https URL plus a provider radio (YouTube / Spotify / Generic). Reorder with the up/down arrow buttons; remove with the X. Quiz and Session Parts are hidden in M8 — their player surfaces ship in later milestones.
+4. **Audience** defaults to "Everyone enrolled." Switching to "Selected participants" reveals a checkbox roster sourced from current track enrollments. Departed enrollees fall out automatically (left-track members aren't selectable).
+5. **Window** is optional. Opens / Due / Closes are `<input type="datetime-local">` — the helper line under the row discloses your browser timezone (`America/Chicago`, etc.) so you know what zone the saved instant reflects. Setting Closes reveals a **Post-close policy** radio group ("Visible · still completable" / "Visible · locked" / "Hidden"). The picker requires an explicit choice; there's no destructive auto-seed.
+6. **Completion rule** picks between "Honor-system — learner marks complete" (default) and "Auto — all Parts marked complete."
+7. **Cross-activity prereqs / suggested-next** appear once at least one other activity exists on the track. Both are multi-select; the helper copy will get richer when records and visibility ship.
+8. Click `Create activity`. The dialog's sticky footer keeps the save button visible regardless of scroll position. On validation failure, the inline alert auto-scrolls into view.
+9. **Edit**: click any activity row in the Activities tab. The composer reopens seeded with the existing activity. The dirty-state guard is live — pressing Esc with unsaved edits surfaces a "Discard your changes?" sub-modal; pristine composers still close instantly.
+10. **Delete**: in edit mode, click `Delete` (left side of the footer) and confirm with the type-to-confirm phrase. The mutation refuses if any other activity holds this one as a hard prerequisite — the deny code (`activity_has_dependents`) names the offending titles.
+
+The Library Item detail (`/g/<groupId>/library`, click an item) shows a "Used in N activities" list — useful when a steward wants to check what would block a hard-delete before they retire an item.
+
 ## 9. Inspecting R2 (avatars and library uploads)
 
 The Worker writes uploads to the R2 binding named `STORAGE` under two prefixes:
