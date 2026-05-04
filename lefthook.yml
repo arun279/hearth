@@ -1,3 +1,33 @@
+prepare-commit-msg:
+  commands:
+    refuse-amend:
+      # Git invokes this hook with three args when --amend (or -c/-C) is
+      # used: $1=path-to-COMMIT_EDITMSG, $2="commit", $3=<sha or HEAD>.
+      # `--amend` specifically passes "HEAD" as $3, so the predicate
+      # below distinguishes amend from -c/-C/cherry-pick which all
+      # share source="commit" but pass a real ref SHA. Override with
+      # `HEARTH_ALLOW_AMEND=1` when fixing a typo in an unpushed local
+      # commit you just made — same shape as `--no-verify`. Agents
+      # MUST NOT use the override without explicit maintainer approval
+      # (see AGENTS.md § Authoring discipline).
+      run: |
+        if [ "{2}" = "commit" ] && [ "{3}" = "HEAD" ]; then
+          if [ "$HEARTH_ALLOW_AMEND" != "1" ]; then
+            echo ""
+            echo "✗ git commit --amend is blocked by lefthook."
+            echo ""
+            echo "  Reviewed PR commits don't get amended — make a new"
+            echo "  commit on top with the fix message instead."
+            echo ""
+            echo "  Override (typo in an unpushed local commit only):"
+            echo "    HEARTH_ALLOW_AMEND=1 git commit --amend ..."
+            echo ""
+            echo "  Agents: explicit maintainer approval required,"
+            echo "  same as --no-verify."
+            exit 1
+          fi
+        fi
+
 pre-commit:
   parallel: true
   commands:
@@ -28,6 +58,38 @@ pre-commit:
 pre-push:
   parallel: true
   commands:
+    refuse-force-push:
+      # Force-push (and --force-with-lease) rewrites the remote ref;
+      # reviewers lose track of what changed since their last review,
+      # CI history pointers go stale, and a teammate's in-flight work
+      # rebased on the prior tip can be silently overwritten. Detect
+      # via the parent process's command line — the only client-side
+      # signal that survives, since the wire protocol can't tell
+      # `--force` from `--force-with-lease` (per Git docs). Override
+      # with `HEARTH_ALLOW_FORCE_PUSH=1` for legitimate cases (rare:
+      # personal feature branch with no reviewers, never main).
+      # Agents MUST NOT use the override without explicit maintainer
+      # approval (see AGENTS.md § Authoring discipline).
+      run: |
+        cmd=$(ps -ocommand= -p $PPID 2>/dev/null || true)
+        if echo "$cmd" | grep -qE -- '(--force|--force-with-lease|(^| )-f( |$))'; then
+          if [ "$HEARTH_ALLOW_FORCE_PUSH" != "1" ]; then
+            echo ""
+            echo "✗ force-push is blocked by lefthook."
+            echo ""
+            echo "  Detected: $cmd"
+            echo ""
+            echo "  Force-pushing rewrites remote history; reviewers"
+            echo "  lose track of what changed since their last review."
+            echo "  Make a new commit on top instead."
+            echo ""
+            echo "  Override (your own feature branch, no reviewers):"
+            echo "    HEARTH_ALLOW_FORCE_PUSH=1 git push --force ..."
+            echo ""
+            echo "  Agents: explicit maintainer approval required."
+            exit 1
+          fi
+        fi
     biome:
       # Belt-and-suspenders: if pre-commit's staged-file run was skipped
       # (LEFTHOOK=0) or missed anything via glob edge cases, this re-runs
