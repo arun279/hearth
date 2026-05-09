@@ -74,23 +74,24 @@ export default defineConfig({
 
   webServer: [
     {
-      // The Vite SPA. `@hearth/web dev` proxies `/api/*` to the Worker on 8787,
-      // so cookies set on the SPA origin flow through to the Worker via the
-      // proxy as same-origin requests.
-      command: "pnpm --filter @hearth/web dev",
-      cwd: path.resolve(__dirname, "../.."),
+      // Vite proxies `/api/*` to the Worker on 8787, so cookies set on the
+      // SPA origin reach the Worker as same-origin requests.
+      command: "pnpm exec vite --port 5173",
+      cwd: path.resolve(__dirname),
       url: `http://localhost:${SPA_PORT}/`,
       reuseExistingServer: !process.env["CI"],
       timeout: 60_000,
+      gracefulShutdown: { signal: "SIGTERM", timeout: 5_000 },
       stderr: "pipe",
       stdout: "ignore",
     },
     {
-      command: "pnpm --filter @hearth/worker dev",
-      cwd: path.resolve(__dirname, "../.."),
+      command: "pnpm exec wrangler dev",
+      cwd: path.resolve(__dirname, "../worker"),
       url: `http://localhost:${WORKER_PORT}/healthz`,
       reuseExistingServer: !process.env["CI"],
       timeout: 60_000,
+      gracefulShutdown: { signal: "SIGTERM", timeout: 5_000 },
       stderr: "pipe",
       stdout: "ignore",
     },

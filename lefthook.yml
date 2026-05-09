@@ -45,7 +45,7 @@ pre-commit:
       # `--filter "...[HEAD]"` would be more targeted but breaks on the
       # first commit where HEAD doesn't exist yet.
       run: pnpm typecheck
-    # TODO(scaffolding): wire a secrets scanner here once we've picked one.
+    # TODO(m19): wire a secrets scanner here once we've picked one.
     # `pnpm dlx trufflehog@latest` pulls a bogus npm package (the real Go
     # trufflehog isn't on npm). CI's .github/workflows/security.yml already
     # runs trufflesecurity/trufflehog (the real Go tool) on every PR, so we

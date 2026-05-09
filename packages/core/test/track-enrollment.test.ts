@@ -326,4 +326,98 @@ describe("listTrackPeople", () => {
     // leftEntries is empty regardless).
     expect(result.leftEntries).toEqual([]);
   });
+
+  it("canAddEnrollees true for a group admin not enrolled on the track", async () => {
+    const result = await listTrackPeople(
+      { actor: ACTOR_ID, trackId: TRACK_ID },
+      {
+        users: makeUsers(ACTOR),
+        groups: makeGroups({
+          byId: vi.fn(async () => ACTIVE_GROUP),
+          membership: vi.fn(async () => membership({ role: "admin" })),
+        }),
+        tracks: makeTracks({
+          byId: vi.fn(async () => activeTrack),
+          enrollment: vi.fn(async () => null),
+          listEnrollments: vi.fn(async () => []),
+          countFacilitators: vi.fn(async () => 1),
+        }),
+        policy: makePolicy(),
+      },
+    );
+
+    expect(result.canAddEnrollees).toBe(true);
+  });
+
+  it("canAddEnrollees true for a track facilitator", async () => {
+    const result = await listTrackPeople(
+      { actor: ACTOR_ID, trackId: TRACK_ID },
+      {
+        users: makeUsers(ACTOR),
+        groups: makeGroups({
+          byId: vi.fn(async () => ACTIVE_GROUP),
+          membership: vi.fn(async () => membership({ role: "participant" })),
+        }),
+        tracks: makeTracks({
+          byId: vi.fn(async () => activeTrack),
+          enrollment: vi.fn(async () => enrollmentOf(ACTOR_ID, "facilitator")),
+          listEnrollments: vi.fn(async () => [enrollmentOf(ACTOR_ID, "facilitator")]),
+          countFacilitators: vi.fn(async () => 1),
+        }),
+        policy: makePolicy(),
+      },
+    );
+
+    expect(result.canAddEnrollees).toBe(true);
+  });
+
+  it("canAddEnrollees false for a plain participant", async () => {
+    const result = await listTrackPeople(
+      { actor: ACTOR_ID, trackId: TRACK_ID },
+      {
+        users: makeUsers(ACTOR),
+        groups: makeGroups({
+          byId: vi.fn(async () => ACTIVE_GROUP),
+          membership: vi.fn(async () => membership({ role: "participant" })),
+        }),
+        tracks: makeTracks({
+          byId: vi.fn(async () => activeTrack),
+          enrollment: vi.fn(async () => enrollmentOf(ACTOR_ID, "participant")),
+          listEnrollments: vi.fn(async () => [enrollmentOf(ACTOR_ID, "participant")]),
+          countFacilitators: vi.fn(async () => 1),
+        }),
+        policy: makePolicy(),
+      },
+    );
+
+    expect(result.canAddEnrollees).toBe(false);
+  });
+
+  it("canAddEnrollees false on an archived track even for an authority", async () => {
+    const archivedTrack: LearningTrack = {
+      ...activeTrack,
+      status: "archived",
+      archivedAt: TEST_NOW,
+      archivedBy: ACTOR_ID,
+    };
+    const result = await listTrackPeople(
+      { actor: ACTOR_ID, trackId: TRACK_ID },
+      {
+        users: makeUsers(ACTOR),
+        groups: makeGroups({
+          byId: vi.fn(async () => ACTIVE_GROUP),
+          membership: vi.fn(async () => membership({ role: "admin" })),
+        }),
+        tracks: makeTracks({
+          byId: vi.fn(async () => archivedTrack),
+          enrollment: vi.fn(async () => null),
+          listEnrollments: vi.fn(async () => []),
+          countFacilitators: vi.fn(async () => 0),
+        }),
+        policy: makePolicy(),
+      },
+    );
+
+    expect(result.canAddEnrollees).toBe(false);
+  });
 });

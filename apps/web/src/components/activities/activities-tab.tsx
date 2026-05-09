@@ -119,6 +119,18 @@ export function ActivitiesTab({ groupId, trackId, canCreate }: Props) {
               key={a.id}
               className={i < items.length - 1 ? "border-[var(--color-rule)] border-b" : undefined}
             >
+              {/*
+               * TODO(m10): row click should route everyone (including
+               * facilitators) to the activity player surface — Hearth
+               * is a study group, the facilitator is also a learner.
+               * Edit-mode is an authority-gated affordance ON the
+               * player chrome, not a separate destination. Today the
+               * player doesn't exist yet, so facilitators land in the
+               * composer (edit) and participants get a no-op. When
+               * M10 ships the player, both roles route to it; the
+               * `canCreate` gate moves to an "Edit" button rendered
+               * on the player surface for those with authority.
+               */}
               <ActivityRow
                 activity={a}
                 onSelect={canCreate ? () => setEditId(a.id) : () => undefined}

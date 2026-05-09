@@ -47,10 +47,11 @@ export function createUserRepository(
         .set({ deactivatedAt: null, deactivatedBy: null, updatedAt: new Date() })
         .where(eq(users.id, id));
     },
-    // TODO(scaffolding): user deletion walks every aggregate (memberships,
-    // enrollments, activity records, library items uploaded, sessions created)
-    // to apply the chosen AttributionPreference. Implement when the user-
-    // lifecycle aggregate lands; callers must not invoke this method before.
+    // TODO(m18): user deletion walks every aggregate (memberships,
+    // enrollments, activity records, library items uploaded, sessions
+    // created) to apply the chosen AttributionPreference. Implementation
+    // lands with the User Lifecycle milestone; callers must not invoke
+    // this method before.
     async deleteIdentity(_id, _attribution, _by) {
       throw new Error("Not implemented: user deletion requires cross-aggregate coordination");
     },

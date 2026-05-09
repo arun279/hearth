@@ -197,6 +197,7 @@ type TrackPeoplePayload = {
   readonly facilitatorCount: number;
   readonly entries: readonly TrackEnrolleeRow[];
   readonly leftEntries: readonly TrackEnrolleeRow[];
+  readonly canAddEnrollees: boolean;
 };
 
 export function useTrackPeople(trackId: string, enabled: boolean) {
@@ -214,11 +215,6 @@ export function useTrackPeople(trackId: string, enabled: boolean) {
 export function useEnrollInTrack(groupId: string, trackId: string) {
   const qc = useQueryClient();
   return useMutation({
-    // TODO(m5-followup): no SPA call site passes `targetUserId` yet — the
-    // authority "Add to track" picker (POST /tracks/:id/enroll with a
-    // targetUserId payload) is wired through the hook and route but has
-    // no UI affordance. Until the picker lands, self-enroll is the only
-    // path; the People-page empty state describes self-enroll only.
     mutationFn: async (
       input: { readonly targetUserId?: string } = {},
     ): Promise<TrackEnrollment> => {

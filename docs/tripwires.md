@@ -13,7 +13,7 @@ Each entry names the **pinned tool**, the **condition** that triggers a reassess
 
 ## Runtime + tooling
 
-### `wrangler` — minor-version lag (current pin: `wrangler@^4.44.0`)
+### `wrangler` — minor-version lag (current pin: `wrangler@^4.86.0`)
 
 - **Trigger**: `wrangler@latest` on npm is two or more minor versions ahead of our pin for longer than 60 days.
 - **Action**: check the intervening changelogs for D1/R2/Workers Runtime fixes we might be missing. Bump if benign; cite the specific changelog entry in the bump PR. Swap is out of scope — see master governance doc.

@@ -7,9 +7,11 @@
  * Satisfies the type at the usage site via an unchecked cast; the runtime
  * shape is a Proxy that intercepts every property access.
  *
- * TODO(scaffolding): remove this helper once every repository has a real
- * implementation. It exists to keep the composition root functional while
- * adapters are skeletons.
+ * TODO(m18): remove this helper once every repository has a real
+ * implementation. The last consumer is `User.deleteIdentity` (M18); the
+ * intermediate landings are `ActivityRecordRepository` (M11) and
+ * `StudySessionRepository` (M13). The stub exists to keep the
+ * composition root functional while adapters are skeletons.
  */
 export function stubRepository<T extends object>(name: string): T {
   return new Proxy({} as T, {
