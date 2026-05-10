@@ -601,7 +601,7 @@ export function createLearningTrackRepository(
       return rows.map(toEnrollment);
     },
 
-    async enroll({ trackId, userId, by }) {
+    async enroll({ trackId, userId, by: _by }) {
       await deps.gate.assertWritable();
       const now = new Date();
       const generatedId = ids.generate();
@@ -690,7 +690,6 @@ export function createLearningTrackRepository(
         await assertMembershipExists(deps.db, trackId, userId);
       }
 
-      void by;
       return toEnrollment(row as typeof trackEnrollments.$inferSelect);
     },
 
@@ -737,7 +736,7 @@ export function createLearningTrackRepository(
       );
     },
 
-    async setEnrollmentRole({ trackId, userId, role, by }) {
+    async setEnrollmentRole({ trackId, userId, role, by: _by }) {
       await deps.gate.assertWritable();
 
       if (role === "facilitator") {
@@ -789,7 +788,6 @@ export function createLearningTrackRepository(
         .returning();
 
       if (updated[0]) {
-        void by;
         return toEnrollment(updated[0] as typeof trackEnrollments.$inferSelect);
       }
       // Disambiguate: missing / left / orphan-block.

@@ -74,7 +74,7 @@ export function createLearningActivityRepository(
   const ids = createIdGenerator();
 
   return {
-    create: markWrite(async ({ draft, createdBy }) => {
+    create: markWrite(async ({ draft, createdBy: _createdBy }) => {
       await deps.gate.assertWritable();
       const id = ids.generate() as LearningActivityId;
       const now = new Date();
@@ -121,7 +121,6 @@ export function createLearningActivityRepository(
       ].filter((s): s is Exclude<typeof s, null> => s !== null);
       await deps.db.batch(inserts as unknown as Parameters<typeof deps.db.batch>[0]);
 
-      void createdBy;
       return assembleAggregate({
         id,
         trackId: draft.trackId,
@@ -241,7 +240,7 @@ export function createLearningActivityRepository(
       });
     },
 
-    update: markWrite(async ({ id, patch, by }) => {
+    update: markWrite(async ({ id, patch, by: _by }) => {
       await deps.gate.assertWritable();
       const now = new Date();
       const next = encodePatch(patch);
@@ -288,7 +287,6 @@ export function createLearningActivityRepository(
         throw new DomainError("INVARIANT_VIOLATION", flowCheck.message, flowCheck.code);
       }
 
-      void by;
       const refRows = await deps.db
         .select()
         .from(activityLibraryRefs)
@@ -305,7 +303,7 @@ export function createLearningActivityRepository(
       return decodeActivity(updatedRow, refRows, prereqRows, suggestedRows);
     }),
 
-    delete: markWrite(async ({ id, by }) => {
+    delete: markWrite(async ({ id, by: _by }) => {
       await deps.gate.assertWritable();
       // Conditional DELETE on the parent: refuse if the parent track is
       // archived. The exists-clause walks tracks.status so a concurrent
@@ -351,7 +349,6 @@ export function createLearningActivityRepository(
           "track_archived",
         );
       }
-      void by;
     }),
 
     setLibraryRefs: markWrite(async ({ activityId, refs }) => {

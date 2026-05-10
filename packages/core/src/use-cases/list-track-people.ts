@@ -79,7 +79,7 @@ export async function listTrackPeople(
   input: ListTrackPeopleInput,
   deps: ListTrackPeopleDeps,
 ): Promise<ListTrackPeopleResult> {
-  const { actor, group, track, groupMembership, trackEnrollment } = await loadViewableTrack(
+  const { group, track, groupMembership, trackEnrollment } = await loadViewableTrack(
     input.actor,
     input.trackId,
     deps,
@@ -156,6 +156,5 @@ export async function listTrackPeople(
 
   const canAddEnrollees = group.status !== "archived" && track.status !== "archived" && isAuthority;
 
-  void actor;
   return { track, facilitatorCount, entries, leftEntries, canAddEnrollees };
 }

@@ -1,3 +1,4 @@
+import { MAX_LONG_TEXT_LENGTH, MAX_TITLE_LENGTH } from "@hearth/domain";
 import {
   ALLOWED_LIBRARY_MIME_TYPES,
   isAllowedLibraryMime,
@@ -296,7 +297,7 @@ export function UploadDialog({ open, onClose, groupId, libraryItemId, defaultTit
                   aria-describedby={describedBy}
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  maxLength={200}
+                  maxLength={MAX_TITLE_LENGTH}
                   disabled={busy}
                 />
               )}
@@ -312,7 +313,7 @@ export function UploadDialog({ open, onClose, groupId, libraryItemId, defaultTit
                   rows={3}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  maxLength={4000}
+                  maxLength={MAX_LONG_TEXT_LENGTH}
                   disabled={busy}
                 />
               )}

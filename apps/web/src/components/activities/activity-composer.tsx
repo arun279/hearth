@@ -1,14 +1,16 @@
-import type {
-  ActivityAudience,
-  ActivityFlow,
-  ActivityPart,
-  ActivityPartKind,
-  ActivityWindow,
-  CompletionRule,
-  LearningActivity,
-  LibraryDisplayKind,
-  PostClosePolicy,
-  UserId,
+import {
+  type ActivityAudience,
+  type ActivityFlow,
+  type ActivityPart,
+  type ActivityPartKind,
+  type ActivityWindow,
+  type CompletionRule,
+  type LearningActivity,
+  type LibraryDisplayKind,
+  MAX_LONG_TEXT_LENGTH,
+  MAX_TITLE_LENGTH,
+  type PostClosePolicy,
+  type UserId,
 } from "@hearth/domain";
 import {
   Avatar,
@@ -83,9 +85,6 @@ type Draft = {
   /** Soft suggested-sequence picks ("after this, learners often go to…"). */
   selectedSuggestedIds: ReadonlySet<string>;
 };
-
-const TITLE_MAX = 200;
-const DESCRIPTION_MAX = 4_000;
 
 /**
  * TODO(m10): re-add `quiz` (Player surface in M10) and
@@ -184,6 +183,18 @@ export function ActivityComposer({
       setDiscardConfirmOpen(false);
     }
   }, [open, initial]);
+
+  // Clear the alert as soon as the user edits anything in the form.
+  // Without this, the "Give the activity a title" banner sticks around
+  // long after the user has typed a title and is now wrestling with
+  // a different field — stale signal that violates Nielsen #1
+  // "Visibility of system status." Effect is intentionally scoped to
+  // `draft` only; the staleness check is `error !== null` rather than
+  // depending on `error`, so a fresh `setError` inside `submit()`
+  // doesn't immediately re-fire the effect and wipe itself.
+  useEffect(() => {
+    if (error !== null) setError(null);
+  }, [draft]);
 
   // Dirty when the in-flight draft has diverged from the initial seed.
   // A reference equality check on `draft` vs. `initial` is too tight (any
@@ -354,7 +365,7 @@ export function ActivityComposer({
                 id={id}
                 aria-describedby={describedBy}
                 required={required}
-                maxLength={TITLE_MAX}
+                maxLength={MAX_TITLE_LENGTH}
                 placeholder="e.g., Greetings & introductions"
                 value={draft.title}
                 onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
@@ -369,7 +380,7 @@ export function ActivityComposer({
                 id={id}
                 aria-describedby={describedBy}
                 rows={2}
-                maxLength={DESCRIPTION_MAX}
+                maxLength={MAX_LONG_TEXT_LENGTH}
                 placeholder="e.g., Read the primer, listen to the dialogue, write a short reflection."
                 value={draft.description}
                 onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}

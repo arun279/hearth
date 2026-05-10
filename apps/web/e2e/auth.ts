@@ -69,8 +69,9 @@ export function resetInstanceState(): void {
     // The first activity_library_refs sweep (in the M8 block above)
     // cleared activity-side refs scoped by activity_id; this second
     // sweep clears any non-e2e-activity refs that still point at
-    // e2e-uploaded items so the library_items delete on line 68
-    // doesn't trip the FK RESTRICT.
+    // e2e-uploaded items so the `DELETE FROM library_items …
+    // uploaded_by LIKE 'u_e2e_%'` statement below doesn't trip the
+    // FK RESTRICT.
     "DELETE FROM activity_library_refs WHERE library_item_id IN (SELECT id FROM library_items WHERE uploaded_by LIKE 'u_e2e_%')",
     "DELETE FROM library_revisions WHERE uploaded_by LIKE 'u_e2e_%' OR library_item_id IN (SELECT id FROM library_items WHERE uploaded_by LIKE 'u_e2e_%')",
     "DELETE FROM library_stewards WHERE user_id LIKE 'u_e2e_%' OR granted_by LIKE 'u_e2e_%' OR library_item_id IN (SELECT id FROM library_items WHERE uploaded_by LIKE 'u_e2e_%')",

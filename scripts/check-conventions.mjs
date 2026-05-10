@@ -149,6 +149,39 @@ const rules = [
     reason:
       "role='dialog' must come from the @hearth/ui Modal or Drawer primitive. Bespoke dialogs miss the stack-aware ESC handling, focus trap, inert-when-not-topmost, and visible close affordance enforced by useDialogPanel.",
   },
+  {
+    // Matches `maxLength={<integer>}` in SPA components. Length caps are
+    // domain constants (e.g. `MAX_TITLE_LENGTH`, `MAX_LONG_TEXT_LENGTH`)
+    // exported from `@hearth/domain`. PR #18 caught a regression where
+    // the composer hardcoded `maxLength={200}` and `maxLength={4_000}`
+    // — when the domain bumped the cap, the SPA silently truncated.
+    // Anchoring to the domain constant keeps the cap in lockstep.
+    name: "no-magic-maxlength-in-spa",
+    regex: /\bmaxLength=\{\s*\d/,
+    includePathPrefixes: ["apps/web/src/", "packages/ui/src/"],
+    excludePathSuffixes: ["scripts/check-conventions.mjs"],
+    reason:
+      "Reference the cap by name (`MAX_TITLE_LENGTH`, `MAX_LONG_TEXT_LENGTH`, …) from @hearth/domain instead of inlining a literal. Domain constants are the single source of truth — the SPA must not encode its own copy.",
+  },
+  {
+    // Matches "on line N" / "on line N–M" comments — line numbers rot
+    // the moment a file is edited, leaving the comment pointing at the
+    // wrong code. PR #18 caught one of these in `apps/web/e2e/auth.ts`
+    // ("the library_items delete on line 68" referenced a statement
+    // that had since moved to line 77). Anchor the comment to the
+    // statement's content (verbatim quote) instead of its position.
+    name: "no-line-number-reference-in-comments",
+    regex: /\bon line \d+(?:[–-]\d+)?\b/i,
+    excludePathSuffixes: [
+      "scripts/check-conventions.mjs",
+      // Allowed in repo prose docs where line-numbered citations are
+      // load-bearing (e.g. AGENTS.md, runbooks, changelogs). Filtered
+      // by extension match below.
+    ],
+    includePathPrefixes: ["packages/", "apps/", "scripts/"],
+    reason:
+      "Comments must not reference code by line number — line numbers rot on the next edit. Quote the statement's distinctive content (e.g. a column name + table) so the anchor survives moves.",
+  },
 ];
 
 /**

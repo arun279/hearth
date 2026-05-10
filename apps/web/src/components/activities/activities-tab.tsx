@@ -1,4 +1,4 @@
-import { Button, Callout, EmptyState, Skeleton } from "@hearth/ui";
+import { Button, Callout, EmptyState, Modal, Skeleton } from "@hearth/ui";
 import { Plus, Trash2 } from "lucide-react";
 import { lazy, Suspense, useState } from "react";
 import { toast } from "sonner";
@@ -192,6 +192,26 @@ function EditActivityDialog({
   const update = useUpdateActivity(groupId, trackId, activityId);
   const remove = useDeleteActivity(groupId, trackId);
   const [confirmOpen, setConfirmOpen] = useState(false);
+
+  if (detail.isError) {
+    return (
+      <Modal open onClose={onClose} title="Couldn't load this activity" tone="danger">
+        <Callout tone="danger">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <span>
+              {asUserMessage(
+                detail.error,
+                "The activity didn't load — check your connection and try again.",
+              )}
+            </span>
+            <Button size="sm" variant="secondary" onClick={() => detail.refetch()}>
+              Try again
+            </Button>
+          </div>
+        </Callout>
+      </Modal>
+    );
+  }
 
   if (detail.isLoading || !detail.data) {
     // Mount the composer at the same moment the detail resolves so the

@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.e2e.json",
-    "test": "vitest run --passWithNoTests --dir src",
+    "test": "vitest run --dir src",
     "generate:routes": "tsr generate",
     "e2e": "playwright test",
     "e2e:install": "playwright install --with-deps chromium"
