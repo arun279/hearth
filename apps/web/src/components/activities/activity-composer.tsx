@@ -184,14 +184,11 @@ export function ActivityComposer({
     }
   }, [open, initial]);
 
-  // Clear the alert as soon as the user edits anything in the form.
-  // Without this, the "Give the activity a title" banner sticks around
-  // long after the user has typed a title and is now wrestling with
-  // a different field — stale signal that violates Nielsen #1
-  // "Visibility of system status." Effect is intentionally scoped to
-  // `draft` only; the staleness check is `error !== null` rather than
-  // depending on `error`, so a fresh `setError` inside `submit()`
-  // doesn't immediately re-fire the effect and wipe itself.
+  // The submit handler is the only writer of `error`; any draft mutation
+  // is a user-input event (open-reset clears `error` first, so the dep
+  // firing on initial mount is a no-op). Clearing on draft change keeps
+  // the field-named alert tied to its gating value: once the user has
+  // moved past the named field, the message disappears.
   useEffect(() => {
     if (error !== null) setError(null);
   }, [draft]);
@@ -811,6 +808,16 @@ function LibraryItemPickerBody({
   if (library.isLoading) {
     return <p className="text-[11px] text-[var(--color-ink-3)]">Loading library…</p>;
   }
+  if (library.isError) {
+    return (
+      <div className="flex items-center justify-between gap-2 text-[11px] text-[var(--color-warn)]">
+        <span>{asUserMessage(library.error, "Couldn't load the library — try again.")}</span>
+        <Button size="sm" variant="secondary" onClick={() => library.refetch()}>
+          Try again
+        </Button>
+      </div>
+    );
+  }
   if (!allowed || allowed.length === 0) {
     return (
       <p className="text-[11px] text-[var(--color-ink-3)]">
@@ -1166,6 +1173,18 @@ function AudienceFields({
               {people.isLoading ? (
                 <div className="px-3 py-3 text-[12px] text-[var(--color-ink-3)]">
                   Loading roster…
+                </div>
+              ) : people.isError ? (
+                <div className="flex items-center justify-between gap-2 px-3 py-3 text-[12px] text-[var(--color-warn)]">
+                  <span>
+                    {asUserMessage(
+                      people.error,
+                      "Couldn't load the roster. Switch back to Everyone enrolled or retry.",
+                    )}
+                  </span>
+                  <Button size="sm" variant="secondary" onClick={() => people.refetch()}>
+                    Try again
+                  </Button>
                 </div>
               ) : enrollees.length === 0 ? (
                 <div className="px-3 py-3 text-[12px] text-[var(--color-ink-3)]">

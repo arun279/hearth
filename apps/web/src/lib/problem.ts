@@ -65,7 +65,6 @@ const INVARIANT_AND_VALIDATION_CODES = [
   "group_mismatch",
   // Invitations & access
   "invitation_not_found",
-  "email_revoked",
   "unauthenticated",
   // Track lifecycle
   "track_status_transition_invalid",
@@ -232,7 +231,6 @@ const policyDenialMessages: Record<KnownProblemCode, string> = {
   group_mismatch: "The referenced item belongs to a different group.",
   // Invitations & access
   invitation_not_found: "This invitation is no longer valid.",
-  email_revoked: "That email's access was revoked. Re-approve it to re-grant entry.",
   unauthenticated: "Please sign in to continue.",
   // Track lifecycle
   track_status_transition_invalid:
