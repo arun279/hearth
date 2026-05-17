@@ -5,26 +5,32 @@ import { describe, expect, it } from "vitest";
 import { KNOWN_PROBLEM_CODES } from "./problem.ts";
 
 /**
- * Source-text scan that pairs the domain-layer reason emitters with the
+ * Source-text scan that pairs the server-side reason emitters with the
  * SPA-side `policyDenialMessages` map.
  *
  * Why this lives here: `problemMessage()` falls back to `problem.detail`
  * when a code is absent, which silently leaks internal phrasing (e.g.
  * "displayOrder references unknown Part ${id}") into the toast. The
  * compile-time typing on `policyDeny()` catches new policy-denial codes
- * at the call site, but `throw new DomainError("INVARIANT_VIOLATION", …,
- * "<reason>")` calls can still emit a wire code without a matching SPA
- * message. This scan closes that gap by walking the domain + core source
- * trees, extracting every emitted code literal, and asserting it has an
- * entry in `KNOWN_PROBLEM_CODES`.
+ * at the call site, but `throw new DomainError(<code>, <msg>, <reason>)`
+ * calls can still emit a wire code without a matching SPA message. The
+ * scan walks every package that constructs a `DomainError` and asserts
+ * each emitted code literal has an entry in `KNOWN_PROBLEM_CODES`.
  */
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, "..", "..", "..", "..");
 
+// Every package whose source files can construct a `DomainError` or
+// call `policyDeny()` belongs here — anything that emits a reason
+// code which `problemMessage()` may then look up. Adding a new
+// emitter package without extending this tuple lets emitted codes
+// slip past the gate silently.
 const SCAN_ROOTS: readonly string[] = [
   resolve(REPO_ROOT, "packages", "domain", "src"),
   resolve(REPO_ROOT, "packages", "core", "src"),
+  resolve(REPO_ROOT, "packages", "auth", "src"),
+  resolve(REPO_ROOT, "packages", "api", "src"),
 ];
 
 function* walkTs(dir: string): Generator<string> {
@@ -37,7 +43,11 @@ function* walkTs(dir: string): Generator<string> {
 }
 
 const POLICY_DENY_RE = /policyDeny\(\s*"([a-z_]+)"/g;
-const DOMAIN_ERROR_RE = /new\s+DomainError\([^)]*?,\s*"([a-z_]+)"\s*\)/gs;
+// `,?\s*\)` lets the regex consume the trailing comma biome inserts
+// before the closing paren on multi-line calls — without it, the
+// dominant `new DomainError(\n  "CODE",\n  "msg",\n  "reason",\n)`
+// shape escapes the scan.
+const DOMAIN_ERROR_RE = /new\s+DomainError\([^)]*?,\s*"([a-z_]+)"\s*,?\s*\)/gs;
 const FAIL_HELPER_RE = /\bfail\(\s*"([a-z_]+)"/g;
 
 function stripComments(source: string): string {

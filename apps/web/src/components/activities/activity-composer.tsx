@@ -661,13 +661,6 @@ function IconBtn({
 }
 
 /**
- * Per-kind body inside a PartRow. v1 surfaces the minimum each kind
- * needs to render: a prompt for reflections, a URL for embeds, etc.
- * Library-attached kinds (read/listen/watch) currently take a free-text
- * `libraryItemId`; the polished picker lands when the wider library
- * surface integrates more deeply with the composer.
- */
-/**
  * Allowed display-kinds per Part kind — mirrors the server-side mime
  * gate in `assertPartLibraryRefMimeMatch`. Defining it here so the
  * SPA can pre-filter the picker rather than waiting for a 422.

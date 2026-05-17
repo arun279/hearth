@@ -80,10 +80,9 @@ export function ActivitiesTab({ groupId, trackId, canCreate }: Props) {
       </div>
 
       {showError ? (
-        // Without this branch, server errors collapse silently to the
-        // empty state — the same anti-pattern PR #17 caught on library
-        // search. The Try-again refetch lets the operator recover
-        // without a page reload.
+        // A distinct error branch keeps server failures legible — the
+        // operator reads "couldn't reach the server, retry" instead of
+        // an empty state — and the Try-again refetch recovers inline.
         <Callout tone="danger" title="Couldn't load activities">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <span>

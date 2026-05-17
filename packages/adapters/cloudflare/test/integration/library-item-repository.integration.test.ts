@@ -364,7 +364,7 @@ describe("library-item adapter (real D1)", () => {
 
   it("updateMetadata + archive-group race — metadata never lands on archived row", async () => {
     // Mirrors the canonical concurrent-mutation pattern from
-    // study-group-repository.ts (per AGENTS.md): fire two mutations
+    // study-group-repository.ts's `updateMetadata`: fire two mutations
     // simultaneously, assert one succeeds, the other observes the
     // frozen state, and the row never ends up in a corrupted shape.
     const { db, library } = buildRepo();

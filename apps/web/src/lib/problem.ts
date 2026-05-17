@@ -65,7 +65,10 @@ const INVARIANT_AND_VALIDATION_CODES = [
   "group_mismatch",
   // Invitations & access
   "invitation_not_found",
+  "email_not_approved",
+  "email_revoked",
   "unauthenticated",
+  "user_inactive",
   // Track lifecycle
   "track_status_transition_invalid",
   "self_remove_via_leave",
@@ -231,7 +234,12 @@ const policyDenialMessages: Record<KnownProblemCode, string> = {
   group_mismatch: "The referenced item belongs to a different group.",
   // Invitations & access
   invitation_not_found: "This invitation is no longer valid.",
+  email_not_approved:
+    "Your email isn't on the Approved list for this Hearth Instance. Ask an Instance Operator to approve it, then sign in again.",
+  email_revoked: "That email's access was revoked. Re-approve it to re-grant entry.",
   unauthenticated: "Please sign in to continue.",
+  user_inactive:
+    "This account is deactivated or deleted. Reach out to an operator to restore access.",
   // Track lifecycle
   track_status_transition_invalid:
     "That track status change isn't allowed. Refresh and try the action again.",

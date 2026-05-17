@@ -8,7 +8,7 @@ import { canonicalizeEmail } from "./admission.ts";
  * from the Approved Email list after initial sign-up.
  *
  * Bootstrap-bypass: `session.create.before` fires BEFORE the deferred
- * `user.create.after` hook (better-auth/better-auth#9070, PR #7345). That
+ * `user.create.after` hook (better-auth#9070 / better-auth#7345). That
  * ordering means during the first-operator sign-in flow, approved_emails
  * has NOT been seeded yet by the time we land here. Mirror the bypass from
  * admissionCheck so the first operator actually gets a session.

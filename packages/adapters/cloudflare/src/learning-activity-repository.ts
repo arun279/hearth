@@ -308,12 +308,11 @@ export function createLearningActivityRepository(
       // Conditional DELETE on the parent: refuse if the parent track is
       // archived. The exists-clause walks tracks.status so a concurrent
       // archive between the use case's read and this write surfaces as
-      // CONFLICT — the same race-resilience guarantee `update` carries
-      // (per AGENTS.md § "Conditional UPDATE on every status-guarded
-      // mutation"). The child deletes batch with the parent so all four
-      // either commit or none does; if the parent's `.returning()`
-      // comes back empty we know the row vanished or the track flipped
-      // archived, and the child cleanups are no-ops on a vanished id.
+      // CONFLICT — the same race-resilience guarantee `update` carries.
+      // The child deletes batch with the parent so all four either
+      // commit or none does; if the parent's `.returning()` comes back
+      // empty we know the row vanished or the track flipped archived,
+      // and the child cleanups are no-ops on a vanished id.
       const childDeletes = [
         deps.db.delete(activityLibraryRefs).where(eq(activityLibraryRefs.activityId, id)),
         deps.db.delete(activityPrerequisites).where(eq(activityPrerequisites.activityId, id)),

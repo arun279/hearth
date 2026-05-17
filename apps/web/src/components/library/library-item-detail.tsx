@@ -26,8 +26,8 @@ type Props = {
    * state. Disable both Retire and Upload-revision affordances so the
    * dialog matches that promise — re-enable from group settings via
    * Unarchive. The server still allows the operation (the policy stays
-   * authority-only per AGENTS.md), so an API client can mutate, but the
-   * SPA UI mirrors the banner.
+   * authority-only for idempotent shapes), so an API client can mutate,
+   * but the SPA UI mirrors the banner.
    */
   readonly archived: boolean;
 };

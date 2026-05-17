@@ -174,6 +174,40 @@ const rules = [
     reason:
       "Comments must not reference code by line number — line numbers rot on the next edit. Quote the statement's distinctive content (e.g. a column name + table) so the anchor survives moves.",
   },
+  {
+    // Code comments that cite `AGENTS.md` / `CLAUDE.md` by name (often
+    // with a § section reference) rot when the doc is reorganized or
+    // sections are renamed. Repo docs are the single source of truth;
+    // code comments should inline the rule's substance instead.
+    name: "no-project-doc-citation-in-comments",
+    regex: /\b(?:AGENTS|CLAUDE)\.md\b/,
+    includePathPrefixes: ["packages/", "apps/"],
+    excludePathSuffixes: [
+      "scripts/check-conventions.mjs",
+      // Test files that programmatically read AGENTS.md/CLAUDE.md to
+      // enforce a paired-gate (e.g. the policy-purity drift check) are
+      // pointing at the file as data, not citing it as documentation.
+      // They are still subject to the spirit of this rule but can opt
+      // in via `// allow-doc-ref: <reason>` immediately before the
+      // line — none exist today.
+    ],
+    reason:
+      "Code comments must not cite `AGENTS.md` / `CLAUDE.md` by name — section titles rot. Inline the rule's substance at the call site so the comment stands alone for a future reader.",
+  },
+  {
+    // Internal PR/issue numbers ("PR #17 caught …") in code comments
+    // anchor the code to git-history context that ages out fast — a
+    // future reader without that history can't make sense of the
+    // citation. Upstream-package issue refs (e.g. `better-auth#8949`)
+    // are excluded via the `<package>#` prefix lookbehind: those
+    // identify a specific external commit and stay stable.
+    name: "no-internal-pr-reference-in-comments",
+    regex: /(?<![\w-])PR #\d+\b/,
+    includePathPrefixes: ["packages/", "apps/"],
+    excludePathSuffixes: ["scripts/check-conventions.mjs"],
+    reason:
+      "Code comments must not reference internal PR numbers — the citation rots once history is forgotten. Inline the substantive lesson at the call site; the git log / PR description is the right home for the historical narrative.",
+  },
 ];
 
 /**
