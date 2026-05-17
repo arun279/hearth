@@ -89,7 +89,13 @@
       "r2_buckets": [
         {
           "binding": "STORAGE",
-          "bucket_name": "hearth-e2e-storage"
+          // Same bucket_name as the default env: Miniflare keys local R2
+          // state by binding name, not bucket name, so the e2e Worker
+          // still gets a separate sqlite-backed bucket. Keeping the
+          // name matches the presigner config in `apps/worker/src/
+          // index.ts`, which hardcodes the bucket for S3-compat URL
+          // signing.
+          "bucket_name": "hearth-storage"
         }
       ],
       "ratelimits": [
@@ -106,8 +112,8 @@
       ],
       "analytics_engine_datasets": [{ "binding": "ANALYTICS", "dataset": "hearth_e2e_telemetry" }],
       "vars": {
-        "BETTER_AUTH_URL": "http://localhost:8787",
-        "BETTER_AUTH_TRUSTED_ORIGINS": "http://localhost:5173,http://localhost:8787"
+        "BETTER_AUTH_URL": "http://localhost:8788",
+        "BETTER_AUTH_TRUSTED_ORIGINS": "http://localhost:5174,http://localhost:8788"
       }
     }
   }
