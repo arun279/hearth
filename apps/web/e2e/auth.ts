@@ -117,7 +117,13 @@ export async function seedOperator(args: {
  * user.
  */
 export function demoteToMember(userId: string): void {
-  executeSql(`DELETE FROM instance_operators WHERE user_id = '${userId}'`);
+  // Defensive scope predicate: even though the e2e binding isolates
+  // this DELETE to the e2e D1, the same prefix guard the rest of the
+  // teardown uses keeps the operation safe if a caller ever passes a
+  // non-e2e id by accident.
+  executeSql(
+    `DELETE FROM instance_operators WHERE user_id = '${userId}' AND user_id LIKE 'u_e2e_%'`,
+  );
 }
 
 /**
@@ -128,7 +134,11 @@ export function demoteToMember(userId: string): void {
  * approve/revoke API dance.
  */
 export function unapproveEmail(email: string): void {
-  executeSql(`DELETE FROM approved_emails WHERE email = '${email.toLowerCase()}'`);
+  // Same defensive scope as `demoteToMember`: the predicate matches
+  // any e2e address regardless of which spec passes it in.
+  executeSql(
+    `DELETE FROM approved_emails WHERE email = '${email.toLowerCase()}' AND email LIKE '%@e2e.example.com'`,
+  );
 }
 
 /**

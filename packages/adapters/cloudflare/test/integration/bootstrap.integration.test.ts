@@ -8,14 +8,16 @@ import { createKillswitchGate } from "../../src/killswitch.ts";
 import { createSystemFlagRepository } from "../../src/system-flag-repository.ts";
 
 /**
- * `bootstrapIfNeeded` MUST be atomic — the first operator sign-in seeds two
- * rows (`approved_emails` + `instance_operators`) and a partial success would
- * leave the instance in a state where the email is approved but no one owns
- * operator rights, or vice versa. Mocks can't catch this; real D1 can.
+ * `bootstrapIfNeeded` MUST be atomic — the bootstrap operator sign-in
+ * seeds two rows (`approved_emails` + `instance_operators`) and a partial
+ * success would leave the instance in a state where the email is approved
+ * but no one owns operator rights, or vice versa. Mocks can't catch this;
+ * real D1 can.
  *
- * The test also asserts idempotency: a second call after the seed returns
- * `{ kind: "not_needed" }` without writing anything, and the rows remain
- * exactly as left.
+ * The seed is declarative + idempotent: while the env var matches the
+ * candidate's email, repeated calls remain no-ops via the unique PKs.
+ * The op count is not a guard — multiple operators are supported and
+ * re-running the seed after a wipe must succeed.
  */
 describe("bootstrapIfNeeded (real D1)", () => {
   async function seedUser(
@@ -61,28 +63,28 @@ describe("bootstrapIfNeeded (real D1)", () => {
     expect(approved?.note).toBe("Bootstrap operator auto-seed");
   });
 
-  it("is a no-op once any operator exists (`not_needed`)", async () => {
+  it("is idempotent — a second call for the same bootstrap email is a no-op write", async () => {
     const { db, policy } = buildRepo();
-    const first = "u_bootstrap_2a" as UserId;
-    const second = "u_bootstrap_2b" as UserId;
-    await seedUser(db, first, "one@example.com");
-    await seedUser(db, second, "two@example.com");
+    const uid = "u_bootstrap_2" as UserId;
+    await seedUser(db, uid, "op@example.com");
 
-    await policy.bootstrapIfNeeded({
-      candidateEmail: "one@example.com",
-      bootstrapEmail: "one@example.com",
-      candidateUserId: first,
+    const first = await policy.bootstrapIfNeeded({
+      candidateEmail: "op@example.com",
+      bootstrapEmail: "op@example.com",
+      candidateUserId: uid,
     });
-
-    const second_outcome = await policy.bootstrapIfNeeded({
-      candidateEmail: "two@example.com",
-      bootstrapEmail: "two@example.com",
-      candidateUserId: second,
-    });
-
-    expect(second_outcome).toEqual({ kind: "not_needed" });
+    expect(first).toEqual({ kind: "seeded", operatorUserId: uid });
     expect(await policy.countActiveOperators()).toBe(1);
-    expect(await policy.isEmailApproved("two@example.com")).toBe(false);
+
+    const second = await policy.bootstrapIfNeeded({
+      candidateEmail: "op@example.com",
+      bootstrapEmail: "op@example.com",
+      candidateUserId: uid,
+    });
+    expect(second).toEqual({ kind: "seeded", operatorUserId: uid });
+    expect(await policy.countActiveOperators()).toBe(1);
+    // The unique-PK guards mean the original rows persist unchanged.
+    expect(await policy.isEmailApproved("op@example.com")).toBe(true);
   });
 
   it("rejects candidates whose email does not match the bootstrap email", async () => {
@@ -99,5 +101,34 @@ describe("bootstrapIfNeeded (real D1)", () => {
     expect(outcome).toEqual({ kind: "not_eligible" });
     expect(await policy.countActiveOperators()).toBe(0);
     expect(await policy.isEmailApproved("stranger@example.com")).toBe(false);
+  });
+
+  it("seeds even when other operators already exist (recovery after admission-row wipe)", async () => {
+    const { db, policy } = buildRepo();
+    const existing = "u_bootstrap_4_existing" as UserId;
+    const bootstrap = "u_bootstrap_4_bootstrap" as UserId;
+    const now = new Date();
+    await seedUser(db, existing, "alice@example.com");
+    await seedUser(db, bootstrap, "op@example.com");
+    // Pre-existing operator unrelated to the bootstrap email — the same
+    // shape as a local-dev DB where `local-session --seed` created a
+    // test operator, then the bootstrap operator's admission rows got
+    // wiped. The declarative bootstrap branch must still seed.
+    await db.insert(schema.instanceOperators).values({
+      userId: existing,
+      grantedAt: now,
+      grantedBy: existing,
+      revokedAt: null,
+    });
+
+    const outcome = await policy.bootstrapIfNeeded({
+      candidateEmail: "op@example.com",
+      bootstrapEmail: "op@example.com",
+      candidateUserId: bootstrap,
+    });
+
+    expect(outcome).toEqual({ kind: "seeded", operatorUserId: bootstrap });
+    expect(await policy.countActiveOperators()).toBe(2);
+    expect(await policy.isEmailApproved("op@example.com")).toBe(true);
   });
 });

@@ -126,14 +126,26 @@ Open `http://localhost:5173`. The SPA proxies `/api` to `http://localhost:8787` 
 
 Click **Sign in with Google**, choose the account whose email matches `HEARTH_BOOTSTRAP_OPERATOR_EMAIL`. The first successful sign-in:
 
-1. Better Auth's `user.create.before` hook runs `admissionCheck`. Because there are zero active operators AND your email is the bootstrap email, the bootstrap-bypass admits you even though no Approved Email list exists yet.
-2. `session.create.before` runs `sessionGuard` — same bootstrap-bypass.
-3. `user.create.after` fires post-commit and calls `bootstrapIfNeeded`, which inserts your email into `approved_emails` and your user id into `instance_operators` in a single D1 `batch()`.
+1. Better Auth's `user.create.before` hook runs `admissionCheck`. Because your email matches the bootstrap env var, the declarative bootstrap branch admits you even though no Approved Email list exists yet.
+2. `session.create.before` runs `sessionGuard` — same bootstrap branch admits the session.
+3. `user.create.after` fires post-commit and calls `bootstrapIfNeeded`, which idempotently inserts your email into `approved_emails` and your user id into `instance_operators` in a single D1 `batch()` via PK conflict guards.
 4. The SPA reloads `/api/v1/me/context` and you appear with `isOperator: true`.
 
-Subsequent sign-ins (you or anyone else) go through the normal approved-email path — the bootstrap window only opens while zero operators exist.
+Subsequent sign-ins (you) take the normal approved-email path because step 3 seeded the row; the declarative branch stays as a durable recovery lane — if `approved_emails` or `instance_operators` gets wiped, the next sign-in re-seeds via the same hook.
 
 Try signing in with a different Google account to see the friendly rejection state (`code: "email_not_approved"`). No user row is created.
+
+### Recovery via `pnpm bootstrap-operator`
+
+When the maintainer's `users` row already exists but `approved_emails` / `instance_operators` got wiped (e.g., a manual SQL `DELETE`, a revoke that should be undone, or a local cleanup that destroyed admission rows), `pnpm bootstrap-operator` restores those entries idempotently without requiring a fresh sign-in.
+
+```sh
+pnpm bootstrap-operator              # local D1
+pnpm bootstrap-operator --remote     # production D1 (wrangler d1 --remote)
+pnpm bootstrap-operator --check      # exit non-zero if either row is missing
+```
+
+The script reads `HEARTH_BOOTSTRAP_OPERATOR_EMAIL` from `.dev.vars` (local) or from the Workers secret env (remote), confirms the user row exists, then runs `INSERT OR IGNORE` on both tables in one batch. It deliberately does not create the `users` row — Better Auth owns identity insertion; if there's no user row yet, sign in once via OAuth first.
 
 ## 6. Useful day-to-day commands
 
@@ -154,6 +166,8 @@ The FTS5 rebuild is normally unnecessary — the AFTER INSERT mirror trigger kee
 The bootstrap email is seeded automatically on first sign-in. After that, use the `Admin → Instance settings → Approved emails` tab: `name@example.com` + an optional note, or paste a list (one email per line) via the "Paste a list" affordance.
 
 The older `pnpm approve-email …` shell helper is kept for direct DB access during tests or recovery. Note: it inserts into `approved_emails` but does not run the session-cascade path — for realistic flows, prefer the UI or the `DELETE /api/v1/instance/approved-emails/:email` endpoint, which hard-deletes live sessions for the matching users in the same batch as the email removal.
+
+For the special case of restoring the bootstrap operator after their admission rows were wiped, use `pnpm bootstrap-operator` (see § 5). It's the only helper that targets both `approved_emails` and `instance_operators` in one idempotent batch.
 
 ## 8. Testing the multi-operator flow
 

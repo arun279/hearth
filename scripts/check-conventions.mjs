@@ -208,6 +208,38 @@ const rules = [
     reason:
       "Code comments must not reference internal PR numbers — the citation rots once history is forgotten. Inline the substantive lesson at the call site; the git log / PR description is the right home for the historical narrative.",
   },
+  {
+    // Broad `.wrangler/` cleanups will eventually take the local D1 +
+    // R2 sqlite files with them. `state/v3/d1/` and `state/v3/r2/`
+    // live next to `tmp/`; an `rm -rf .wrangler/` or `rm -rf
+    // .wrangler/state` aimed at tmp pollution wipes the developer's
+    // entire local instance — which in turn closes the bootstrap
+    // path for the maintainer's email until they re-bootstrap. The
+    // rule blocks the whole-tree shapes specifically; a targeted
+    // path like `.wrangler/state/v3/d1` is allowed because that's
+    // a deliberate "reset my local D1" gesture, not a sweep.
+    name: "no-broad-wrangler-cleanup",
+    regex:
+      /\brm\s+-[rRf]+\s+[^\s|;&]*\.wrangler(?:\/?(?:\s|$|;|\||&|>)|\/state\/?(?:\s|$|;|\||&|>))/,
+    includePathPrefixes: ["packages/", "apps/", "scripts/", ".github/"],
+    excludePathSuffixes: ["scripts/check-conventions.mjs"],
+    reason:
+      "Never `rm -rf .wrangler/` or `rm -rf .wrangler/state/` — those paths hold the local D1 + R2 sqlite files. Targeted resets (e.g., `.wrangler/state/v3/d1`) are fine. Cleanup scripts aimed at orphan tmp should target `.wrangler/tmp/` strictly.",
+  },
+  {
+    // E2e teardown DELETE statements on admission tables MUST scope
+    // to test-data prefixes (`u_e2e_%` user ids, `%@e2e.example.com`
+    // emails). An unscoped DELETE could remove a developer's real
+    // operator / approved-email rows if the e2e suite ever runs
+    // against the dev D1 (e.g., a reuse-existing-server misfire).
+    name: "no-unscoped-delete-on-admission-tables",
+    regex:
+      /DELETE\s+FROM\s+(?:instance_operators|approved_emails)(?![^"]*LIKE\s*(?:'u_e2e_%'|'%@e2e\.example\.com'))/i,
+    includePathPrefixes: ["apps/web/e2e/", "scripts/"],
+    excludePathSuffixes: ["scripts/check-conventions.mjs"],
+    reason:
+      "DELETE on instance_operators / approved_emails in e2e teardown SQL must include a `LIKE 'u_e2e_%'` (user_id) or `LIKE '%@e2e.example.com'` (email) predicate. Unscoped deletes can take out a real operator's row if the suite ever lands on the dev D1.",
+  },
 ];
 
 /**

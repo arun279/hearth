@@ -67,31 +67,31 @@ export function readDevVar(key, devVarsPath = DEV_VARS_PATH) {
 }
 
 /**
- * Run one or more SQL statements against the local Miniflare D1 via
- * `wrangler d1 execute --local`. An array is joined with `;` so a single
- * subprocess handles the batch — that's the perf optimisation Architecture
- * Analyst recommended over reaching into wrangler's sqlite file directly.
+ * Run one or more SQL statements against the Miniflare D1 bound to the
+ * active wrangler environment. Reads `HEARTH_WRANGLER_ENV` to forward
+ * `--env <name>` to wrangler — playwright e2e sets this to `e2e` to
+ * target the isolated test D1, while `pnpm local-session` (default
+ * env) hits the dev D1. An array of statements is joined with `;` so
+ * a single subprocess handles the batch.
  *
  * @param {string | readonly string[]} sql
  */
 export function executeSql(sql) {
   const command = Array.isArray(sql) ? sql.join("; ") : sql;
-  const res = spawnSync(
-    "pnpm",
-    [
-      "--filter",
-      "@hearth/worker",
-      "exec",
-      "wrangler",
-      "d1",
-      "execute",
-      "hearth",
-      "--local",
-      "--command",
-      command,
-    ],
-    { cwd: REPO_ROOT, encoding: "utf8" },
-  );
+  const env = process.env.HEARTH_WRANGLER_ENV;
+  const args = [
+    "--filter",
+    "@hearth/worker",
+    "exec",
+    "wrangler",
+    "d1",
+    "execute",
+    "hearth",
+    "--local",
+  ];
+  if (env) args.push("--env", env);
+  args.push("--command", command);
+  const res = spawnSync("pnpm", args, { cwd: REPO_ROOT, encoding: "utf8" });
   if (res.status !== 0) {
     throw new Error(res.stderr || res.stdout || "wrangler d1 execute failed");
   }
@@ -105,23 +105,21 @@ export function executeSql(sql) {
  * @returns {Array<{ results: unknown[] }>}
  */
 function executeSqlJson(sql) {
-  const res = spawnSync(
-    "pnpm",
-    [
-      "--filter",
-      "@hearth/worker",
-      "exec",
-      "wrangler",
-      "d1",
-      "execute",
-      "hearth",
-      "--local",
-      "--json",
-      "--command",
-      sql,
-    ],
-    { cwd: REPO_ROOT, encoding: "utf8" },
-  );
+  const env = process.env.HEARTH_WRANGLER_ENV;
+  const args = [
+    "--filter",
+    "@hearth/worker",
+    "exec",
+    "wrangler",
+    "d1",
+    "execute",
+    "hearth",
+    "--local",
+    "--json",
+  ];
+  if (env) args.push("--env", env);
+  args.push("--command", sql);
+  const res = spawnSync("pnpm", args, { cwd: REPO_ROOT, encoding: "utf8" });
   if (res.status !== 0) {
     throw new Error(res.stderr || res.stdout || "wrangler d1 execute failed");
   }

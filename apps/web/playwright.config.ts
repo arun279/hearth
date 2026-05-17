@@ -39,6 +39,7 @@ const WORKER_PORT = 8787;
  */
 export default defineConfig({
   testDir: "./e2e",
+  globalSetup: path.resolve(__dirname, "e2e/global-setup.ts"),
   fullyParallel: false,
   forbidOnly: Boolean(process.env["CI"]),
   // `retries: 2` matches Playwright's documented CI default. A retry budget
@@ -86,10 +87,18 @@ export default defineConfig({
       stdout: "ignore",
     },
     {
-      command: "pnpm exec wrangler dev",
+      // `--env e2e` binds the Worker to the isolated D1 / R2 declared
+      // under `env.e2e` in `apps/worker/wrangler.jsonc`. Without the
+      // env switch, every spec mutates the dev D1 and a developer's
+      // local state (operators, approved emails, groups) collides
+      // with test fixtures. Reuse is disabled so a dev `wrangler dev`
+      // already listening on 8787 isn't silently adopted — that
+      // would defeat the binding isolation. Trade-off: dev and e2e
+      // can't run concurrently on the same machine; stop dev first.
+      command: "pnpm exec wrangler dev --env e2e",
       cwd: path.resolve(__dirname, "../worker"),
       url: `http://localhost:${WORKER_PORT}/healthz`,
-      reuseExistingServer: !process.env["CI"],
+      reuseExistingServer: false,
       timeout: 60_000,
       gracefulShutdown: { signal: "SIGTERM", timeout: 5_000 },
       stderr: "pipe",

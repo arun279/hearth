@@ -33,6 +33,7 @@
     "db:migrate:dev": "pnpm --filter @hearth/db db:migrate:dev",
     "db:check-auth": "pnpm --filter @hearth/db db:check-auth",
     "approve-email": "node scripts/approve-email.mjs",
+    "bootstrap-operator": "node scripts/bootstrap-operator.mjs",
     "local-session": "node scripts/local-session.mjs",
     "restore:fts": "node scripts/restore-fts.mjs",
     "prepare": "lefthook install"

@@ -29,7 +29,6 @@ export type AddOperatorResult = {
 
 export type BootstrapOutcome =
   | { readonly kind: "seeded"; readonly operatorUserId: UserId }
-  | { readonly kind: "not_needed" }
   | { readonly kind: "not_eligible" };
 
 export interface InstanceAccessPolicyRepository {

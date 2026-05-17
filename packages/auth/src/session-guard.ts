@@ -7,11 +7,15 @@ import { canonicalizeEmail } from "./admission.ts";
  * sessions for deactivated/deleted users or users whose email was revoked
  * from the Approved Email list after initial sign-up.
  *
- * Bootstrap-bypass: `session.create.before` fires BEFORE the deferred
- * `user.create.after` hook (better-auth#9070 / better-auth#7345). That
- * ordering means during the first-operator sign-in flow, approved_emails
- * has NOT been seeded yet by the time we land here. Mirror the bypass from
- * admissionCheck so the first operator actually gets a session.
+ * Mirrors `admissionCheck`'s declarative bootstrap branch: while
+ * `HEARTH_BOOTSTRAP_OPERATOR_EMAIL` is set, sessions for the matching
+ * email are admitted regardless of the approved-email row's presence.
+ * `user.create.after` is deferred until after the user-insert
+ * transaction commits, so the seed lands AFTER `session.create.before`
+ * runs; without this bypass the first session for any newly-seeded
+ * bootstrap email would be rejected. The bypass also serves as the
+ * recovery path when an `approved_emails` row gets dropped: the next
+ * sign-in re-seeds via the same after-hook.
  */
 export function createSessionGuard(
   policy: InstanceAccessPolicyRepository,
@@ -33,14 +37,7 @@ export function createSessionGuard(
     const email = canonicalizeEmail(user.email);
     if (await policy.isEmailApproved(email)) return;
 
-    // First-operator bootstrap race: approved_emails seed lands in
-    // user.create.after, which runs AFTER session.create.before. Allow the
-    // first operator through so the session can be established; the
-    // after-hook then seeds both approved_emails and instance_operators.
-    if (email.length > 0 && email === bootstrap) {
-      const activeOperators = await policy.countActiveOperators();
-      if (activeOperators === 0) return;
-    }
+    if (email.length > 0 && email === bootstrap) return;
 
     throw new DomainError(
       "FORBIDDEN",

@@ -35,6 +35,7 @@ For full local setup (Google OAuth, `.dev.vars`, first sign-in), see [docs/dev-r
 - `pnpm db:migrate:dev` — apply migrations to the local D1 store
 - `pnpm db:check-auth` — drift check between Better Auth's expected schema and the committed auth tables
 - `pnpm local-session` — mint a dev session cookie for the local stack (canonical helper for Playwright, curl, scripts; see [`scripts/local-session.mjs`](scripts/local-session.mjs))
+- `pnpm bootstrap-operator` — idempotently restore the configured bootstrap operator's `approved_emails` + `instance_operators` rows (local by default; `--remote` for prod). Run after a recovery scenario where those rows were dropped.
 
 Run `pnpm -r run <script>` to execute a script in every package that defines it.
 
