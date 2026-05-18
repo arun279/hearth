@@ -26,8 +26,8 @@ type Props = {
    * state. Disable both Retire and Upload-revision affordances so the
    * dialog matches that promise — re-enable from group settings via
    * Unarchive. The server still allows the operation (the policy stays
-   * authority-only per AGENTS.md), so an API client can mutate, but the
-   * SPA UI mirrors the banner.
+   * authority-only for idempotent shapes), so an API client can mutate,
+   * but the SPA UI mirrors the banner.
    */
   readonly archived: boolean;
 };
@@ -143,7 +143,7 @@ function DetailBody({
   readonly data: LibraryItemDetailPayload;
   readonly itemId: LibraryItemId;
 }) {
-  const { detail, displayKind } = data;
+  const { detail, displayKind, usedIn } = data;
   const item = detail.item;
   const isRetired = item.retiredAt !== null;
 
@@ -266,11 +266,36 @@ function DetailBody({
         >
           Used in
         </h3>
-        <p className="text-[12px] text-[var(--color-ink-2)]">
-          {detail.usedInCount === 0
-            ? "Not yet used."
-            : `Used in ${detail.usedInCount} ${detail.usedInCount === 1 ? "activity" : "activities"}.`}
-        </p>
+        {usedIn.length === 0 ? (
+          <p className="text-[12px] text-[var(--color-ink-2)]">Not yet used.</p>
+        ) : (
+          // Listing the activities by title is the friendly counterpart
+          // to the FK-RESTRICT error a steward would otherwise see at
+          // retire-click time. The list also makes the "you can't
+          // hard-delete a referenced item" rule legible before the
+          // mutation, not after.
+          <>
+            <p className="mb-1.5 text-[12px] text-[var(--color-ink-2)]">
+              {`Used in ${usedIn.length} ${usedIn.length === 1 ? "activity" : "activities"} — retiring is allowed; hard-deleting is blocked while any reference remains.`}
+            </p>
+            {/*
+             * TODO(m10): link each activity title to its viewable URL
+             * so a steward can navigate to the consumer (to swap the
+             * library reference) before retiring this item. Today
+             * activities are modal-only on the Activities tab — no
+             * dedicated URL surface to link to. M10 ships the player,
+             * which IS a real activity URL; that's the natural link
+             * target. Until then, plain `<li>` text is honest.
+             */}
+            <ul className="space-y-1 rounded-[var(--radius-sm)] border border-[var(--color-rule)] px-3 py-2 text-[12px] text-[var(--color-ink)]">
+              {usedIn.map((entry) => (
+                <li key={entry.id} className="truncate">
+                  {entry.title}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
       </section>
     </div>
   );

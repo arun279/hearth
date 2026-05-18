@@ -10,6 +10,7 @@ import type {
 import type {
   IdGenerator,
   InstanceAccessPolicyRepository,
+  LearningActivityRepository,
   LearningTrackRepository,
   LibraryItemRepository,
   ObjectStorage,
@@ -228,6 +229,27 @@ export function makeIds(values: ReadonlyArray<string>): IdGenerator {
   return {
     generate: vi.fn(() => values[i++ % values.length] ?? `id_${i}`),
   };
+}
+
+export function makeActivities(
+  overrides: Partial<LearningActivityRepository> = {},
+): LearningActivityRepository {
+  return {
+    create: vi.fn(),
+    byId: vi.fn(async () => null),
+    byTrack: vi.fn(async () => []),
+    update: vi.fn(),
+    delete: vi.fn(),
+    setLibraryRefs: vi.fn(async () => []),
+    listLibraryRefs: vi.fn(async () => []),
+    activitiesUsingLibraryItem: vi.fn(async () => []),
+    setPrerequisites: vi.fn(async () => []),
+    setSuggestedSequences: vi.fn(async () => []),
+    listPrerequisitesFor: vi.fn(async () => []),
+    listDependentsOf: vi.fn(async () => []),
+    countByTrack: vi.fn(async () => 0),
+    ...overrides,
+  } as LearningActivityRepository;
 }
 
 export function makeLibrary(overrides: Partial<LibraryItemRepository> = {}): LibraryItemRepository {

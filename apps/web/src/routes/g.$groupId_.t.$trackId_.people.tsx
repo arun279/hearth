@@ -1,10 +1,11 @@
 import type { TrackEnrollment } from "@hearth/domain";
 import { Button, Callout, EmptyState, Skeleton } from "@hearth/ui";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
-import { LogOut, Shield, ShieldOff, UserMinus } from "lucide-react";
+import { LogOut, Shield, ShieldOff, UserMinus, UserPlus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ConfirmActionDialog } from "../components/admin/confirm-action-dialog.tsx";
+import { AddTrackEnrolleeDialog } from "../components/tracks/add-track-enrollee-dialog.tsx";
 import { LeaveTrackDialog } from "../components/tracks/leave-track-dialog.tsx";
 import { TrackEnrolleeRow } from "../components/tracks/track-enrollee-row.tsx";
 import { TrackPageShell } from "../components/tracks/track-page-shell.tsx";
@@ -87,6 +88,7 @@ type TrackPeopleBodyProps = {
         readonly facilitatorCount: number;
         readonly entries: readonly TrackEnrolleeRowData[];
         readonly leftEntries: readonly TrackEnrolleeRowData[];
+        readonly canAddEnrollees: boolean;
       }
     | undefined;
   readonly isLoading: boolean;
@@ -107,6 +109,7 @@ function TrackPeopleBody({
   isError,
 }: TrackPeopleBodyProps) {
   const [leaveOpen, setLeaveOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
   const [confirming, setConfirming] = useState<ConfirmingState | null>(null);
 
   const promote = useAssignTrackFacilitator(groupId, trackId);
@@ -180,11 +183,25 @@ function TrackPeopleBody({
         <span className="text-[var(--color-ink-2)]">People</span>
       </nav>
 
-      <header className="mt-3">
-        <h1 className="font-serif text-[28px] text-[var(--color-ink)] leading-tight">People</h1>
-        <p className="mt-1 text-[13px] text-[var(--color-ink-2)]">
-          Facilitators curate this Learning Track; enrollees take part.
-        </p>
+      <header className="mt-3 flex items-start justify-between gap-3">
+        <div>
+          <h1 className="font-serif text-[28px] text-[var(--color-ink)] leading-tight">People</h1>
+          <p className="mt-1 text-[13px] text-[var(--color-ink-2)]">
+            Facilitators curate this Learning Track; enrollees take part.
+          </p>
+        </div>
+        {people.canAddEnrollees ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="primary"
+            onClick={() => setAddOpen(true)}
+            aria-label="Add a member to this track"
+          >
+            <UserPlus size={12} strokeWidth={1.75} aria-hidden="true" />
+            Add to track
+          </Button>
+        ) : null}
       </header>
 
       <PeopleSection
@@ -258,6 +275,19 @@ function TrackPeopleBody({
           updatedAt: new Date(0),
         }}
       />
+
+      {people.canAddEnrollees ? (
+        <AddTrackEnrolleeDialog
+          open={addOpen}
+          onClose={() => setAddOpen(false)}
+          groupId={groupId}
+          trackId={trackId}
+          trackName={trackName}
+          avatarOrigin={avatarOrigin}
+          enrolledUserIds={people.entries.map((e) => e.enrollment.userId)}
+          leftUserIds={people.leftEntries.map((e) => e.enrollment.userId)}
+        />
+      ) : null}
 
       <ConfirmActionDialog
         open={confirming?.kind === "promote"}

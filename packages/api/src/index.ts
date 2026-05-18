@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import type { AppBindings } from "./bindings.ts";
+import { activitiesRoutes } from "./routes/activities.ts";
 import { adminRoutes } from "./routes/admin.ts";
 import { groupsRoutes } from "./routes/groups.ts";
 import { instanceRoutes } from "./routes/instance.ts";
@@ -24,7 +25,15 @@ export function createApiRouter() {
     .route("/tracks", tracksRoutes)
     .route("/library", libraryRoutes)
     .route("/invitations", invitationsRoutes)
-    .route("/admin", adminRoutes);
+    .route("/admin", adminRoutes)
+    // Activities routes mount at "/" because the surface spans two
+    // path roots: list/create live under `/tracks/:trackId/activities`
+    // (track-scoped) while detail/mutations live under
+    // `/activities/:activityId` (per-aggregate). Splitting into two
+    // routers and mounting separately would require duplicating
+    // session-auth middleware setup; one router with a "/" mount keeps
+    // the contract co-located.
+    .route("/", activitiesRoutes);
   return app;
 }
 

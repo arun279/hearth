@@ -11,6 +11,8 @@
     "./policy/*": "./src/policy/*.ts",
     "./visibility": "./src/visibility/index.ts",
     "./visibility/*": "./src/visibility/*.ts",
+    "./activity": "./src/activity/index.ts",
+    "./activity/*": "./src/activity/*.ts",
     "./parts": "./src/parts/index.ts",
     "./parts/*": "./src/parts/*.ts",
     "./library": "./src/library/index.ts",
@@ -25,11 +27,15 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
   },
+  "dependencies": {
+    "zod": "catalog:"
+  },
   "devDependencies": {
     "@hearth/tsconfig": "workspace:*",
     "@total-typescript/ts-reset": "^0.6.1",
     "@types/node": "^22.9.0",
     "@vitest/coverage-v8": "catalog:",
+    "fast-check": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

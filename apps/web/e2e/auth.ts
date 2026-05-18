@@ -49,12 +49,29 @@ export function resetInstanceState(): void {
     // into groups. Drop enrollments first, then orphaned tracks (whose
     // parent group has no surviving members), then groups (orphans only).
     "DELETE FROM track_enrollments WHERE user_id LIKE 'u_e2e_%' OR track_id IN (SELECT t.id FROM tracks t WHERE t.group_id IN (SELECT g.id FROM groups g WHERE NOT EXISTS (SELECT 1 FROM group_memberships m WHERE m.group_id = g.id)))",
+    // M8 dependents: edge tables FK into learning_activities (twice
+    // each — both columns), so drop edges first. Then activities (FK
+    // into tracks). The orphan-track filter scopes the cascade to
+    // e2e-only data; a developer's real activities survive.
+    "DELETE FROM activity_prerequisites WHERE activity_id IN (SELECT a.id FROM learning_activities a WHERE a.track_id IN (SELECT t.id FROM tracks t WHERE t.group_id IN (SELECT g.id FROM groups g WHERE NOT EXISTS (SELECT 1 FROM group_memberships m WHERE m.group_id = g.id))))",
+    "DELETE FROM activity_suggested_sequences WHERE activity_id IN (SELECT a.id FROM learning_activities a WHERE a.track_id IN (SELECT t.id FROM tracks t WHERE t.group_id IN (SELECT g.id FROM groups g WHERE NOT EXISTS (SELECT 1 FROM group_memberships m WHERE m.group_id = g.id))))",
+    // Scoped by activity_id (not library_item_id) so an e2e activity
+    // pointing at a non-e2e library item still releases the FK before
+    // the parent learning_activities row is deleted on the next line.
+    "DELETE FROM activity_library_refs WHERE activity_id IN (SELECT a.id FROM learning_activities a WHERE a.track_id IN (SELECT t.id FROM tracks t WHERE t.group_id IN (SELECT g.id FROM groups g WHERE NOT EXISTS (SELECT 1 FROM group_memberships m WHERE m.group_id = g.id))))",
+    "DELETE FROM learning_activities WHERE track_id IN (SELECT t.id FROM tracks t WHERE t.group_id IN (SELECT g.id FROM groups g WHERE NOT EXISTS (SELECT 1 FROM group_memberships m WHERE m.group_id = g.id)))",
     "DELETE FROM tracks WHERE group_id IN (SELECT g.id FROM groups g WHERE NOT EXISTS (SELECT 1 FROM group_memberships m WHERE m.group_id = g.id))",
     // M6 dependents: revisions / stewards / activity refs FK into
     // library_items; library_items FK into groups + users. Children
     // first so SQLite's FK enforcement doesn't reject the parent
     // delete. Scoped to e2e-only items via uploaded_by / user_id /
     // ownership so a developer's real library survives the teardown.
+    // The first activity_library_refs sweep (in the M8 block above)
+    // cleared activity-side refs scoped by activity_id; this second
+    // sweep clears any non-e2e-activity refs that still point at
+    // e2e-uploaded items so the `DELETE FROM library_items …
+    // uploaded_by LIKE 'u_e2e_%'` statement below doesn't trip the
+    // FK RESTRICT.
     "DELETE FROM activity_library_refs WHERE library_item_id IN (SELECT id FROM library_items WHERE uploaded_by LIKE 'u_e2e_%')",
     "DELETE FROM library_revisions WHERE uploaded_by LIKE 'u_e2e_%' OR library_item_id IN (SELECT id FROM library_items WHERE uploaded_by LIKE 'u_e2e_%')",
     "DELETE FROM library_stewards WHERE user_id LIKE 'u_e2e_%' OR granted_by LIKE 'u_e2e_%' OR library_item_id IN (SELECT id FROM library_items WHERE uploaded_by LIKE 'u_e2e_%')",
@@ -100,7 +117,13 @@ export async function seedOperator(args: {
  * user.
  */
 export function demoteToMember(userId: string): void {
-  executeSql(`DELETE FROM instance_operators WHERE user_id = '${userId}'`);
+  // Defensive scope predicate: even though the e2e binding isolates
+  // this DELETE to the e2e D1, the same prefix guard the rest of the
+  // teardown uses keeps the operation safe if a caller ever passes a
+  // non-e2e id by accident.
+  executeSql(
+    `DELETE FROM instance_operators WHERE user_id = '${userId}' AND user_id LIKE 'u_e2e_%'`,
+  );
 }
 
 /**
@@ -111,7 +134,11 @@ export function demoteToMember(userId: string): void {
  * approve/revoke API dance.
  */
 export function unapproveEmail(email: string): void {
-  executeSql(`DELETE FROM approved_emails WHERE email = '${email.toLowerCase()}'`);
+  // Same defensive scope as `demoteToMember`: the predicate matches
+  // any e2e address regardless of which spec passes it in.
+  executeSql(
+    `DELETE FROM approved_emails WHERE email = '${email.toLowerCase()}' AND email LIKE '%@e2e.example.com'`,
+  );
 }
 
 /**

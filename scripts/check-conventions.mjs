@@ -149,6 +149,97 @@ const rules = [
     reason:
       "role='dialog' must come from the @hearth/ui Modal or Drawer primitive. Bespoke dialogs miss the stack-aware ESC handling, focus trap, inert-when-not-topmost, and visible close affordance enforced by useDialogPanel.",
   },
+  {
+    // Length caps are exported from `@hearth/domain`
+    // (`MAX_TITLE_LENGTH`, `MAX_LONG_TEXT_LENGTH`, …) so the server's
+    // Zod schema and the SPA's `maxLength` attribute share one value.
+    // An inline literal decouples them: when the cap moves on the
+    // server, the SPA quietly truncates input below the new ceiling.
+    name: "no-magic-maxlength-in-spa",
+    regex: /\bmaxLength=\{\s*\d/,
+    includePathPrefixes: ["apps/web/src/", "packages/ui/src/"],
+    excludePathSuffixes: ["scripts/check-conventions.mjs"],
+    reason:
+      "Reference the cap by name (`MAX_TITLE_LENGTH`, `MAX_LONG_TEXT_LENGTH`, …) from @hearth/domain instead of inlining a literal. Domain constants are the single source of truth — the SPA must not encode its own copy.",
+  },
+  {
+    // Line numbers rot the moment a file is edited. A comment that
+    // anchors to the statement's content (a verbatim SQL fragment, a
+    // function name, a column + table pair) survives moves; one that
+    // anchors to "line N" silently lies.
+    name: "no-line-number-reference-in-comments",
+    regex: /\bon line \d+(?:[–-]\d+)?\b/i,
+    excludePathSuffixes: ["scripts/check-conventions.mjs"],
+    includePathPrefixes: ["packages/", "apps/", "scripts/"],
+    reason:
+      "Comments must not reference code by line number — line numbers rot on the next edit. Quote the statement's distinctive content (e.g. a column name + table) so the anchor survives moves.",
+  },
+  {
+    // Code comments that cite `AGENTS.md` / `CLAUDE.md` by name (often
+    // with a § section reference) rot when the doc is reorganized or
+    // sections are renamed. Repo docs are the single source of truth;
+    // code comments should inline the rule's substance instead.
+    name: "no-project-doc-citation-in-comments",
+    regex: /\b(?:AGENTS|CLAUDE)\.md\b/,
+    includePathPrefixes: ["packages/", "apps/"],
+    excludePathSuffixes: [
+      "scripts/check-conventions.mjs",
+      // Test files that programmatically read AGENTS.md/CLAUDE.md to
+      // enforce a paired-gate (e.g. the policy-purity drift check) are
+      // pointing at the file as data, not citing it as documentation.
+      // They are still subject to the spirit of this rule but can opt
+      // in via `// allow-doc-ref: <reason>` immediately before the
+      // line — none exist today.
+    ],
+    reason:
+      "Code comments must not cite `AGENTS.md` / `CLAUDE.md` by name — section titles rot. Inline the rule's substance at the call site so the comment stands alone for a future reader.",
+  },
+  {
+    // Internal PR/issue numbers ("PR #17 caught …") in code comments
+    // anchor the code to git-history context that ages out fast — a
+    // future reader without that history can't make sense of the
+    // citation. Upstream-package issue refs (e.g. `better-auth#8949`)
+    // are excluded via the `<package>#` prefix lookbehind: those
+    // identify a specific external commit and stay stable.
+    name: "no-internal-pr-reference-in-comments",
+    regex: /(?<![\w-])PR #\d+\b/,
+    includePathPrefixes: ["packages/", "apps/"],
+    excludePathSuffixes: ["scripts/check-conventions.mjs"],
+    reason:
+      "Code comments must not reference internal PR numbers — the citation rots once history is forgotten. Inline the substantive lesson at the call site; the git log / PR description is the right home for the historical narrative.",
+  },
+  {
+    // Broad `.wrangler/` cleanups will eventually take the local D1 +
+    // R2 sqlite files with them. `state/v3/d1/` and `state/v3/r2/`
+    // live next to `tmp/`; an `rm -rf .wrangler/` or `rm -rf
+    // .wrangler/state` aimed at tmp pollution wipes the developer's
+    // entire local instance — which in turn closes the bootstrap
+    // path for the maintainer's email until they re-bootstrap. The
+    // rule blocks the whole-tree shapes specifically; a targeted
+    // path like `.wrangler/state/v3/d1` is allowed because that's
+    // a deliberate "reset my local D1" gesture, not a sweep.
+    name: "no-broad-wrangler-cleanup",
+    regex:
+      /\brm\s+-[rRf]+\s+[^\s|;&]*\.wrangler(?:\/?(?:\s|$|;|\||&|>)|\/state\/?(?:\s|$|;|\||&|>))/,
+    includePathPrefixes: ["packages/", "apps/", "scripts/", ".github/"],
+    excludePathSuffixes: ["scripts/check-conventions.mjs"],
+    reason:
+      "Never `rm -rf .wrangler/` or `rm -rf .wrangler/state/` — those paths hold the local D1 + R2 sqlite files. Targeted resets (e.g., `.wrangler/state/v3/d1`) are fine. Cleanup scripts aimed at orphan tmp should target `.wrangler/tmp/` strictly.",
+  },
+  {
+    // E2e teardown DELETE statements on admission tables MUST scope
+    // to test-data prefixes (`u_e2e_%` user ids, `%@e2e.example.com`
+    // emails). An unscoped DELETE could remove a developer's real
+    // operator / approved-email rows if the e2e suite ever runs
+    // against the dev D1 (e.g., a reuse-existing-server misfire).
+    name: "no-unscoped-delete-on-admission-tables",
+    regex:
+      /DELETE\s+FROM\s+(?:instance_operators|approved_emails)(?![^"]*LIKE\s*(?:'u_e2e_%'|'%@e2e\.example\.com'))/i,
+    includePathPrefixes: ["apps/web/e2e/", "scripts/"],
+    excludePathSuffixes: ["scripts/check-conventions.mjs"],
+    reason:
+      "DELETE on instance_operators / approved_emails in e2e teardown SQL must include a `LIKE 'u_e2e_%'` (user_id) or `LIKE '%@e2e.example.com'` (email) predicate. Unscoped deletes can take out a real operator's row if the suite ever lands on the dev D1.",
+  },
 ];
 
 /**

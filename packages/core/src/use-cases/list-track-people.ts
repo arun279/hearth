@@ -60,6 +60,14 @@ export type ListTrackPeopleResult = {
    * a participant can't fingerprint who used to be on the track.
    */
   readonly leftEntries: readonly TrackEnrolleeRow[];
+  /**
+   * Page-level affordance gate for the "Add to track" picker. Mirrors
+   * `canEnrollUserInTrack` minus the per-target membership check (the
+   * picker computes the candidate set client-side from group members
+   * already cached on the page). False when the viewer lacks authority,
+   * the track is archived, or the parent group is archived.
+   */
+  readonly canAddEnrollees: boolean;
 };
 
 /**
@@ -71,7 +79,7 @@ export async function listTrackPeople(
   input: ListTrackPeopleInput,
   deps: ListTrackPeopleDeps,
 ): Promise<ListTrackPeopleResult> {
-  const { actor, group, track, groupMembership, trackEnrollment } = await loadViewableTrack(
+  const { group, track, groupMembership, trackEnrollment } = await loadViewableTrack(
     input.actor,
     input.trackId,
     deps,
@@ -146,6 +154,7 @@ export async function listTrackPeople(
     else leftEntries.push(row);
   });
 
-  void actor;
-  return { track, facilitatorCount, entries, leftEntries };
+  const canAddEnrollees = group.status !== "archived" && track.status !== "archived" && isAuthority;
+
+  return { track, facilitatorCount, entries, leftEntries, canAddEnrollees };
 }

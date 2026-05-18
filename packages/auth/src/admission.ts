@@ -11,16 +11,23 @@ export function canonicalizeEmail(raw: string): string {
 /**
  * Wire into Better Auth's `databaseHooks.user.create.before`. Admits the
  * candidate iff either (a) their email is on the Approved Email list, or
- * (b) this is the first-operator bootstrap path: the instance has zero
- * active operators AND the candidate's email matches the configured
- * bootstrap operator email.
+ * (b) their email matches the configured bootstrap operator email.
  *
- * Why the bootstrap-bypass lives here: Better Auth fires
- * `session.create.before` during the same transaction as the user insert,
- * while `user.create.after` is deferred until after commit. That means the
- * after-hook cannot seed approved_emails before the session guard's
- * admission re-check runs. Without this bypass, the first-ever operator
- * sign-in on a fresh instance would be rejected by the session guard.
+ * The bootstrap branch is *declarative*: while
+ * `HEARTH_BOOTSTRAP_OPERATOR_EMAIL` is set, that email is always admitted
+ * and `user.create.after` idempotently seeds `approved_emails` +
+ * `instance_operators`. This survives admission-table wipes, test
+ * seeding that occupies other operator slots, and rotation — the env
+ * var is the lever, not a one-shot. Rotating it to a different email
+ * shifts bootstrap rights to the new email; clearing it disables the
+ * bypass entirely.
+ *
+ * Why the bypass coexists with `session.create.before`'s admission
+ * re-check: `user.create.after` is deferred until after the user-insert
+ * transaction commits, so the seed lands AFTER `session.create.before`
+ * runs. Without the bypass in both hooks, the first sign-in of an
+ * already-seeded email-revoked path would be rejected by the session
+ * guard before the after-hook reseeds.
  */
 export async function admissionCheck(
   policy: InstanceAccessPolicyRepository,
@@ -32,10 +39,7 @@ export async function admissionCheck(
 
   if (await policy.isEmailApproved(email)) return;
 
-  if (email.length > 0 && email === bootstrap) {
-    const activeOperators = await policy.countActiveOperators();
-    if (activeOperators === 0) return;
-  }
+  if (email.length > 0 && email === bootstrap) return;
 
   throw new DomainError(
     "FORBIDDEN",

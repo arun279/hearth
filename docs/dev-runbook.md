@@ -126,14 +126,26 @@ Open `http://localhost:5173`. The SPA proxies `/api` to `http://localhost:8787` 
 
 Click **Sign in with Google**, choose the account whose email matches `HEARTH_BOOTSTRAP_OPERATOR_EMAIL`. The first successful sign-in:
 
-1. Better Auth's `user.create.before` hook runs `admissionCheck`. Because there are zero active operators AND your email is the bootstrap email, the bootstrap-bypass admits you even though no Approved Email list exists yet.
-2. `session.create.before` runs `sessionGuard` — same bootstrap-bypass.
-3. `user.create.after` fires post-commit and calls `bootstrapIfNeeded`, which inserts your email into `approved_emails` and your user id into `instance_operators` in a single D1 `batch()`.
+1. Better Auth's `user.create.before` hook runs `admissionCheck`. Because your email matches the bootstrap env var, the declarative bootstrap branch admits you even though no Approved Email list exists yet.
+2. `session.create.before` runs `sessionGuard` — same bootstrap branch admits the session.
+3. `user.create.after` fires post-commit and calls `bootstrapIfNeeded`, which idempotently inserts your email into `approved_emails` and your user id into `instance_operators` in a single D1 `batch()` via PK conflict guards.
 4. The SPA reloads `/api/v1/me/context` and you appear with `isOperator: true`.
 
-Subsequent sign-ins (you or anyone else) go through the normal approved-email path — the bootstrap window only opens while zero operators exist.
+Subsequent sign-ins (you) take the normal approved-email path because step 3 seeded the row; the declarative branch stays as a durable recovery lane — if `approved_emails` or `instance_operators` gets wiped, the next sign-in re-seeds via the same hook.
 
 Try signing in with a different Google account to see the friendly rejection state (`code: "email_not_approved"`). No user row is created.
+
+### Recovery via `pnpm bootstrap-operator`
+
+When the maintainer's `users` row already exists but `approved_emails` / `instance_operators` got wiped (e.g., a manual SQL `DELETE`, a revoke that should be undone, or a local cleanup that destroyed admission rows), `pnpm bootstrap-operator` restores those entries idempotently without requiring a fresh sign-in.
+
+```sh
+pnpm bootstrap-operator              # local D1
+pnpm bootstrap-operator --remote     # production D1 (wrangler d1 --remote)
+pnpm bootstrap-operator --check      # exit non-zero if either row is missing
+```
+
+The script reads `HEARTH_BOOTSTRAP_OPERATOR_EMAIL` from `.dev.vars` (local) or from the Workers secret env (remote), confirms the user row exists, then runs `INSERT OR IGNORE` on both tables in one batch. It deliberately does not create the `users` row — Better Auth owns identity insertion; if there's no user row yet, sign in once via OAuth first.
 
 ## 6. Useful day-to-day commands
 
@@ -154,6 +166,8 @@ The FTS5 rebuild is normally unnecessary — the AFTER INSERT mirror trigger kee
 The bootstrap email is seeded automatically on first sign-in. After that, use the `Admin → Instance settings → Approved emails` tab: `name@example.com` + an optional note, or paste a list (one email per line) via the "Paste a list" affordance.
 
 The older `pnpm approve-email …` shell helper is kept for direct DB access during tests or recovery. Note: it inserts into `approved_emails` but does not run the session-cascade path — for realistic flows, prefer the UI or the `DELETE /api/v1/instance/approved-emails/:email` endpoint, which hard-deletes live sessions for the matching users in the same batch as the email removal.
+
+For the special case of restoring the bootstrap operator after their admission rows were wiped, use `pnpm bootstrap-operator` (see § 5). It's the only helper that targets both `approved_emails` and `instance_operators` in one idempotent batch.
 
 ## 8. Testing the multi-operator flow
 
@@ -187,6 +201,23 @@ Most flows past the group lifecycle (track activities, sessions, the People tab,
 4. Invite that email from the group's people page (admin-only `Invite` button) or via `POST /api/v1/g/:groupId/invitations`. Either path returns a token.
 5. Consume the invitation as the second user — visit `/invite/<token>` in a second browser/profile (cookies don't share between profiles), or POST `/api/v1/invitations/consume` with `{ "token": "..." }`.
 6. The second user can now self-enroll in the track via the `Enroll` button on the track home, or you can promote them to facilitator from the People tab (the admin-only `Promote` action). The orphan-facilitator guard on group removal lights up once a track has at least one facilitator who is the _only_ facilitator on that track — the easiest way to reproduce that state is to invite a third user, promote them to facilitator on a different track, then try removing them from the group.
+
+## 8b. Composing your first Learning Activity
+
+Once a Study Group, a Learning Track, and at least one enrolled facilitator exist (see § 8a), you can compose Learning Activities. The composer is a single-scrolled modal; the create + edit paths share the same component.
+
+1. Visit `/g/<groupId>/t/<trackId>` and click `+ New activity` on the Activities tab. The button is gated on facilitator authority — Group Admins and Track Facilitators see it; participants don't.
+2. **Title** is required; the asterisk + the on-submit inline error (`role="alert"`) name it explicitly. Description is optional.
+3. **Add Parts** from the palette. Five kinds ship in M8: Reading, Audio, Video, Reflection, and Embed. Reading / Audio / Video each open a Library Item picker filtered to the matching display kind (PDF/doc/image for Reading, audio MIME for Audio, video MIME for Video). Reflection takes a prompt; Embed takes an https URL plus a provider radio (YouTube / Spotify / Generic). Reorder with the up/down arrow buttons; remove with the X. Quiz and Session Parts are hidden in M8 — their player surfaces ship in later milestones.
+4. **Audience** defaults to "Everyone enrolled." Switching to "Selected participants" reveals a checkbox roster sourced from current track enrollments. Departed enrollees fall out automatically (left-track members aren't selectable).
+5. **Window** is optional. Opens / Due / Closes are `<input type="datetime-local">` — the helper line under the row discloses your browser timezone (`America/Chicago`, etc.) so you know what zone the saved instant reflects. Setting Closes reveals a **Post-close policy** radio group ("Visible · still completable" / "Visible · locked" / "Hidden"). The picker requires an explicit choice; there's no destructive auto-seed.
+6. **Completion rule** picks between "Honor-system — learner marks complete" (default) and "Auto — all Parts marked complete."
+7. **Cross-activity prereqs / suggested-next** appear once at least one other activity exists on the track. Both are multi-select; the helper copy will get richer when records and visibility ship.
+8. Click `Create activity`. The dialog's sticky footer keeps the save button visible regardless of scroll position. On validation failure, the inline alert auto-scrolls into view.
+9. **Edit**: click any activity row in the Activities tab. The composer reopens seeded with the existing activity. The dirty-state guard is live — pressing Esc with unsaved edits surfaces a "Discard your changes?" sub-modal; pristine composers still close instantly.
+10. **Delete**: in edit mode, click `Delete` (left side of the footer) and confirm with the type-to-confirm phrase. The mutation refuses if any other activity holds this one as a hard prerequisite — the deny code (`activity_has_dependents`) names the offending titles.
+
+The Library Item detail (`/g/<groupId>/library`, click an item) shows a "Used in N activities" list — useful when a steward wants to check what would block a hard-delete before they retire an item.
 
 ## 9. Inspecting R2 (avatars and library uploads)
 

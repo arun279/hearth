@@ -1071,11 +1071,13 @@ describe("GET /api/v1/tracks/:trackId/people (listTrackPeople)", () => {
         capabilities: { canRemove: boolean; canPromote: boolean; canDemote: boolean };
       }>;
       leftEntries: unknown[];
+      canAddEnrollees: boolean;
     };
     expect(body.facilitatorCount).toBe(1);
     expect(body.entries).toHaveLength(2);
     expect(body.entries[0]?.enrollment.role).toBe("facilitator");
     expect(body.entries[1]?.capabilities.canPromote).toBe(true);
     expect(body.leftEntries).toEqual([]);
+    expect(body.canAddEnrollees).toBe(true);
   });
 });

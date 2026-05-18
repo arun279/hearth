@@ -4,8 +4,13 @@ import { defineConfig, devices } from "@playwright/test";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const SPA_PORT = 5173;
-const WORKER_PORT = 8787;
+// E2E uses sibling ports of the dev stack so a developer running
+// `pnpm dev` (5173 + 8787) doesn't lose their session every time
+// playwright spins up. The e2e Worker is bound to `env.e2e` in
+// `apps/worker/wrangler.jsonc`, which selects a distinct Miniflare
+// D1 sqlite file — schema is identical, rows are isolated.
+const SPA_PORT = 5174;
+const WORKER_PORT = 8788;
 
 /**
  * Playwright drives the SPA + Worker stack as a real user. Because Better Auth
@@ -39,6 +44,7 @@ const WORKER_PORT = 8787;
  */
 export default defineConfig({
   testDir: "./e2e",
+  globalSetup: path.resolve(__dirname, "e2e/global-setup.ts"),
   fullyParallel: false,
   forbidOnly: Boolean(process.env["CI"]),
   // `retries: 2` matches Playwright's documented CI default. A retry budget
@@ -74,23 +80,37 @@ export default defineConfig({
 
   webServer: [
     {
-      // The Vite SPA. `@hearth/web dev` proxies `/api/*` to the Worker on 8787,
-      // so cookies set on the SPA origin flow through to the Worker via the
-      // proxy as same-origin requests.
-      command: "pnpm --filter @hearth/web dev",
-      cwd: path.resolve(__dirname, "../.."),
+      // E2E Vite runs on 5174 with its `/api` proxy pointed at port
+      // 8788 — both env vars are read by `vite.config.ts`. Sitting one
+      // port off dev (5173/8787) means `pnpm dev` and `pnpm e2e` can
+      // run concurrently on the same machine.
+      command: `pnpm exec vite --port ${SPA_PORT}`,
+      env: {
+        HEARTH_SPA_PORT: String(SPA_PORT),
+        HEARTH_API_PROXY_PORT: String(WORKER_PORT),
+      },
+      cwd: path.resolve(__dirname),
       url: `http://localhost:${SPA_PORT}/`,
       reuseExistingServer: !process.env["CI"],
       timeout: 60_000,
+      gracefulShutdown: { signal: "SIGTERM", timeout: 5_000 },
       stderr: "pipe",
       stdout: "ignore",
     },
     {
-      command: "pnpm --filter @hearth/worker dev",
-      cwd: path.resolve(__dirname, "../.."),
+      // `--env e2e` binds the Worker to the isolated D1 / R2 declared
+      // under `env.e2e` in `apps/worker/wrangler.jsonc` — distinct
+      // `database_id` selects a separate Miniflare sqlite file, so
+      // spec teardown can't touch a developer's dev D1 state. The
+      // port (8788) is also off the dev default (8787) so a running
+      // `wrangler dev` doesn't clash; reuse is disabled regardless
+      // to keep the binding isolation honest in CI.
+      command: `pnpm exec wrangler dev --env e2e --port ${WORKER_PORT}`,
+      cwd: path.resolve(__dirname, "../worker"),
       url: `http://localhost:${WORKER_PORT}/healthz`,
-      reuseExistingServer: !process.env["CI"],
+      reuseExistingServer: false,
       timeout: 60_000,
+      gracefulShutdown: { signal: "SIGTERM", timeout: 5_000 },
       stderr: "pipe",
       stdout: "ignore",
     },

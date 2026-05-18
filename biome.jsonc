@@ -46,6 +46,9 @@
         "noConsole": { "level": "error", "options": { "allow": ["error", "warn"] } },
         "noFocusedTests": "error"
       },
+      "correctness": {
+        "noUnusedFunctionParameters": "error"
+      },
       "complexity": {
         // TS strictness in `packages/tsconfig/base.json` enables
         // `noPropertyAccessFromIndexSignature`, which makes dot-syntax

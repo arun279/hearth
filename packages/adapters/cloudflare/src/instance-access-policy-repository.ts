@@ -297,28 +297,20 @@ export function createInstanceAccessPolicyRepository(
       bootstrapEmail,
       candidateUserId,
     }): Promise<BootstrapOutcome> {
-      // Deliberately does NOT call gate.assertWritable — this path runs
-      // during the first sign-in of an instance that has no operator yet,
-      // which is exactly when the killswitch default of "normal" is in
-      // effect. If an operator has already configured read_only or
-      // disabled, the bootstrap conditions (zero operators) cannot hold.
+      // Deliberately does NOT call gate.assertWritable — the bootstrap
+      // seed runs from `user.create.after` for the configured bootstrap
+      // email. While `HEARTH_BOOTSTRAP_OPERATOR_EMAIL` is set, the seed
+      // is idempotent and survives admission-table wipes: re-running on
+      // an already-seeded email is a no-op via the PK conflict guards.
       const candidate = normalize(candidateEmail);
       const bootstrap = normalize(bootstrapEmail);
       if (!bootstrap || candidate !== bootstrap) {
         return { kind: "not_eligible" };
       }
 
-      const existing = await deps.db
-        .select({ n: sql<number>`1` })
-        .from(instanceOperators)
-        .where(isNull(instanceOperators.revokedAt))
-        .limit(1);
-      if (existing.length > 0) {
-        return { kind: "not_needed" };
-      }
-
       const now = new Date();
-      // Idempotent: concurrent bootstrap races resolve via the unique PKs.
+      // Concurrent bootstrap races (and re-runs after a wipe) resolve via
+      // the unique PKs — no count guard needed.
       await deps.db.batch([
         deps.db
           .insert(approvedEmails)

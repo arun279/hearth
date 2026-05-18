@@ -2,6 +2,8 @@ import type {
   AttributionPreference,
   ContributionPolicyEnvelope,
   InvitationId,
+  LearningActivityDraft,
+  LearningActivityId,
   LearningTrackId,
   LibraryItemId,
   LibraryRevisionId,
@@ -9,13 +11,19 @@ import type {
   TrackStructureEnvelope,
   UserId,
 } from "@hearth/domain";
-import type { LibraryItemRepository, SystemFlagRepository, WriteMethods } from "@hearth/ports";
+import type {
+  LearningActivityRepository,
+  LibraryItemRepository,
+  SystemFlagRepository,
+  WriteMethods,
+} from "@hearth/ports";
 import { describe, expect, it } from "vitest";
 import type { CloudflareAdapterDeps } from "../src/deps.ts";
 import {
   createInstanceAccessPolicyRepository,
   createInstanceSettingsRepository,
   createKillswitchGate,
+  createLearningActivityRepository,
   createLearningTrackRepository,
   createLibraryItemRepository,
   createObjectStorage,
@@ -87,6 +95,7 @@ describe("killswitch coverage (resilience invariant 2 + 3)", () => {
   const groups = createStudyGroupRepository({ db, gate });
   const tracks = createLearningTrackRepository({ db, gate });
   const library = createLibraryItemRepository({ db, gate });
+  const activities = createLearningActivityRepository({ db, gate });
   const uploads = createUploadCoordinationRepository({ db, gate });
   const sweep = createPendingUploadsSweep({ db, storage, gate });
   const object = createObjectStorage(storage, gate, {
@@ -318,6 +327,65 @@ describe("killswitch coverage (resilience invariant 2 + 3)", () => {
     ],
     ["LibraryItemRepository.restoreFtsIndex", () => library.restoreFtsIndex()],
 
+    [
+      "LearningActivityRepository.create",
+      () =>
+        activities.create({
+          draft: {
+            trackId: "t_test" as LearningTrackId,
+            title: "x",
+            description: null,
+            parts: [],
+            flow: { prereqs: [] },
+            audience: { kind: "everyone_enrolled" },
+            window: null,
+            postClosePolicy: null,
+            completionRule: { kind: "manual_mark" },
+            libraryRefs: [],
+            prerequisiteActivityIds: [],
+            suggestedNextActivityIds: [],
+          } satisfies LearningActivityDraft,
+          createdBy: uid,
+        }),
+    ],
+    [
+      "LearningActivityRepository.update",
+      () =>
+        activities.update({
+          id: "a_test" as LearningActivityId,
+          patch: { title: "y" },
+          by: uid,
+        }),
+    ],
+    [
+      "LearningActivityRepository.delete",
+      () => activities.delete({ id: "a_test" as LearningActivityId, by: uid }),
+    ],
+    [
+      "LearningActivityRepository.setLibraryRefs",
+      () =>
+        activities.setLibraryRefs({
+          activityId: "a_test" as LearningActivityId,
+          refs: [],
+        }),
+    ],
+    [
+      "LearningActivityRepository.setPrerequisites",
+      () =>
+        activities.setPrerequisites({
+          activityId: "a_test" as LearningActivityId,
+          prerequisiteActivityIds: [],
+        }),
+    ],
+    [
+      "LearningActivityRepository.setSuggestedSequences",
+      () =>
+        activities.setSuggestedSequences({
+          activityId: "a_test" as LearningActivityId,
+          nextActivityIds: [],
+        }),
+    ],
+
     // The hourly cron-driven sweep is not a *port* method, but it
     // calls `gate.assertWritable()` on entry and is the only path
     // through which the killswitch can stop the cron from mutating
@@ -332,23 +400,30 @@ describe("killswitch coverage (resilience invariant 2 + 3)", () => {
   }
 
   // Type-level exhaustiveness for ports that have adopted the
-  // `Write<>` brand. If a new branded write method is added to
-  // `LibraryItemRepository` without a corresponding entry in CASES,
-  // `MissingLibraryLabels` resolves to a non-`never` union and the
+  // `Write<>` brand. If a new branded write method is added to a
+  // covered port without a corresponding entry in CASES, the type-
+  // level `Missing` union resolves to a non-`never` value and the
   // string-literal assignment fails `tsc` with a message naming the
   // missing label(s). The runtime `expect` is incidental — the
   // compile-time check is what catches the regression.
   //
-  // To extend coverage to another port, add its branded type to the
-  // union after applying the `Write<>` brand to its mutating methods.
+  // To extend coverage to another port: brand its mutating methods
+  // with `Write<>` in the port file and add a per-port block below.
   // See `docs/tripwires.md` for the migration tracker.
+  type CaseLabels = (typeof CASES)[number][0];
+
   it("LibraryItemRepository: every branded write method is in CASES", () => {
-    type ExpectedLibraryLabels = `LibraryItemRepository.${WriteMethods<LibraryItemRepository>}`;
-    type CaseLabels = (typeof CASES)[number][0];
-    type MissingLibraryLabels = Exclude<ExpectedLibraryLabels, CaseLabels>;
-    type ExhaustiveCheck = [MissingLibraryLabels] extends [never]
-      ? "ok"
-      : `MISSING from CASES: ${MissingLibraryLabels}`;
+    type Expected = `LibraryItemRepository.${WriteMethods<LibraryItemRepository>}`;
+    type Missing = Exclude<Expected, CaseLabels>;
+    type ExhaustiveCheck = [Missing] extends [never] ? "ok" : `MISSING from CASES: ${Missing}`;
+    const check: ExhaustiveCheck = "ok";
+    expect(check).toBe("ok");
+  });
+
+  it("LearningActivityRepository: every branded write method is in CASES", () => {
+    type Expected = `LearningActivityRepository.${WriteMethods<LearningActivityRepository>}`;
+    type Missing = Exclude<Expected, CaseLabels>;
+    type ExhaustiveCheck = [Missing] extends [never] ? "ok" : `MISSING from CASES: ${Missing}`;
     const check: ExhaustiveCheck = "ok";
     expect(check).toBe("ok");
   });

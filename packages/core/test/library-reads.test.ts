@@ -13,6 +13,7 @@ import {
   ACTOR,
   ACTOR_ID,
   GROUP_ID,
+  makeActivities,
   makeGroups,
   makeLibrary,
   makePolicy,
@@ -75,6 +76,7 @@ describe("getLibraryItem", () => {
           listStewards: vi.fn(async () => []),
           detail: vi.fn(async () => detail),
         }),
+        activities: makeActivities(),
       },
     );
     expect(result.caps.canAddRevision).toBe(true);
@@ -100,6 +102,7 @@ describe("getLibraryItem", () => {
             listStewards: vi.fn(async () => []),
             detail: vi.fn(async () => null),
           }),
+          activities: makeActivities(),
         },
       ),
     ).rejects.toThrow();
@@ -120,6 +123,7 @@ describe("getLibraryItem", () => {
           listStewards: vi.fn(async () => []),
           detail: vi.fn(async () => detail),
         }),
+        activities: makeActivities(),
       },
     );
     expect(result.caps.canAddRevision).toBe(false);

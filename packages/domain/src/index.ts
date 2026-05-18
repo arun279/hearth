@@ -1,3 +1,4 @@
+export * from "./activity/index.ts";
 export * from "./contribution-policy.ts";
 export * from "./errors.ts";
 export * from "./group.ts";
@@ -6,6 +7,7 @@ export * from "./ids.ts";
 export * from "./instance.ts";
 export * from "./library/index.ts";
 export * from "./me-context.ts";
+export * from "./parts/index.ts";
 export * from "./track.ts";
 export * from "./track-invariants.ts";
 export * from "./track-structure.ts";

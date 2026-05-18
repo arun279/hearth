@@ -48,38 +48,24 @@ describe("admissionCheck", () => {
     });
   });
 
-  it("allows the bootstrap email when there are zero active operators", async () => {
+  it("allows the bootstrap email regardless of how many operators exist", async () => {
     const policy = makePolicy({
       isEmailApproved: vi.fn(async () => false),
-      countActiveOperators: vi.fn(async () => 0),
+      countActiveOperators: vi.fn(async () => 5),
     });
     await expect(admissionCheck(policy, BOOTSTRAP, BOOTSTRAP)).resolves.toBeUndefined();
-    expect(policy.countActiveOperators).toHaveBeenCalledOnce();
-  });
-
-  it("rejects the bootstrap email once operators already exist (bootstrap window closed)", async () => {
-    const policy = makePolicy({
-      isEmailApproved: vi.fn(async () => false),
-      countActiveOperators: vi.fn(async () => 1),
-    });
-    await expect(admissionCheck(policy, BOOTSTRAP, BOOTSTRAP)).rejects.toBeInstanceOf(DomainError);
+    expect(policy.countActiveOperators).not.toHaveBeenCalled();
   });
 
   it("canonicalizes the bootstrap comparison (casing + whitespace)", async () => {
-    const policy = makePolicy({
-      isEmailApproved: vi.fn(async () => false),
-      countActiveOperators: vi.fn(async () => 0),
-    });
+    const policy = makePolicy({ isEmailApproved: vi.fn(async () => false) });
     await expect(
       admissionCheck(policy, "  Operator@Example.COM ", BOOTSTRAP),
     ).resolves.toBeUndefined();
   });
 
   it("treats an empty bootstrap config as 'no bootstrap-bypass'", async () => {
-    const policy = makePolicy({
-      isEmailApproved: vi.fn(async () => false),
-      countActiveOperators: vi.fn(async () => 0),
-    });
+    const policy = makePolicy({ isEmailApproved: vi.fn(async () => false) });
     await expect(admissionCheck(policy, "", "")).rejects.toBeInstanceOf(DomainError);
   });
 });
@@ -152,27 +138,20 @@ describe("sessionGuard", () => {
     });
   });
 
-  it("allows the first-operator bootstrap flow (approved_emails not yet seeded)", async () => {
-    // Mirrors the hook-ordering race: session.create.before fires BEFORE the
-    // deferred user.create.after seeds approved_emails. The bootstrap-bypass
-    // keeps the first sign-in from being rejected.
+  it("admits the bootstrap email regardless of how many operators exist", async () => {
+    // The hook-ordering race is the original motivation: session.create.before
+    // fires BEFORE user.create.after seeds approved_emails. The declarative
+    // bootstrap branch also serves as a durable recovery path when
+    // approved_emails is wiped — the bypass admits and user.create.after
+    // re-seeds idempotently.
     const policy = makePolicy({
       isEmailApproved: vi.fn(async () => false),
-      countActiveOperators: vi.fn(async () => 0),
+      countActiveOperators: vi.fn(async () => 5),
     });
     const user = userRow({ email: BOOTSTRAP });
     const guard = createSessionGuard(policy, makeUsers(user), BOOTSTRAP);
     await expect(guard(uid)).resolves.toBeUndefined();
-  });
-
-  it("closes the bootstrap window once any operator exists", async () => {
-    const policy = makePolicy({
-      isEmailApproved: vi.fn(async () => false),
-      countActiveOperators: vi.fn(async () => 1),
-    });
-    const user = userRow({ email: BOOTSTRAP });
-    const guard = createSessionGuard(policy, makeUsers(user), BOOTSTRAP);
-    await expect(guard(uid)).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(policy.countActiveOperators).not.toHaveBeenCalled();
   });
 
   it("allows an approved user whose email differs from the bootstrap", async () => {

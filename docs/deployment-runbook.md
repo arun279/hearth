@@ -77,7 +77,9 @@ Once the bootstrap operator is signed in:
    Approved emails → Add email`. Removing an approved email hard-deletes every live session tied to that address — treat removal the same as revoking a key, not as a cosmetic list edit.
 3. **Grant a second operator.** Ask the second person to sign in first; the `user_not_found` hint appears otherwise. Then in `Admin → Instance
    settings → Operators → Grant operator` enter their email. Two active operators is the target state before any operator is revoked — the orphan guard rejects the last revocation with `would_orphan_operator` from both the policy layer and the adapter under a D1 batch, so the invariant holds even under concurrent revocations.
-4. **(Optional) Step down as bootstrap.** If someone else should own the instance long-term, the second operator revokes the bootstrap operator from the same tab. The bootstrap env var (`HEARTH_BOOTSTRAP_OPERATOR_EMAIL`) becomes a no-op once any operator exists — rotating it later has no effect on admission.
+4. **(Optional) Step down as bootstrap.** If someone else should own the instance long-term, grant them operator first from the same tab, then clear `HEARTH_BOOTSTRAP_OPERATOR_EMAIL` via `wrangler secret delete HEARTH_BOOTSTRAP_OPERATOR_EMAIL`. The env var is declarative: while it's set, the matching email is always admitted (and idempotently re-seeded as operator if the row is missing) — clearing it disables that lane. Rotating it to a different email shifts the bootstrap lane to that email immediately.
+
+**Operator recovery.** If the bootstrap operator's `approved_emails` or `instance_operators` row is ever revoked or wiped, run `pnpm bootstrap-operator --remote` to restore both rows idempotently. The script reads `HEARTH_BOOTSTRAP_OPERATOR_EMAIL` from the Workers secret env, confirms the `users` row exists, and runs `INSERT OR IGNORE` on both admission tables in one batch. Locally, omit `--remote`.
 
 ## 2. Routine deploy
 

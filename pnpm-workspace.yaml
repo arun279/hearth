@@ -21,7 +21,7 @@ catalog:
   "@types/react": ^19.2.0
   "@types/react-dom": ^19.2.0
   zod: ^4.1.11
-  hono: ^4.12.14
+  hono: ^4.12.18
   drizzle-orm: 0.45.2
   drizzle-kit: 0.31.10
   better-auth: ^1.6.4
@@ -33,3 +33,4 @@ catalog:
   "@cloudflare/workers-types": ^4.20251021.0
   "@paralleldrive/cuid2": ^3.3.0
   aws4fetch: 1.0.20
+  fast-check: ^3.23.2

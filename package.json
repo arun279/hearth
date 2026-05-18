@@ -28,11 +28,12 @@
     "format": "biome format --write .",
     "check:arch": "NODE_OPTIONS=--max-old-space-size=4096 depcruise --config .dependency-cruiser.cjs packages apps",
     "check:knip": "knip",
-    "dev": "turbo run dev --parallel",
+    "dev": "turbo run dev",
     "db:generate": "pnpm --filter @hearth/db db:generate",
     "db:migrate:dev": "pnpm --filter @hearth/db db:migrate:dev",
     "db:check-auth": "pnpm --filter @hearth/db db:check-auth",
     "approve-email": "node scripts/approve-email.mjs",
+    "bootstrap-operator": "node scripts/bootstrap-operator.mjs",
     "local-session": "node scripts/local-session.mjs",
     "restore:fts": "node scripts/restore-fts.mjs",
     "prepare": "lefthook install"
@@ -41,7 +42,9 @@
     "overrides": {
       "drizzle-zod>zod": "^4.1.11",
       "@esbuild-kit/core-utils>esbuild": "^0.25.0",
-      "@esbuild-kit/esm-loader>esbuild": "^0.25.0"
+      "@esbuild-kit/esm-loader>esbuild": "^0.25.0",
+      "ajv>fast-uri": "^3.1.2",
+      "better-auth>kysely": "^0.28.17"
     }
   },
   "devDependencies": {

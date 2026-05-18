@@ -14,6 +14,7 @@ import { LogOut, Plus, Settings, Users } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
+import { ActivitiesTab } from "../components/activities/activities-tab.tsx";
 import { LeaveTrackDialog } from "../components/tracks/leave-track-dialog.tsx";
 import { TrackPageShell } from "../components/tracks/track-page-shell.tsx";
 import { TrackSettingsDialog } from "../components/tracks/track-settings-dialog.tsx";
@@ -329,7 +330,13 @@ function TrackHomeBody({
           aria-labelledby={tabIdFor(TAB_PREFIX, activeTab)}
           className="pt-5"
         >
-          {activeTab === "activities" ? <ActivitiesEmpty /> : null}
+          {activeTab === "activities" ? (
+            <ActivitiesTab
+              groupId={group.id}
+              trackId={track.id}
+              canCreate={!groupArchived && !trackArchived && !trackPaused && caps.canEditMetadata}
+            />
+          ) : null}
           {activeTab === "sessions" ? <SessionsEmpty /> : null}
           {activeTab === "library" ? <LibraryEmpty groupId={group.id} /> : null}
           {activeTab === "pending" && showPendingTab ? (
@@ -390,15 +397,6 @@ function FacilitatorBar({
         <span className="font-mono tabular-nums">{enrollmentCount}</span>
       </div>
     </div>
-  );
-}
-
-function ActivitiesEmpty() {
-  return (
-    <EmptyState
-      title="No activities yet"
-      description="Learning Activities — the things participants actually do — appear here. Composing them lands shortly."
-    />
   );
 }
 

@@ -35,8 +35,9 @@ export type LoadViewableGroupDeps = {
  *
  * Use cases that mutate or read a hideable group MUST load it through
  * this helper rather than calling `groups.byId` directly. The
- * `no-direct-group-byid-in-use-cases` convention check enforces it; see
- * `AGENTS.md` § Viewability before authorization.
+ * `no-direct-group-byid-in-use-cases` convention check enforces this:
+ * a direct `byId` skips `canViewGroup` and creates a 403/404 oracle
+ * that leaks group existence to non-members.
  */
 export async function loadViewableGroup(
   actorId: UserId,
