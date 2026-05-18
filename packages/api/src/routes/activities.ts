@@ -2,6 +2,7 @@ import {
   createActivity,
   deleteActivity,
   getActivity,
+  getActivityForPlayer,
   listTrackActivities,
   pinLibraryRevision,
   setActivityLibraryRefs,
@@ -119,6 +120,8 @@ function depsFor(c: Context<AppBindings>) {
     policy: c.var.ports.policy,
     library: c.var.ports.libraryItems,
     activities: c.var.ports.activities,
+    storage: c.var.ports.storage,
+    clock: c.var.ports.clock,
   };
 }
 
@@ -241,6 +244,34 @@ export const activitiesRoutes = new Hono<AppBindings>()
       const { activityId } = c.req.valid("param");
       try {
         const result = await getActivity(
+          { actor: getUserId(c), id: activityId as LearningActivityId },
+          depsFor(c),
+        );
+        return c.json(result);
+      } catch (err) {
+        return problemResponse(c, mapUnknown(err));
+      }
+    },
+  )
+
+  /**
+   * Composer-faced `/activities/:id` returns the authoring shape. The
+   * `/player` projection adds resolved library URLs, the viewer's
+   * enrollment status, and a window-aware `accessState` so the player
+   * chrome renders pre-open / locked banners without a second fetch. A
+   * subset-audience viewer who isn't listed (and any non-member) gets
+   * the same 404 a non-existent activity returns — the audience set is
+   * not enumerable by trial.
+   */
+  .get(
+    "/activities/:activityId/player",
+    zValidator("param", activityIdParam, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    async (c) => {
+      const { activityId } = c.req.valid("param");
+      try {
+        const result = await getActivityForPlayer(
           { actor: getUserId(c), id: activityId as LearningActivityId },
           depsFor(c),
         );

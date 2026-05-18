@@ -150,6 +150,7 @@ const policyDenialMessages: Record<KnownProblemCode, string> = {
   not_facilitator: "Only a Track Facilitator can do that.",
   not_group_admin: "Only a Group Admin can do that.",
   not_group_member: "You aren't a member of this group.",
+  not_in_audience: "This activity is scoped to a specific audience you aren't part of.",
   not_instance_operator: "Only an Instance Operator can do that.",
   not_library_steward:
     "Only the uploader, a Steward, a Group Admin, or an Instance Operator can do that.",

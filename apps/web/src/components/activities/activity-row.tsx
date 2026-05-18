@@ -1,21 +1,32 @@
 import type { ActivityPartKind, ActivityWindow } from "@hearth/domain";
-import { Badge, cn, PartIcon } from "@hearth/ui";
-import { ChevronRight } from "lucide-react";
+import { Badge, cn, IconButton, PartIcon } from "@hearth/ui";
+import { ChevronRight, Pencil } from "lucide-react";
 import type { ActivityListItem } from "../../hooks/use-activities.ts";
 import { formatRelative } from "../../lib/format.ts";
 
 type Props = {
   readonly activity: ActivityListItem;
-  readonly onSelect: (activityId: string) => void;
+  readonly onOpen: (activityId: string) => void;
+  /**
+   * Facilitator / Group Admin affordance. When provided, renders a
+   * small Edit pencil at the right that opens the composer. Click on
+   * the rest of the row routes everyone (authority included) to the
+   * Activity Player — the surface where the activity is consumed.
+   */
+  readonly onEdit?: (activityId: string) => void;
 };
 
 /**
  * One row on the Activities tab. Calm, text-focused — title + a small
  * icon strip for the Part-kind sequence + one-line metadata about
- * audience and prereqs. The whole row is one button so a keyboard
- * user tabs once and Enter to open.
+ * audience and prereqs.
+ *
+ * Row click always opens the Activity Player; an authority-only Edit
+ * icon button opens the composer separately. The two affordances stay
+ * visually distinct so a facilitator's muscle-memory click on the row
+ * doesn't surprise them with the composer instead of the reader.
  */
-export function ActivityRow({ activity, onSelect }: Props) {
+export function ActivityRow({ activity, onOpen, onEdit }: Props) {
   const audienceLabel =
     activity.audienceKind === "everyone_enrolled" ? "Everyone enrolled" : "Selected participants";
   const prereqLabel = prereqPhrase(activity.prereqCount);
@@ -23,17 +34,21 @@ export function ActivityRow({ activity, onSelect }: Props) {
   const windowLabel = windowPhrase(activity.window);
 
   return (
-    <button
-      type="button"
-      onClick={() => onSelect(activity.id)}
+    <div
       className={cn(
-        "group grid w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-3 text-left transition-colors",
-        "hover:bg-[var(--color-surface-2)] focus-visible:outline-none focus-visible:ring-2",
-        "focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--color-bg)]",
+        "group grid w-full grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 px-3 py-3 transition-colors",
+        "focus-within:bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-2)]",
       )}
-      aria-label={`Open activity: ${activity.title}`}
     >
-      <div className="min-w-0 space-y-1.5">
+      <button
+        type="button"
+        onClick={() => onOpen(activity.id)}
+        className={cn(
+          "min-w-0 space-y-1.5 text-left",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--color-bg)]",
+        )}
+        aria-label={`Open activity: ${activity.title}`}
+      >
         <div className="flex min-w-0 items-center gap-2">
           <h3 className="truncate font-medium text-[14px] text-[var(--color-ink)]">
             {activity.title}
@@ -66,14 +81,19 @@ export function ActivityRow({ activity, onSelect }: Props) {
             </>
           ) : null}
         </div>
-      </div>
+      </button>
+      {onEdit ? (
+        <IconButton label={`Edit activity: ${activity.title}`} onClick={() => onEdit(activity.id)}>
+          <Pencil size={13} strokeWidth={1.75} aria-hidden="true" />
+        </IconButton>
+      ) : null}
       <ChevronRight
         size={14}
         strokeWidth={1.75}
         aria-hidden="true"
         className="shrink-0 text-[var(--color-ink-3)] transition-transform group-hover:translate-x-0.5"
       />
-    </button>
+    </div>
   );
 }
 

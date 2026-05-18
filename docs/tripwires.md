@@ -76,6 +76,14 @@ Each entry names the **pinned tool**, the **condition** that triggers a reassess
 - **Action**: on a long-running dev server, edit a file under `packages/*/src/` rapidly via atomic-rename (write-temp + rename — the pattern Edit tools and vim default to) and verify HMR fires every time. If it does, retire the `e2e fails locally on a long-running Vite dev server` bullet in `docs/dev-runbook.md` § 11 Troubleshooting and remove this tripwire entry. Background: with `chokidar@3.6.0`, `chokidar.add(file)` watches only the file's inode (not the parent directory); atomic-rename writes change the inode and chokidar's re-watch logic is brittle under rapid sequences. The rare-but-painful failure mode is "Vite serves the cached transform of a cross-package file from when it was first imported regardless of disk state."
 - **Location**: `apps/web/vite.config.ts` (no workaround currently applied — restart fixes the immediate state, the cost of automated workarounds outweighs the rate of recurrence).
 
+## PDF rendering
+
+### `react-pdf` / `pdfjs-dist` are version-locked (current pins: `react-pdf@10.4.1` exact, `pdfjs-dist@5.4.296` exact)
+
+- **Trigger**: `react-pdf` ships a new patch / minor / major bump, OR a `pdfjs-dist` advisory lands at the pinned version.
+- **Action**: `react-pdf@10` bundles `pdfjs-dist@5.4.296` as a hard dep (no semver range). Bumping `react-pdf` will likely bump the bundled `pdfjs-dist`; update BOTH pins together so the workspace deduplicates to a single hoisted copy of `pdfjs-dist`. Two copies break the global `pdfjs.GlobalWorkerOptions.workerSrc` configuration silently (each copy reads its own). After bumping, re-run `pnpm --filter @hearth/web test:bundle` to confirm the lazy boundary still holds and `pnpm --filter @hearth/web dev` to confirm the Vite worker URL still resolves same-origin under the newer `pdf.worker.min.mjs` shape. Note: `pdfjs-dist >= 5.6` requires Node `>= 20.19.0 || >= 22.13.0 || >= 24`; bumping past `5.5.x` is a coupled Node-floor bump.
+- **Location**: `packages/ui/package.json` (`pdfjs-dist`, `react-pdf`); `apps/web/package.json` (`pdfjs-dist` mirror for `require.resolve` in `vite.config.ts`); `packages/ui/src/parts/pdf-viewer.tsx` (worker URL + cmaps/standard_fonts URL paths); `apps/web/vite.config.ts` (pdfjs-asset copy plugin).
+
 ## Test infrastructure
 
 ### Playwright session seeding bypasses Better Auth's cookie creation

@@ -36,6 +36,7 @@ export { canResumeTrack } from "./can-resume-track.ts";
 export { canRetireLibraryItem } from "./can-retire-library-item.ts";
 export { canRevokeGroupInvitation } from "./can-revoke-group-invitation.ts";
 export { canRevokeInstanceOperator } from "./can-revoke-instance-operator.ts";
+export { canSeeActivity } from "./can-see-activity.ts";
 export { canSetPrerequisites } from "./can-set-prerequisites.ts";
 export { canSetSuggestedSequences } from "./can-set-suggested-sequences.ts";
 export { canUnarchiveGroup } from "./can-unarchive-group.ts";

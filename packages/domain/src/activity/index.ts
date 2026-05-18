@@ -13,6 +13,7 @@ export {
   MAX_TITLE_LENGTH,
   MAX_URL_LENGTH,
 } from "./_limits.ts";
+export { computeActivityAccessState } from "./access-state.ts";
 export {
   assertActivityPrerequisitesAcyclic,
   type CrossActivityEdge,
@@ -43,6 +44,12 @@ export {
   type InvariantOk,
   type InvariantResult,
 } from "./invariants.ts";
+export type {
+  ActivityPlayerProjection,
+  ActivityPlayerViewer,
+  ResolvedLibraryRef,
+  ViewerEnrollmentStatus,
+} from "./player.ts";
 export type {
   ActivityAccessState,
   ActivityAudience,

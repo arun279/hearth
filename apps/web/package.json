@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.e2e.json",
-    "test": "vitest run --dir src",
+    "test": "vitest run",
+    "test:bundle": "vite build && vitest run --config vitest.bundle.config.ts",
     "generate:routes": "tsr generate",
     "e2e": "HEARTH_WRANGLER_ENV=e2e playwright test",
     "e2e:install": "playwright install --with-deps chromium"
@@ -20,6 +21,7 @@
     "@hookform/resolvers": "^5.2.2",
     "hono": "catalog:",
     "lucide-react": "^0.540.0",
+    "pdfjs-dist": "5.4.296",
     "zod": "catalog:",
     "@tanstack/react-query": "^5.99.2",
     "@tanstack/react-query-devtools": "^5.99.2",
