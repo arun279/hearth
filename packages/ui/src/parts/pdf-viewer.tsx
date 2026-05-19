@@ -185,7 +185,7 @@ export function PdfViewer({ file, label, className, onPageChange }: PdfViewerPro
             onLoadError={onLoadError}
             options={options}
             loading={
-              <div className="flex items-center gap-2 text-[var(--color-ink-2)] text-[12px]">
+              <div className="flex items-center gap-2 text-[12px] text-[var(--color-ink-2)]">
                 <Loader2 size={14} className="animate-spin" aria-hidden="true" />
                 Loading PDF…
               </div>

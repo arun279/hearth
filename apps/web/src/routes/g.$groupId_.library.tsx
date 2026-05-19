@@ -151,7 +151,7 @@ function LibraryPage() {
                       placeholder="Search by title, description, or tag"
                       value={searchInput}
                       onChange={(e) => setSearchInput(e.target.value)}
-                      className="pl-8 pr-10"
+                      className="pr-10 pl-8"
                       aria-controls="library-results"
                       aria-describedby={isSubMinLength ? "library-search-hint" : undefined}
                     />
@@ -245,7 +245,7 @@ function LibraryPage() {
                     )
                   ) : (
                     <>
-                      <ul className="overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-rule)] bg-[var(--color-surface)] divide-y divide-[var(--color-rule)]">
+                      <ul className="divide-y divide-[var(--color-rule)] overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-rule)] bg-[var(--color-surface)]">
                         {entries.map((entry) => (
                           <li key={entry.item.id}>
                             <LibraryItemCard entry={entry} onSelect={openItem} />

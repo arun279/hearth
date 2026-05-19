@@ -202,7 +202,7 @@ function DetailBody({
                   key={r.id}
                   className={cn(
                     "flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5",
-                    i < detail.revisions.length - 1 && "border-b border-[var(--color-rule)]",
+                    i < detail.revisions.length - 1 && "border-[var(--color-rule)] border-b",
                     isCurrent && "bg-[var(--color-accent-soft)]",
                   )}
                 >

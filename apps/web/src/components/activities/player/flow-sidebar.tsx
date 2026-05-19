@@ -39,8 +39,8 @@ export function FlowSidebar({ parts, orderedPartIds, activePartId, onSelectPart 
                   "group flex w-full items-center gap-2 rounded-[var(--radius-sm)] px-2 py-1.5 text-left transition-colors",
                   "hover:bg-[var(--color-surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]",
                   isActive
-                    ? "border-l-2 border-[var(--color-accent)] bg-[var(--color-accent-soft)] pl-[6px] text-[var(--color-ink)]"
-                    : "border-l-2 border-transparent text-[var(--color-ink-2)]",
+                    ? "border-[var(--color-accent)] border-l-2 bg-[var(--color-accent-soft)] pl-[6px] text-[var(--color-ink)]"
+                    : "border-transparent border-l-2 text-[var(--color-ink-2)]",
                 )}
                 aria-current={isActive ? "step" : undefined}
               >

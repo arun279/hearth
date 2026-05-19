@@ -28,9 +28,10 @@ const POSITION_DEBOUNCE_MS = 5_000;
  *
  * Loaded behind `React.lazy` from the parent `PartViewport`, so
  * `react-pdf` + `pdfjs-dist` stay out of the common-path bundle. The
- * bundle-budget gate asserts the lazy boundary holds.
+ * bundle-budget gate asserts the lazy boundary holds. The default
+ * export is required by `React.lazy`'s contract — the lazy() call site
+ * imports this module and reads `.default`.
  */
-// biome-ignore lint/style/noDefaultExport: React.lazy requires default export
 export default function ReadPart({ activityId, part, readUrl, mimeType }: Props) {
   const lastPageRef = useRef<number>(1);
   const pageDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);

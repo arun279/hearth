@@ -28,7 +28,7 @@ export function ActivityHeader({ activity, accessState, currentPartIndex, totalP
   return (
     <header className="space-y-3 border-[var(--color-rule)] border-b px-5 py-5 md:px-8 md:py-7">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h1 className="font-serif font-medium text-[24px] text-[var(--color-ink)] leading-tight md:text-[28px]">
+        <h1 className="font-medium font-serif text-[24px] text-[var(--color-ink)] leading-tight md:text-[28px]">
           {activity.title}
         </h1>
         {stateBadge ? <Badge tone={stateBadge.tone}>{stateBadge.label}</Badge> : null}
@@ -44,7 +44,7 @@ export function ActivityHeader({ activity, accessState, currentPartIndex, totalP
           {Math.max(totalParts, 1)}
         </span>
         <div
-          className="h-[2px] flex-1 min-w-[80px] max-w-[280px] overflow-hidden rounded-full bg-[var(--color-surface-2)]"
+          className="h-[2px] min-w-[80px] max-w-[280px] flex-1 overflow-hidden rounded-full bg-[var(--color-surface-2)]"
           role="progressbar"
           aria-label="Activity progress"
           aria-valuenow={progress}
