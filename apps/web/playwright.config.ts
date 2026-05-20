@@ -1,5 +1,4 @@
 import { spawnSync } from "node:child_process";
-import { rmSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig, devices } from "@playwright/test";
@@ -16,15 +15,15 @@ const WORKER_PORT = 8788;
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
 const E2E_PERSIST_DIR = path.resolve(REPO_ROOT, "apps/worker/.wrangler/state-e2e");
 
-// Wipe + re-migrate the e2e D1 BEFORE Playwright spawns the `wrangler dev`
-// webServer. Wiping after (in `globalSetup`) lets workerd open a file handle
-// to the empty pre-wipe sqlite, then the wipe + migrate underneath it leaves
-// the worker reading a deleted-inode view that misses every migrated table.
-// This block runs once in the Playwright runner process when the config is
-// first loaded; spec worker processes inherit a `TEST_WORKER_INDEX` env var
-// so we skip the prep there.
+// Apply D1 migrations to the e2e persist dir BEFORE Playwright spawns the
+// `wrangler dev` webServer. `wrangler d1 migrations apply` tracks applied
+// migrations in `_cf_KV` and no-ops on re-run — safe and idempotent — so this
+// works on a fresh clone (creates the dir + applies all) and on every
+// subsequent run (no-op). Row-level isolation between specs is handled by
+// `resetInstanceState` in `apps/web/e2e/auth.ts`, which deletes rows scoped
+// to `u_e2e_*` / `*@e2e.example.com` identifiers. Skipped in spec worker
+// processes via `TEST_WORKER_INDEX`.
 if (!process.env["TEST_WORKER_INDEX"]) {
-  rmSync(E2E_PERSIST_DIR, { recursive: true, force: true });
   const res = spawnSync(
     "pnpm",
     [
