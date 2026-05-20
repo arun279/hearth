@@ -1,3 +1,5 @@
+import { spawnSync } from "node:child_process";
+import { rmSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig, devices } from "@playwright/test";
@@ -11,6 +13,43 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // D1 sqlite file — schema is identical, rows are isolated.
 const SPA_PORT = 5174;
 const WORKER_PORT = 8788;
+const REPO_ROOT = path.resolve(__dirname, "..", "..");
+const E2E_PERSIST_DIR = path.resolve(REPO_ROOT, "apps/worker/.wrangler/state-e2e");
+
+// Wipe + re-migrate the e2e D1 BEFORE Playwright spawns the `wrangler dev`
+// webServer. Wiping after (in `globalSetup`) lets workerd open a file handle
+// to the empty pre-wipe sqlite, then the wipe + migrate underneath it leaves
+// the worker reading a deleted-inode view that misses every migrated table.
+// This block runs once in the Playwright runner process when the config is
+// first loaded; spec worker processes inherit a `TEST_WORKER_INDEX` env var
+// so we skip the prep there.
+if (!process.env["TEST_WORKER_INDEX"]) {
+  rmSync(E2E_PERSIST_DIR, { recursive: true, force: true });
+  const res = spawnSync(
+    "pnpm",
+    [
+      "--filter",
+      "@hearth/worker",
+      "exec",
+      "wrangler",
+      "d1",
+      "migrations",
+      "apply",
+      "hearth",
+      "--local",
+      "--env",
+      "e2e",
+      "--persist-to",
+      E2E_PERSIST_DIR,
+    ],
+    { cwd: REPO_ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+  );
+  if (res.status !== 0) {
+    throw new Error(
+      `wrangler d1 migrations apply (env=e2e) failed:\n${res.stderr || res.stdout || "unknown error"}`,
+    );
+  }
+}
 
 /**
  * Playwright drives the SPA + Worker stack as a real user. Because Better Auth
@@ -80,10 +119,6 @@ export default defineConfig({
 
   webServer: [
     {
-      // E2E Vite runs on 5174 with its `/api` proxy pointed at port
-      // 8788 — both env vars are read by `vite.config.ts`. Sitting one
-      // port off dev (5173/8787) means `pnpm dev` and `pnpm e2e` can
-      // run concurrently on the same machine.
       command: `pnpm exec vite --port ${SPA_PORT}`,
       env: {
         HEARTH_SPA_PORT: String(SPA_PORT),
@@ -91,21 +126,14 @@ export default defineConfig({
       },
       cwd: path.resolve(__dirname),
       url: `http://localhost:${SPA_PORT}/`,
-      reuseExistingServer: !process.env["CI"],
+      reuseExistingServer: false,
       timeout: 60_000,
       gracefulShutdown: { signal: "SIGTERM", timeout: 5_000 },
       stderr: "pipe",
       stdout: "ignore",
     },
     {
-      // `--env e2e` binds the Worker to the isolated D1 / R2 declared
-      // under `env.e2e` in `apps/worker/wrangler.jsonc` — distinct
-      // `database_id` selects a separate Miniflare sqlite file, so
-      // spec teardown can't touch a developer's dev D1 state. The
-      // port (8788) is also off the dev default (8787) so a running
-      // `wrangler dev` doesn't clash; reuse is disabled regardless
-      // to keep the binding isolation honest in CI.
-      command: `pnpm exec wrangler dev --env e2e --port ${WORKER_PORT}`,
+      command: `pnpm exec wrangler dev --env e2e --port ${WORKER_PORT} --persist-to ./.wrangler/state-e2e`,
       cwd: path.resolve(__dirname, "../worker"),
       url: `http://localhost:${WORKER_PORT}/healthz`,
       reuseExistingServer: false,

@@ -31,31 +31,3 @@ R2_PUBLIC_ORIGIN="http://localhost:8787/api/v1/__r2/public"
 # Optional — uncomment when you have real values. Empty strings fail URL validation.
 # SENTRY_DSN="https://...@sentry.io/..."
 # DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/..."
-
-# ---------------------------------------------------------------------------
-# E2E suite (Playwright). Required if you want `pnpm e2e` to pass locally.
-#
-# Wrangler 4 loads `.dev.vars.e2e` INSTEAD OF `.dev.vars` when invoked with
-# `--env e2e` — the two files do NOT layer. Copy this template into
-# `apps/worker/.dev.vars.e2e` (also gitignored) and keep every key the
-# `parseEnv` schema requires. The differences from `.dev.vars` are just the
-# URL / origin overrides for the e2e ports (worker 8788, SPA 5174); the
-# secrets can stay as local stubs.
-#
-#   apps/worker/.dev.vars.e2e:
-#     GOOGLE_OAUTH_CLIENT_ID="local-dev-e2e-stub"
-#     GOOGLE_OAUTH_CLIENT_SECRET="local-dev-e2e-stub"
-#     BETTER_AUTH_SECRET="(reuse the dev value or any 32+ char string)"
-#     BETTER_AUTH_URL="http://localhost:8788"
-#     BETTER_AUTH_TRUSTED_ORIGINS="http://localhost:5174,http://localhost:8788"
-#     KILLSWITCH_TOKEN="(any 32+ char hex string)"
-#     HEARTH_BOOTSTRAP_OPERATOR_EMAIL="e2e-bootstrap@e2e.example.com"
-#     R2_DEV_PROXY="1"
-#     R2_ACCOUNT_ID="local-dev-stub"
-#     R2_ACCESS_KEY_ID="local-dev-stub"
-#     R2_SECRET_ACCESS_KEY="local-dev-stub"
-#     R2_PUBLIC_ORIGIN="http://localhost:8788/api/v1/__r2/public"
-#
-# Symptom of a missing file: the M6 / M7 upload specs time out at
-# "Library item uploaded" because the signed PUT URL points at the dev
-# port (8787) but the e2e worker is on 8788.

@@ -37,6 +37,19 @@ const DEV_VARS_PATH = path.join(REPO_ROOT, "apps/worker/.dev.vars");
 export const BETTER_AUTH_SESSION_COOKIE = "better-auth.session_token";
 
 /**
+ * `wrangler dev --env <env>` loads `apps/worker/.dev.vars.<env>` instead of
+ * `.dev.vars` (and overrides `env.<env>.vars` in wrangler.jsonc). For cookie
+ * signing to verify on the running Worker, this helper has to read from the
+ * exact same file the Worker is loading.
+ *
+ * @param {string} env
+ * @returns {string}
+ */
+function devVarsPathForEnv(env) {
+  return env ? path.join(REPO_ROOT, `apps/worker/.dev.vars.${env}`) : DEV_VARS_PATH;
+}
+
+/**
  * Escape a value for inclusion in a SQLite single-quoted string literal.
  * SQLite's only required escape is doubling single quotes; backslashes are
  * literal. Apply to *every* user-controlled string before interpolation.
@@ -67,6 +80,17 @@ export function readDevVar(key, devVarsPath = DEV_VARS_PATH) {
 }
 
 /**
+ * Pick the `BETTER_AUTH_SECRET` that matches the active wrangler env, by
+ * reading the same `.dev.vars` / `.dev.vars.<env>` file the Worker is loading.
+ * Cookie signing must read from this file or HMAC verify fails.
+ *
+ * @returns {string}
+ */
+function readBetterAuthSecret() {
+  return readDevVar("BETTER_AUTH_SECRET", devVarsPathForEnv(process.env.HEARTH_WRANGLER_ENV));
+}
+
+/**
  * Run one or more SQL statements against the Miniflare D1 bound to the
  * active wrangler environment. Reads `HEARTH_WRANGLER_ENV` to forward
  * `--env <name>` to wrangler — playwright e2e sets this to `e2e` to
@@ -89,7 +113,10 @@ export function executeSql(sql) {
     "hearth",
     "--local",
   ];
-  if (env) args.push("--env", env);
+  if (env) {
+    args.push("--env", env);
+    if (env === "e2e") args.push("--persist-to", "./.wrangler/state-e2e");
+  }
   args.push("--command", command);
   const res = spawnSync("pnpm", args, { cwd: REPO_ROOT, encoding: "utf8" });
   if (res.status !== 0) {
@@ -117,7 +144,10 @@ function executeSqlJson(sql) {
     "--local",
     "--json",
   ];
-  if (env) args.push("--env", env);
+  if (env) {
+    args.push("--env", env);
+    if (env === "e2e") args.push("--persist-to", "./.wrangler/state-e2e");
+  }
   args.push("--command", sql);
   const res = spawnSync("pnpm", args, { cwd: REPO_ROOT, encoding: "utf8" });
   if (res.status !== 0) {
@@ -251,13 +281,14 @@ export async function signSessionToken(token, secret) {
 }
 
 /**
- * Convenience: sign with BETTER_AUTH_SECRET read from .dev.vars.
+ * Sign with the `BETTER_AUTH_SECRET` that matches the active wrangler env,
+ * so the cookie verifies against the same Worker we'll be talking to.
  *
  * @param {string} token
  * @returns {Promise<string>}
  */
-async function signSessionTokenFromDevVars(token) {
-  return signSessionToken(token, readDevVar("BETTER_AUTH_SECRET"));
+async function signSessionTokenForActiveEnv(token) {
+  return signSessionToken(token, readBetterAuthSecret());
 }
 
 /**
@@ -289,6 +320,6 @@ export async function mintSessionCookie(args) {
   }
   const sessionToken = `tk_${(args.idPrefix ?? "s_local_").replace(/^s_/, "")}${user.id}_${Date.now()}`;
   insertSession({ userId: user.id, token: sessionToken, idPrefix: args.idPrefix });
-  const signed = await signSessionTokenFromDevVars(sessionToken);
+  const signed = await signSessionTokenForActiveEnv(sessionToken);
   return { cookie: encodeURIComponent(signed), sessionToken, userId: user.id };
 }
