@@ -112,10 +112,14 @@ test.describe("M9 — Activity player (passive Parts)", () => {
     const { id: trackId } = (await trackRes.json()) as { id: string };
 
     // The route itself loads and the React Query fetch fails on the
-    // bad id. The Activity Player renders an honest error callout
-    // rather than crashing. (The 404 contract is verified by the API
-    // route test; this e2e confirms the SPA's error branch is wired.)
+    // bad id. On a 404 specifically (permanent — activity missing /
+    // audience exclusion / post-close hidden), the Activity Player
+    // renders a neutral "isn't available" callout with a Return-to-
+    // track affordance — no retry button, since retry on a 404
+    // recovers nothing. (5xx still gets the danger callout + retry.)
     await page.goto(`/g/${groupId}/t/${trackId}/a/a_does_not_exist`);
-    await expect(page.getByText(/Couldn't open this activity/i)).toBeVisible();
+    await expect(page.getByText(/This activity isn't available/i)).toBeVisible();
+    await expect(page.getByRole("link", { name: /Return to track/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Try again/i })).toBeHidden();
   });
 });
