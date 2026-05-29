@@ -114,12 +114,14 @@ test.describe("M9 — Activity player (passive Parts)", () => {
     // The route itself loads and the React Query fetch fails on the
     // bad id. On a 404 specifically (permanent — activity missing /
     // audience exclusion / post-close hidden), the Activity Player
-    // renders a neutral "isn't available" callout with a Return-to-
-    // track affordance — no retry button, since retry on a 404
-    // recovers nothing. (5xx still gets the danger callout + retry.)
+    // renders a neutral "isn't available" callout with no retry
+    // button — retry on a 404 recovers nothing. The recovery path is
+    // the persistent header "Back to track" link on `ActivityShell`,
+    // not an inline duplicate. (5xx still gets the danger callout +
+    // retry.)
     await page.goto(`/g/${groupId}/t/${trackId}/a/a_does_not_exist`);
     await expect(page.getByText(/This activity isn't available/i)).toBeVisible();
-    await expect(page.getByRole("link", { name: /Return to track/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Back to track/i })).toBeVisible();
     await expect(page.getByRole("button", { name: /Try again/i })).toBeHidden();
   });
 });
