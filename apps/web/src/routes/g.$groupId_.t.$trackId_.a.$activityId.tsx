@@ -57,8 +57,6 @@ function ActivityPlayerRoute() {
         query={playerQuery}
         requestedPartId={search.part ?? null}
         onChangeActivePartId={onChangeActivePartId}
-        groupId={params.groupId}
-        trackId={params.trackId}
       />
     </ActivityShell>
   );

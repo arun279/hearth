@@ -52,22 +52,45 @@ describe("PartViewport", () => {
     expect(html).toContain("Loading reader");
   });
 
-  it("listen_audio: mounts <audio> element", () => {
+  it("listen_audio: mounts <audio> element with the Part title as accessible name", () => {
     const html = render(
       { kind: "listen_audio", id: "p_audio", libraryItemId: "li_1", title: "Dialogue" },
       RESOLVED_AUDIO,
     );
     expect(html).toContain("<audio");
     expect(html).toContain(RESOLVED_AUDIO.readUrl);
+    expect(html).toMatch(/<audio[^>]*\baria-label="Dialogue"/);
   });
 
-  it("watch_video: mounts <video> element", () => {
+  it("listen_audio (no title): <audio> falls back to a non-empty kind label, not an empty name", () => {
+    // Per-Part titles are optional in the domain; without a name, the
+    // native control would be exposed to AT as an anonymous slider —
+    // the only honest fallback is the Part-kind label.
+    const html = render(
+      { kind: "listen_audio", id: "p_audio", libraryItemId: "li_1" },
+      RESOLVED_AUDIO,
+    );
+    expect(html).toMatch(/<audio[^>]*\baria-label="[^"]+"/);
+    expect(html).not.toMatch(/<audio[^>]*\baria-label=""/);
+  });
+
+  it("watch_video: mounts <video> element with the Part title as accessible name", () => {
     const html = render(
       { kind: "watch_video", id: "p_video", libraryItemId: "li_1", title: "Lesson" },
       RESOLVED_VIDEO,
     );
     expect(html).toContain("<video");
     expect(html).toContain(RESOLVED_VIDEO.readUrl);
+    expect(html).toMatch(/<video[^>]*\baria-label="Lesson"/);
+  });
+
+  it("watch_video (no title): <video> falls back to a non-empty kind label, not an empty name", () => {
+    const html = render(
+      { kind: "watch_video", id: "p_video", libraryItemId: "li_1" },
+      RESOLVED_VIDEO,
+    );
+    expect(html).toMatch(/<video[^>]*\baria-label="[^"]+"/);
+    expect(html).not.toMatch(/<video[^>]*\baria-label=""/);
   });
 
   it("embed (youtube): mounts an iframe pointing at youtube.com/embed", () => {

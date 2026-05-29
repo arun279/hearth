@@ -8,6 +8,7 @@ import type {
   LibraryItem,
   LibraryItemId,
   LibraryRevision,
+  UserId,
 } from "@hearth/domain";
 import { describe, expect, it, vi } from "vitest";
 import { createActivity } from "../src/use-cases/create-activity.ts";
@@ -533,7 +534,7 @@ describe("update-activity", () => {
       libraryRefCount: 0,
       prereqCount: 0,
       suggestedNextCount: 0,
-      audienceKind: "everyone_enrolled",
+      audience: { kind: "everyone_enrolled" },
       window: null,
       postClosePolicy: null,
       completionRuleKind: "manual_mark",
@@ -697,7 +698,7 @@ describe("update-activity", () => {
       libraryRefCount: 0,
       prereqCount: 1,
       suggestedNextCount: 0,
-      audienceKind: "everyone_enrolled",
+      audience: { kind: "everyone_enrolled" },
       window: null,
       postClosePolicy: null,
       completionRuleKind: "manual_mark",
@@ -887,7 +888,7 @@ describe("get-activity / list-track-activities", () => {
     expect(result).toEqual([]);
   });
 
-  it("list filters out post-close hidden activities (enumeration-oracle guard)", async () => {
+  it("filters_post_close_hidden — list omits rows whose accessState is hidden", async () => {
     // Two rows with identical shape except the post-close policy. The
     // second's `closesAt` has already passed AND its policy is
     // `hidden` — the use case must drop it so a viewer who once had
@@ -901,7 +902,7 @@ describe("get-activity / list-track-activities", () => {
       libraryRefCount: 0,
       prereqCount: 0,
       suggestedNextCount: 0,
-      audienceKind: "everyone_enrolled" as const,
+      audience: { kind: "everyone_enrolled" as const },
       completionRuleKind: "manual_mark" as const,
       createdAt: TEST_NOW,
       updatedAt: TEST_NOW,
@@ -932,6 +933,66 @@ describe("get-activity / list-track-activities", () => {
       },
     );
     expect(result.map((r) => r.id)).toEqual(["a_visible"]);
+  });
+
+  it("filters_audience_subset_exclusion — list omits subset rows that exclude the actor", async () => {
+    // ACTOR is a plain participant (not a facilitator, not an operator).
+    // Two subset-audience rows: one lists ACTOR, one doesn't. Only the
+    // first survives the list. Without this filter, the excluded row
+    // would advertise its title to a non-audience member who clicks
+    // and 404s at /player — an enumeration oracle on the audience axis.
+    const baseRow = {
+      trackId: TRACK_ID,
+      description: null,
+      partCount: 1,
+      partKindSequence: ["write_reflection"],
+      libraryRefCount: 0,
+      prereqCount: 0,
+      suggestedNextCount: 0,
+      window: null,
+      postClosePolicy: null,
+      completionRuleKind: "manual_mark" as const,
+      createdAt: TEST_NOW,
+      updatedAt: TEST_NOW,
+    };
+    const inAudience: LearningActivityListItem = {
+      ...baseRow,
+      id: "a_in_audience" as LearningActivityId,
+      title: "actor listed",
+      audience: { kind: "subset", userIds: [ACTOR_ID] },
+    };
+    const excluded: LearningActivityListItem = {
+      ...baseRow,
+      id: "a_excluded" as LearningActivityId,
+      title: "actor not listed",
+      audience: { kind: "subset", userIds: ["u_someone_else" as UserId] },
+    };
+    // Override the default facilitator enrollment with a plain
+    // participant — facilitators bypass audience filtering by design
+    // (track authority can QA any subset). Filtering only fires for
+    // non-authority members.
+    const participantTracks = makeTracks({
+      byId: vi.fn(async () => ACTIVE_TRACK),
+      enrollment: vi.fn(async () => ({
+        trackId: TRACK_ID,
+        userId: ACTOR_ID,
+        role: "participant" as const,
+        enrolledAt: TEST_NOW,
+        leftAt: null,
+      })),
+    });
+    const result = await listTrackActivities(
+      { actor: ACTOR_ID, trackId: TRACK_ID },
+      {
+        users: makeUsers(ACTOR),
+        groups: baseGroups(),
+        tracks: participantTracks,
+        policy: basePolicy(),
+        activities: makeActivities({ byTrack: vi.fn(async () => [inAudience, excluded]) }),
+        clock: { now: () => TEST_NOW },
+      },
+    );
+    expect(result.map((r) => r.id)).toEqual(["a_in_audience"]);
   });
 });
 
@@ -1247,7 +1308,7 @@ describe("set-activity-prerequisites / suggested-sequences", () => {
               libraryRefCount: 0,
               prereqCount: 0,
               suggestedNextCount: 0,
-              audienceKind: "everyone_enrolled" as const,
+              audience: { kind: "everyone_enrolled" as const },
               window: null,
               postClosePolicy: null,
               completionRuleKind: "manual_mark" as const,
@@ -1312,7 +1373,7 @@ describe("set-activity-prerequisites / suggested-sequences", () => {
               libraryRefCount: 0,
               prereqCount: 0,
               suggestedNextCount: 0,
-              audienceKind: "everyone_enrolled" as const,
+              audience: { kind: "everyone_enrolled" as const },
               window: null,
               postClosePolicy: null,
               completionRuleKind: "manual_mark" as const,

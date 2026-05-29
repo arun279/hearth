@@ -229,7 +229,7 @@ export function createLearningActivityRepository(
           libraryRefCount: refCountByActivity.get(row.id) ?? 0,
           prereqCount: prereqCountByActivity.get(row.id) ?? 0,
           suggestedNextCount: suggestedCountByActivity.get(row.id) ?? 0,
-          audienceKind: audience.kind,
+          audience,
           window,
           postClosePolicy: postClose,
           completionRuleKind: completion.kind,

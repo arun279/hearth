@@ -179,16 +179,29 @@ describe("apps/web bundle budget", () => {
     expect(offenders, `${module} must be dynamic-only.${explain}`).toEqual([]);
   });
 
-  it("Activity Player's surface (if present) lives in a dynamic chunk, not an entry chunk", () => {
+  it("Activity Player's surface lives in a dynamic chunk, not an entry chunk", () => {
     const manifest = loadManifest();
+    // The player route lives at `apps/web/src/routes/g.$groupId_.t.$trackId_.a.$activityId.tsx`
+    // and its renderer tree under `apps/web/src/components/activities/player/`.
+    // TanStack Router's per-route code-splitting puts the route file in
+    // its own chunk; the gate asserts that the chunk + every player
+    // component is unreachable from any entry via STATIC imports.
+    //
+    // Match by structural key fragments, not filename literal — file
+    // suffixes silently die on a rename. The chunk-content fallback in
+    // FORBIDDEN_IN_ENTRY covers the case where a player module gets
+    // inlined into a different-named chunk.
     const playerKeys = Object.keys(manifest).filter(
-      (key) =>
-        key.includes("a.$activityId") ||
-        key.includes("activities/player/") ||
-        key.endsWith("/ReadPart.tsx") ||
-        key.endsWith("/parts/ReadPart.tsx"),
+      (key) => key.includes("a.$activityId") || key.includes("components/activities/player/"),
     );
-    if (playerKeys.length === 0) return;
+    // Zero matches means the gate just told us nothing — either the
+    // routing/layout structure moved and we need to update the
+    // fragments, or Vite stopped emitting per-route keys we can scan.
+    // Either way: do not silently pass.
+    expect(
+      playerKeys.length,
+      "no player chunks found in the manifest — update the structural fragments above",
+    ).toBeGreaterThan(0);
 
     const entries = findEntries(manifest);
     const allStaticallyReachable = new Set<string>();

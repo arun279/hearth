@@ -4,6 +4,7 @@ import { createRouter, RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { ErrorBoundary, type FallbackProps } from "react-error-boundary";
+import { shouldRetry } from "./lib/problem.ts";
 import { routeTree } from "./routeTree.gen.ts";
 
 const queryClient = new QueryClient({
@@ -11,7 +12,10 @@ const queryClient = new QueryClient({
     queries: {
       staleTime: 30_000,
       refetchOnWindowFocus: true,
-      retry: 1,
+      // Retry transient failures once; never retry 401 / 403 / 404 —
+      // those are authoritative client-side rejections, not flake.
+      // See `shouldRetry` in `lib/problem.ts` for the policy.
+      retry: shouldRetry,
     },
   },
 });

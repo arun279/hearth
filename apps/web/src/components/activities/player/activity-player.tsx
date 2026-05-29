@@ -1,6 +1,5 @@
 import type { ActivityPart, ActivityPlayerProjection } from "@hearth/domain";
 import { Button, Callout } from "@hearth/ui";
-import { Link } from "@tanstack/react-router";
 import { useEffect, useMemo } from "react";
 import { toast } from "sonner";
 import { formatRelative, formatShortDate } from "../../../lib/format.ts";
@@ -23,9 +22,6 @@ type Props = {
   readonly query: QueryShape;
   readonly requestedPartId: string | null;
   readonly onChangeActivePartId: (partId: string | null) => void;
-  /** Parent track for the not-available recovery affordance. */
-  readonly groupId: string;
-  readonly trackId: string;
 };
 
 const FALLBACK_TOAST_KEY = "activity-player-bad-part";
@@ -45,23 +41,10 @@ const FALLBACK_TOAST_KEY = "activity-player-bad-part";
  * first Part with a one-line toast so the user understands their URL
  * was stale — silently rewriting would hide the drift.
  */
-export function ActivityPlayer({
-  query,
-  requestedPartId,
-  onChangeActivePartId,
-  groupId,
-  trackId,
-}: Props) {
+export function ActivityPlayer({ query, requestedPartId, onChangeActivePartId }: Props) {
   if (query.isLoading) return <LoadingState />;
   if (query.isError || !query.data) {
-    return (
-      <ErrorState
-        error={query.error}
-        onRetry={() => void query.refetch()}
-        groupId={groupId}
-        trackId={trackId}
-      />
-    );
+    return <ErrorState error={query.error} onRetry={() => void query.refetch()} />;
   }
   return (
     <PlayerBody
@@ -205,41 +188,22 @@ function LoadingState() {
   );
 }
 
-function ErrorState({
-  error,
-  onRetry,
-  groupId,
-  trackId,
-}: {
-  readonly error: unknown;
-  readonly onRetry: () => void;
-  readonly groupId: string;
-  readonly trackId: string;
-}) {
+function ErrorState({ error, onRetry }: { readonly error: unknown; readonly onRetry: () => void }) {
   // The /player route returns 404 in three permanent cases: activity
   // doesn't exist, viewer isn't in the audience, post-close `hidden`.
   // Retry can never recover any of them, so the not-available branch
-  // surfaces a calm message + a way back to the track. 5xx / network
-  // errors stay on the retry path; that's where retry is meaningful.
+  // surfaces a calm message; recovery is the header's persistent
+  // "Back to track" link (`ActivityShell`). 5xx / network errors stay
+  // on the retry path; that's where retry is meaningful.
   const status = errorStatus(error);
   if (status === 404) {
     return (
       <div className="mx-auto max-w-xl px-5 py-12">
         <Callout tone="neutral" title="This activity isn't available">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <span>
-              It may have been removed, closed, or scoped to a different audience. The link may also
-              be stale.
-            </span>
-            <Link
-              to="/g/$groupId/t/$trackId"
-              params={{ groupId, trackId }}
-              search={{}}
-              className="inline-flex shrink-0 items-center gap-1 self-start rounded-[var(--radius-md)] border border-[var(--color-rule)] bg-[var(--color-surface)] px-3 py-1.5 font-medium text-[12px] text-[var(--color-ink)] transition-colors hover:bg-[var(--color-surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
-            >
-              Return to track
-            </Link>
-          </div>
+          <p>
+            It may have been removed, closed, or scoped to a different audience. The link may also
+            be stale.
+          </p>
         </Callout>
       </div>
     );

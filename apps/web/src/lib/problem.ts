@@ -71,6 +71,7 @@ const INVARIANT_AND_VALIDATION_CODES = [
   "user_inactive",
   // Track lifecycle
   "track_status_transition_invalid",
+  "track_status_changed",
   "self_remove_via_leave",
 ] as const;
 
@@ -114,6 +115,24 @@ class ApiError extends Error {
  */
 export function errorStatus(err: unknown): number | null {
   return err instanceof ApiError ? err.status : null;
+}
+
+/**
+ * React Query `retry` predicate suitable for the QueryClient default.
+ * Retries once for transient failures (5xx, network) and never for
+ * authoritative client-side rejections (401, 403, 404) — retrying a
+ * permanent rejection costs a Worker invocation, a wasted spinner
+ * cycle, and on 404 leads the user past the "isn't available" branch
+ * after an unnecessary delay. Per-hook overrides can opt out for the
+ * rare case where a 404 might become a 200 (e.g., an optimistic-create-
+ * then-redirect flow); Hearth has no such surface today.
+ */
+const TERMINAL_CLIENT_ERROR_STATUSES = new Set<number>([401, 403, 404]);
+
+export function shouldRetry(failureCount: number, err: unknown): boolean {
+  const status = errorStatus(err);
+  if (status !== null && TERMINAL_CLIENT_ERROR_STATUSES.has(status)) return false;
+  return failureCount < 1;
 }
 
 export async function assertOk(res: Response): Promise<Response> {
@@ -253,6 +272,8 @@ const policyDenialMessages: Record<KnownProblemCode, string> = {
   // Track lifecycle
   track_status_transition_invalid:
     "That track status change isn't allowed. Refresh and try the action again.",
+  track_status_changed:
+    "Someone else changed this track's status while you were here. Refresh and try again.",
   self_remove_via_leave: "Use Leave Track to remove yourself instead.",
 };
 

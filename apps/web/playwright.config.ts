@@ -32,7 +32,14 @@ const SPA_DIST_INDEX = path.resolve(REPO_ROOT, "apps/web/dist/index.html");
 //      and no-ops on re-run), so this works on a fresh clone and on
 //      every subsequent run. Row-level isolation between specs is
 //      handled by `resetInstanceState` in `apps/web/e2e/auth.ts`.
-if (!process.env["TEST_WORKER_INDEX"]) {
+// `HEARTH_WRANGLER_ENV === "e2e"` is set by the `pnpm e2e` script (see
+// `apps/web/package.json`) — the only context where this build + migrate
+// pair is wanted. Skip otherwise so an editor opening this file for
+// typecheck / IDE completion doesn't trigger a full SPA build + a
+// d1-migrations subprocess. Worker processes spawned by Playwright also
+// inherit `HEARTH_WRANGLER_ENV` but additionally carry `TEST_WORKER_INDEX`,
+// so they skip on the second guard.
+if (process.env["HEARTH_WRANGLER_ENV"] === "e2e" && !process.env["TEST_WORKER_INDEX"]) {
   if (!existsSync(SPA_DIST_INDEX)) {
     const build = spawnSync("pnpm", ["--filter", "@hearth/web", "build"], {
       cwd: REPO_ROOT,

@@ -10,6 +10,25 @@ describe("problem.ts envelope mapping", () => {
     expect(out.policy).toBeUndefined();
   });
 
+  it("collapses internal reason codes (envelope_invalid) to the generic 500 — never leaks adapter detail", () => {
+    // `envelope_invalid` is raised by adapter envelope parsers on a
+    // corrupted row. The detail string includes the activity id and
+    // the zod path — strictly internal diagnosis. Surfacing it on the
+    // wire would tell the client where the data drifted; the API
+    // boundary collapses it to the generic 500 shape instead.
+    const out = problemFromDomainError(
+      new DomainError(
+        "INVARIANT_VIOLATION",
+        "Activity a_42 has invalid partsJson at /1/kind: literal.",
+        "envelope_invalid",
+      ),
+    );
+    expect(out.code).toBe("internal_error");
+    expect(out.status).toBe(500);
+    expect(out.detail).not.toContain("partsJson");
+    expect(out.detail).not.toContain("a_42");
+  });
+
   it("only attaches policy.code on FORBIDDEN with a reason", () => {
     const forbidden = problemFromDomainError(new DomainError("FORBIDDEN", "Nope.", "not_admin"));
     expect(forbidden.policy).toEqual({ code: "not_admin" });

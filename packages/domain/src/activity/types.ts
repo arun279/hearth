@@ -136,7 +136,16 @@ export type LearningActivityListItem = {
   readonly libraryRefCount: number;
   readonly prereqCount: number;
   readonly suggestedNextCount: number;
-  readonly audienceKind: ActivityAudience["kind"];
+  /**
+   * Full audience envelope (not just `kind`). Carried in the list so the
+   * visibility predicate (`canSeeActivity`) can run at the use-case layer
+   * and filter rows that the actor isn't in the audience for — same
+   * decision the `/player` route would make. The SPA badge reads
+   * `audience.kind` for the narrowed indicator; the `userIds` are used
+   * server-side only and stay on this type because the adapter already
+   * parses the envelope to produce the row.
+   */
+  readonly audience: ActivityAudience;
   readonly window: ActivityWindow | null;
   readonly postClosePolicy: PostClosePolicy | null;
   readonly completionRuleKind: CompletionRule["kind"];

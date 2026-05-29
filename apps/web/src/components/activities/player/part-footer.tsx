@@ -43,7 +43,6 @@ export function PartFooter({ previousPartId, nextPartId, onNavigate }: Props) {
         type="button"
         aria-disabled="true"
         aria-describedby={MARK_COMPLETE_HINT_ID}
-        onClick={(e) => e.preventDefault()}
         className="inline-flex cursor-not-allowed items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--color-rule)] bg-[var(--color-surface-2)] px-3 py-1.5 font-medium text-[12px] text-[var(--color-ink-2)] opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
       >
         <Check size={13} strokeWidth={1.75} aria-hidden="true" />

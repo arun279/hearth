@@ -48,7 +48,23 @@ export function problemResponse(c: Context, problem: Problem) {
   });
 }
 
+/**
+ * Reason codes that diagnose a corrupted-row or other internal invariant
+ * we don't want to surface to the client. The `DomainError` stays —
+ * server-side logs need it for diagnosis — but the wire shape collapses
+ * to the generic 500 so the SPA never reads an implementation-detail
+ * string (per RFC 7807 § 5). Any code added here must also be listed in
+ * `apps/web/src/lib/problem.test.ts` `ALLOWED_INTERNAL_CODES`.
+ */
+const INTERNAL_REASON_CODES: ReadonlySet<string> = new Set([
+  "envelope_invalid",
+  "steward_insert_failed",
+]);
+
 export function problemFromDomainError(err: DomainError): Problem {
+  if (err.reason !== undefined && INTERNAL_REASON_CODES.has(err.reason)) {
+    return unknownErrorProblem(err);
+  }
   const status = CODE_TO_STATUS[err.code];
   const code = err.reason ?? err.code.toLowerCase();
   const base: Problem = {

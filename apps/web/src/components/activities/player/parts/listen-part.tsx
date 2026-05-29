@@ -2,6 +2,7 @@ import type { ListenAudioPart } from "@hearth/domain";
 import { FileWarning } from "lucide-react";
 import { useRef } from "react";
 import { usePlaybackSignals } from "../../../../hooks/use-playback-signals.ts";
+import { partLabel } from "../_lib/part-title.ts";
 
 type Props = {
   readonly activityId: string;
@@ -47,6 +48,7 @@ export function ListenPart({ activityId, part, readUrl }: Props) {
         controls
         preload="metadata"
         src={readUrl}
+        aria-label={partLabel(part)}
         onTimeUpdate={signals.onTimeUpdate}
         onLoadedMetadata={signals.onLoadedMetadata}
         onPause={signals.onPause}

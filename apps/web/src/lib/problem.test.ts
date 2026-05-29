@@ -2,7 +2,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { KNOWN_PROBLEM_CODES } from "./problem.ts";
+import { assertOk, KNOWN_PROBLEM_CODES, shouldRetry } from "./problem.ts";
 
 /**
  * Source-text scan that pairs the server-side reason emitters with the
@@ -31,6 +31,7 @@ const SCAN_ROOTS: readonly string[] = [
   resolve(REPO_ROOT, "packages", "core", "src"),
   resolve(REPO_ROOT, "packages", "auth", "src"),
   resolve(REPO_ROOT, "packages", "api", "src"),
+  resolve(REPO_ROOT, "packages", "adapters", "cloudflare", "src"),
 ];
 
 function* walkTs(dir: string): Generator<string> {
@@ -76,7 +77,65 @@ const ALLOWED_INTERNAL_CODES = new Set<string>([
   // Surfaces that are server-internal — the API layer maps them to
   // generic copy via `problem.detail`, never to a user toast.
   "not_found",
+  // Corrupted-row invariant raised by adapter envelope parsers. The
+  // detail string ("Activity X has invalid partsJson at …") is an
+  // internal diagnosis; the API boundary maps it to the generic 500
+  // problem before it reaches the wire. Per RFC 7807 § 5, exposing
+  // implementation-detail strings to the client is the anti-pattern
+  // we deliberately avoid here — keep this code off `KNOWN_PROBLEM_CODES`.
+  "envelope_invalid",
+  // Same shape as `envelope_invalid` — an `INVARIANT_VIOLATION` raised
+  // when an adapter-side insert/read race fails an assertion. The
+  // detail string is internal diagnosis; the API maps it to 500.
+  "steward_insert_failed",
 ]);
+
+describe("shouldRetry", () => {
+  function mkApiError(status: number): unknown {
+    // Build a real `ApiError` via the public `assertOk` path so the
+    // test doesn't depend on the class being exported. The body has
+    // to be a problem+json envelope with a `code`; `assertOk` rejects
+    // otherwise.
+    const res = new Response(
+      JSON.stringify({ code: "x", status, detail: "x", title: "x", type: "x" }),
+      {
+        status,
+        headers: { "content-type": "application/problem+json" },
+      },
+    );
+    return assertOk(res).then(
+      () => undefined,
+      (err) => err,
+    );
+  }
+
+  it("does not retry on 404 (permanent — audience exclusion, post-close hidden, bad id)", async () => {
+    const err = await mkApiError(404);
+    expect(shouldRetry(0, err)).toBe(false);
+  });
+
+  it("does not retry on 403 (authoritative authorization rejection)", async () => {
+    const err = await mkApiError(403);
+    expect(shouldRetry(0, err)).toBe(false);
+  });
+
+  it("does not retry on 401 (unauthenticated — needs sign-in, not a retry)", async () => {
+    const err = await mkApiError(401);
+    expect(shouldRetry(0, err)).toBe(false);
+  });
+
+  it("retries once on 5xx (transient backend)", async () => {
+    const err = await mkApiError(500);
+    expect(shouldRetry(0, err)).toBe(true);
+    expect(shouldRetry(1, err)).toBe(false);
+  });
+
+  it("retries once on a non-ApiError (network failure)", () => {
+    const err = new Error("fetch failed");
+    expect(shouldRetry(0, err)).toBe(true);
+    expect(shouldRetry(1, err)).toBe(false);
+  });
+});
 
 describe("problem code coverage", () => {
   const { emitted, visited } = collectCodes();

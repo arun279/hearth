@@ -136,6 +136,12 @@ Each entry names the **pinned tool**, the **condition** that triggers a reassess
 - **Action**: extend `packages/core/tsconfig.json` (and equivalent peer packages) to include `test/**/*.ts` so `tsc --noEmit` sees the test sources. Fix the resulting mock-vs-brand mismatches by wrapping mocks with `markWrite(...)` from `packages/ports/src/_brand.ts` (the same helper the adapter uses). Mirror the change to `packages/api`, `packages/auth`, `packages/adapters/cloudflare` if their tsconfigs have the same `src/`-only include. The cost is a one-off cleanup of existing mocks; the benefit is that `Write<F>` brand drift surfaces in `pnpm check` instead of leaking past lefthook + CI.
 - **Location**: `packages/core/tsconfig.json` (includes), `packages/core/test/activity-use-cases.test.ts` and siblings (mocks needing `markWrite`).
 
+### List endpoints whose detail sibling can 404 MUST share the visibility predicate
+
+- **Trigger**: a new list endpoint lands whose detail route runs an authoritative visibility predicate (e.g. anything that gates by audience, post-close `hidden`, prerequisite locking) AND the list does not consult the same predicate. Indicator: the list endpoint loads a repository projection and `.filter()`s on a subset of the predicate's branches.
+- **Action**: extract or reuse the existing shared helper (`packages/core/src/use-cases/_lib/load-visible-activities-for-track.ts` is the canonical M9 example) so the list and the detail surface run the SAME predicate. The list MUST omit rows whose detail route would 404 — otherwise the title leaks via the list and the click 404s, creating an enumeration oracle on whichever axis the list skipped (subset audience, prerequisite lock, etc.). M11 prerequisite-driven `locked` state and M12 visibility evolution will introduce new axes; the per-use-case half-fix pattern does not scale.
+- **Location**: `packages/core/src/use-cases/_lib/load-visible-activities-for-track.ts` (the existing shared helper); any new `list*` use case + its repository projection.
+
 ### Quiz `answerKeyRegex` accepts user-supplied regex without a ReDoS guard
 
 - **Trigger**: M9–M10 ships the quiz authoring UI (currently `quiz` is gated out of the M8 composer palette so no facilitator can author one). At that point the field becomes user-reachable.
