@@ -188,7 +188,13 @@ function LoadingState() {
   );
 }
 
-function ErrorState({ error, onRetry }: { readonly error: unknown; readonly onRetry: () => void }) {
+export function ErrorState({
+  error,
+  onRetry,
+}: {
+  readonly error: unknown;
+  readonly onRetry: () => void;
+}) {
   // The /player route returns 404 in three permanent cases: activity
   // doesn't exist, viewer isn't in the audience, post-close `hidden`.
   // Retry can never recover any of them, so the not-available branch
