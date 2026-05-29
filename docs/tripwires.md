@@ -124,17 +124,17 @@ Each entry names the **pinned tool**, the **condition** that triggers a reassess
 - **Action**: on that PR, brand the touched port's mutating methods with `Write<F>` (from `packages/ports/src/_brand.ts`). Update the implementation methods in `packages/adapters/cloudflare/src/<repo>.ts` to use `markWrite(...)`. Add a per-port `it("XRepository: every branded write method is in CASES", ...)` block in `packages/adapters/cloudflare/test/killswitch-coverage.test.ts` mirroring the existing `LibraryItemRepository` / `LearningActivityRepository` shape. Tsc will then enforce that every branded write method has a CASES entry. The migration is opportunistic — no need for a sweep PR — but DO migrate any port you're already editing rather than leaving the next session to find half-branded surfaces.
 - **Location**: `packages/ports/src/_brand.ts` (the brand machinery + this rationale); `packages/adapters/cloudflare/test/killswitch-coverage.test.ts` (the type-level enforcement site).
 
-### `LearningActivityRepository.byTrack` hard-codes `accessState: "open"`
-
-- **Trigger**: M11 lands `ActivityRecord` rows or any access-state projection that needs to know which activities are post-close `hidden` for the viewer.
-- **Action**: remove the hard-coded literal in `packages/adapters/cloudflare/src/learning-activity-repository.ts` `byTrack` and replace with a real projection from the activity's window + post-close policy + the viewer's clock. The port currently has no `actor` / `clock` parameter; either thread one through or compute the projection in the use case layer (`list-track-activities`) where the viewer is already known. Today the literal is safe because no Records exist yet — but a future post-close `hidden` activity would silently surface as `"open"` to participants, which would be a real privacy bug.
-- **Location**: `packages/adapters/cloudflare/src/learning-activity-repository.ts` (`byTrack` projection); `packages/ports/src/learning-activity-repository.ts` (port signature if a parameter is needed).
-
 ### `update-activity` use case is non-atomic across body + 3 child writes
 
 - **Trigger**: M11 ships `ActivityRecord` rows whose existence depends on the activity's children being internally consistent (e.g., a learner's progress against a Part the activity claims to have).
 - **Action**: re-evaluate the four-step orchestration in `packages/core/src/use-cases/update-activity.ts` (body update + `setLibraryRefs` + `setPrerequisites` + `setSuggestedSequences`). Each call is atomic on its own; a mid-sequence failure leaves the body updated but children stale, which the use case docstring concedes. The current "user retries → idempotent wholesale-replace converges" model is acceptable while no Records exist. Once Records exist, an inconsistent intermediate state during a retry could produce a Record against a Part that the activity no longer carries. Either compose the four writes into one D1 batch (requires a port-level rethink — children writes would need to surface from inside the parent UPDATE) or accept the eventual-consistency story explicitly with an integration test pinning the recovery shape.
 - **Location**: `packages/core/src/use-cases/update-activity.ts`.
+
+### Test files are not type-checked — `Write<F>` mock brand mismatches slip through
+
+- **Trigger**: a `Write<F>`-branded port method picks up a new signature change, OR a test mock is allowed to drift from a port's real shape because the test file isn't compiled. Symptom: editor / LSP flags `Mock<...>` not assignable to `Write<...>` in `packages/core/test/**` but `pnpm typecheck` is green.
+- **Action**: extend `packages/core/tsconfig.json` (and equivalent peer packages) to include `test/**/*.ts` so `tsc --noEmit` sees the test sources. Fix the resulting mock-vs-brand mismatches by wrapping mocks with `markWrite(...)` from `packages/ports/src/_brand.ts` (the same helper the adapter uses). Mirror the change to `packages/api`, `packages/auth`, `packages/adapters/cloudflare` if their tsconfigs have the same `src/`-only include. The cost is a one-off cleanup of existing mocks; the benefit is that `Write<F>` brand drift surfaces in `pnpm check` instead of leaking past lefthook + CI.
+- **Location**: `packages/core/tsconfig.json` (includes), `packages/core/test/activity-use-cases.test.ts` and siblings (mocks needing `markWrite`).
 
 ### Quiz `answerKeyRegex` accepts user-supplied regex without a ReDoS guard
 

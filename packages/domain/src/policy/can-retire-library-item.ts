@@ -17,13 +17,12 @@ import { isLibraryItemSteward } from "./library-stewardship.ts";
  */
 export function canRetireLibraryItem(
   actorId: UserId,
-  group: StudyGroup,
+  _group: StudyGroup,
   item: LibraryItem,
   membership: GroupMembership | null,
   operator: InstanceOperator | null,
   extraStewardIds: ReadonlySet<UserId>,
 ): PolicyResult {
-  void group;
   if (!isLibraryItemSteward(actorId, item, membership, operator, extraStewardIds)) {
     return policyDeny(
       "not_library_steward",

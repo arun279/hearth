@@ -13,13 +13,12 @@ import { evaluateActivityScopeAuthority } from "./_activity-scope-gate.ts";
  * audit-trail surface; archive a track to keep the history.
  */
 export function canDeleteLearningActivity(
-  actor: User,
+  _actor: User,
   group: StudyGroup,
   track: LearningTrack,
   groupMembership: GroupMembership | null,
   trackEnrollment: TrackEnrollment | null,
 ): PolicyResult {
-  void actor;
   return evaluateActivityScopeAuthority({
     group,
     track,

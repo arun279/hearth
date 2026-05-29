@@ -22,7 +22,7 @@ import { isAuthorityOverTrack } from "./is-authority-over-track.ts";
  * `learning-track-repository.enroll`'s phase-1 UPDATE.
  */
 export function canEnrollSelfInTrack(
-  actor: User,
+  _actor: User,
   track: LearningTrack,
   group: StudyGroup,
   membership: GroupMembership | null,
@@ -42,7 +42,6 @@ export function canEnrollSelfInTrack(
       "Group Membership is required before enrolling in a Learning Track.",
     );
   }
-  void actor;
   return policyAllow();
 }
 
@@ -53,7 +52,7 @@ export function canEnrollSelfInTrack(
  * an active facilitator enrollment on the same track.
  */
 export function canEnrollUserInTrack(
-  actor: User,
+  _actor: User,
   track: LearningTrack,
   group: StudyGroup,
   actorMembership: GroupMembership | null,
@@ -81,6 +80,5 @@ export function canEnrollUserInTrack(
       "The target must already be a current member of the group.",
     );
   }
-  void actor;
   return policyAllow();
 }

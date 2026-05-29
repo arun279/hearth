@@ -11,7 +11,7 @@ import { isAuthorityOverTrack } from "./is-authority-over-track.ts";
  * "track edited" event.
  */
 export function canEditContributionPolicy(
-  actor: User,
+  _actor: User,
   group: StudyGroup,
   track: LearningTrack,
   groupMembership: GroupMembership | null,
@@ -32,6 +32,5 @@ export function canEditContributionPolicy(
       "Only a Group Admin or Track Facilitator may change the contribution policy.",
     );
   }
-  void actor;
   return policyAllow();
 }

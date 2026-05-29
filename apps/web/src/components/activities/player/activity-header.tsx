@@ -15,14 +15,16 @@ type Props = {
  *   - Big serif title (the activity name).
  *   - Optional description in muted body text.
  *   - Status row: an access-state badge (only when non-`open`), the
- *     monospace "Part X of N" counter, and a hairline progress bar.
+ *     monospace "Part X of N" counter, and an empty completion track.
  *
- * The progress bar renders at 0% in M9 — Part completion persistence
- * lands in M11; reserving the visual now keeps the layout final so the
- * next milestone is a pure data wire-up, not a re-layout.
+ * The completion track holds at 0% until per-Part completion state is
+ * persisted; reserving the visual now keeps the layout final so the
+ * data wire-up later is the only thing that needs to change. Showing
+ * cursor position as if it were completion would be dishonest — the
+ * track is intentionally empty until there's real progress to report.
  */
 export function ActivityHeader({ activity, accessState, currentPartIndex, totalParts }: Props) {
-  const progress = totalParts === 0 ? 0 : Math.round((currentPartIndex / totalParts) * 100);
+  const COMPLETION_PROGRESS = 0;
   const stateBadge = ACCESS_STATE_BADGES[accessState];
 
   return (
@@ -46,14 +48,14 @@ export function ActivityHeader({ activity, accessState, currentPartIndex, totalP
         <div
           className="h-[2px] min-w-[80px] max-w-[280px] flex-1 overflow-hidden rounded-full bg-[var(--color-surface-2)]"
           role="progressbar"
-          aria-label="Activity progress"
-          aria-valuenow={progress}
+          aria-label="Activity completion"
+          aria-valuenow={COMPLETION_PROGRESS}
           aria-valuemin={0}
           aria-valuemax={100}
         >
           <div
             className="h-full rounded-full bg-[var(--color-accent)] transition-[width] duration-200"
-            style={{ width: `${progress}%` }}
+            style={{ width: `${COMPLETION_PROGRESS}%` }}
           />
         </div>
       </div>

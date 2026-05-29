@@ -240,6 +240,20 @@ const rules = [
     reason:
       "DELETE on instance_operators / approved_emails in e2e teardown SQL must include a `LIKE 'u_e2e_%'` (user_id) or `LIKE '%@e2e.example.com'` (email) predicate. Unscoped deletes can take out a real operator's row if the suite ever lands on the dev D1.",
   },
+  {
+    // `const _foo: never = x; void _foo;` (and `void <bareIdent>;`)
+    // is a way to silence "unused local" warnings on TypeScript
+    // exhaustiveness assertions. The structural fix is `x satisfies
+    // never` — same exhaustiveness check, no binding, no suppression
+    // idiom. Bare `void <expr>;` is also occasionally used to discard
+    // a Promise; tag those with `void Promise<…>` patterns instead.
+    name: "no-suppress-via-void",
+    regex: /^\s*void\s+[A-Za-z_$][\w$]*\s*;/m,
+    includePathPrefixes: ["packages/", "apps/"],
+    excludePathSuffixes: ["scripts/check-conventions.mjs"],
+    reason:
+      "`void <identifier>;` is a suppression idiom for unused locals (typically on a `const _: never = x` exhaustiveness assertion). Use `x satisfies never` instead — same check, no local binding, no suppression.",
+  },
 ];
 
 /**

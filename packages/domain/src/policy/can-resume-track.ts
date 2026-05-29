@@ -10,7 +10,7 @@ import { isAuthorityOverTrack } from "./is-authority-over-track.ts";
  * this policy only answers "is the actor allowed to attempt a resume?".
  */
 export function canResumeTrack(
-  actor: User,
+  _actor: User,
   group: StudyGroup,
   track: LearningTrack,
   groupMembership: GroupMembership | null,
@@ -31,6 +31,5 @@ export function canResumeTrack(
       "Only a Group Admin or Track Facilitator may resume a Learning Track.",
     );
   }
-  void actor;
   return policyAllow();
 }

@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig, devices } from "@playwright/test";
@@ -14,17 +15,38 @@ const SPA_PORT = 5174;
 const WORKER_PORT = 8788;
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
 const E2E_PERSIST_DIR = path.resolve(REPO_ROOT, "apps/worker/.wrangler/state-e2e");
+const SPA_DIST_INDEX = path.resolve(REPO_ROOT, "apps/web/dist/index.html");
 
-// Apply D1 migrations to the e2e persist dir BEFORE Playwright spawns the
-// `wrangler dev` webServer. `wrangler d1 migrations apply` tracks applied
-// migrations in `_cf_KV` and no-ops on re-run — safe and idempotent — so this
-// works on a fresh clone (creates the dir + applies all) and on every
-// subsequent run (no-op). Row-level isolation between specs is handled by
-// `resetInstanceState` in `apps/web/e2e/auth.ts`, which deletes rows scoped
-// to `u_e2e_*` / `*@e2e.example.com` identifiers. Skipped in spec worker
-// processes via `TEST_WORKER_INDEX`.
+// One-shot prep that runs in the Playwright runner process (skipped in
+// spec workers via `TEST_WORKER_INDEX`). Two steps:
+//
+//   1. Build the SPA when `apps/web/dist` is missing. The `wrangler dev`
+//      webServer points its `assets.directory` at `../web/dist`; without
+//      that directory wrangler refuses to start. Tests still hit Vite on
+//      `:5174`, so dist is only here to satisfy wrangler's start-up check
+//      — but it MUST exist. Turbo caches the build so subsequent runs
+//      are instant if nothing changed.
+//
+//   2. Apply D1 migrations to the e2e persist dir. `wrangler d1
+//      migrations apply` is idempotent (tracks applied rows in `_cf_KV`
+//      and no-ops on re-run), so this works on a fresh clone and on
+//      every subsequent run. Row-level isolation between specs is
+//      handled by `resetInstanceState` in `apps/web/e2e/auth.ts`.
 if (!process.env["TEST_WORKER_INDEX"]) {
-  const res = spawnSync(
+  if (!existsSync(SPA_DIST_INDEX)) {
+    const build = spawnSync("pnpm", ["--filter", "@hearth/web", "build"], {
+      cwd: REPO_ROOT,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    if (build.status !== 0) {
+      throw new Error(
+        `pnpm --filter @hearth/web build failed:\n${build.stderr || build.stdout || "unknown error"}`,
+      );
+    }
+  }
+
+  const migrate = spawnSync(
     "pnpm",
     [
       "--filter",
@@ -43,9 +65,9 @@ if (!process.env["TEST_WORKER_INDEX"]) {
     ],
     { cwd: REPO_ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
   );
-  if (res.status !== 0) {
+  if (migrate.status !== 0) {
     throw new Error(
-      `wrangler d1 migrations apply (env=e2e) failed:\n${res.stderr || res.stdout || "unknown error"}`,
+      `wrangler d1 migrations apply (env=e2e) failed:\n${migrate.stderr || migrate.stdout || "unknown error"}`,
     );
   }
 }

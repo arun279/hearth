@@ -233,7 +233,6 @@ export function createLearningActivityRepository(
           window,
           postClosePolicy: postClose,
           completionRuleKind: completion.kind,
-          accessState: "open",
           createdAt: row.createdAt,
           updatedAt: row.updatedAt,
         };

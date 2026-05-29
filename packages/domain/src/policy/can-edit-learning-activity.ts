@@ -12,13 +12,12 @@ import { evaluateActivityScopeAuthority } from "./_activity-scope-gate.ts";
  * even after pausing new activity creation.
  */
 export function canEditLearningActivity(
-  actor: User,
+  _actor: User,
   group: StudyGroup,
   track: LearningTrack,
   groupMembership: GroupMembership | null,
   trackEnrollment: TrackEnrollment | null,
 ): PolicyResult {
-  void actor;
   return evaluateActivityScopeAuthority({
     group,
     track,

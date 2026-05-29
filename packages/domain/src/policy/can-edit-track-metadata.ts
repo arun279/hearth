@@ -11,7 +11,7 @@ import { isAuthorityOverTrack } from "./is-authority-over-track.ts";
  * a pause stops new work, not corrections to the existing description.
  */
 export function canEditTrackMetadata(
-  actor: User,
+  _actor: User,
   group: StudyGroup,
   track: LearningTrack,
   groupMembership: GroupMembership | null,
@@ -29,6 +29,5 @@ export function canEditTrackMetadata(
       "Only a Group Admin or Track Facilitator may edit a Learning Track.",
     );
   }
-  void actor;
   return policyAllow();
 }

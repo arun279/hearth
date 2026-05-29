@@ -65,10 +65,11 @@ export function PartViewport({ activityId, part, resolvedRef }: Props) {
     case "quiz":
     case "attend_session":
       return <NotYetImplemented kind={part.kind} />;
-    default: {
-      const exhaustive: never = part;
-      void exhaustive;
+    default:
+      // Exhaustiveness assertion via `satisfies never` — adding a new
+      // `ActivityPart` variant without a case above becomes a typecheck
+      // error here. No local binding so no `noUnusedLocals` suppression.
+      part satisfies never;
       return <NotYetImplemented kind={(part as { kind: string }).kind} />;
-    }
   }
 }

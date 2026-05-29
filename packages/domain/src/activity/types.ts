@@ -140,7 +140,6 @@ export type LearningActivityListItem = {
   readonly window: ActivityWindow | null;
   readonly postClosePolicy: PostClosePolicy | null;
   readonly completionRuleKind: CompletionRule["kind"];
-  readonly accessState: ActivityAccessState;
   readonly createdAt: Date;
   readonly updatedAt: Date;
 };

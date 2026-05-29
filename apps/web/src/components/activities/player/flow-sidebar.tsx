@@ -1,5 +1,6 @@
 import type { ActivityPart } from "@hearth/domain";
-import { cn, PartIcon, partKindLabel } from "@hearth/ui";
+import { cn, PartIcon } from "@hearth/ui";
+import { partTitle } from "./_lib/part-title.ts";
 
 type Props = {
   readonly parts: readonly ActivityPart[];
@@ -14,9 +15,11 @@ type Props = {
  * accent border + bolder ink — a single, restrained signal that
  * doesn't compete with the title strip above.
  *
- * Status dot renders neutral in M9; M11 will color it (`in_progress` /
- * `complete`) when Part Progress lands. The dot's shape and position
- * are final today so M11 only re-styles the className.
+ * Label format mirrors the mobile PartTabBar via the shared
+ * `partTitle` helper, so the accessible name and visual ordering match
+ * across the two surfaces. Status dot renders neutral; coloured states
+ * land with per-Part progress in a later milestone, but the shape and
+ * position are final so that change is a pure className flip.
  */
 export function FlowSidebar({ parts, orderedPartIds, activePartId, onSelectPart }: Props) {
   const partById = new Map(parts.map((p) => [p.id, p]));
@@ -46,12 +49,7 @@ export function FlowSidebar({ parts, orderedPartIds, activePartId, onSelectPart 
               >
                 <PartStatusDot />
                 <PartIcon kind={part.kind} size={13} />
-                <div className="min-w-0 flex-1 truncate text-[12px]">
-                  {partTitle(part) ?? partKindLabel(part.kind)}
-                </div>
-                <span className="font-mono text-[10px] text-[var(--color-ink-2)] tabular-nums">
-                  {index + 1}
-                </span>
+                <div className="min-w-0 flex-1 truncate text-[12px]">{partTitle(part, index)}</div>
               </button>
             </li>
           );
@@ -61,15 +59,10 @@ export function FlowSidebar({ parts, orderedPartIds, activePartId, onSelectPart 
   );
 }
 
-function partTitle(part: ActivityPart): string | null {
-  if ("title" in part && typeof part.title === "string") return part.title;
-  return null;
-}
-
 /**
- * Per-Part status indicator. v1 renders neutral; M11 colors it from
- * `part_progress` (`in_progress` accent, `complete` good). The dot
- * always reserves space so a status flip doesn't shift the row.
+ * Per-Part status indicator. v1 renders neutral; coloured states
+ * (`in_progress`, `complete`) land with per-Part progress later. The
+ * dot always reserves space so a status flip doesn't shift the row.
  */
 function PartStatusDot() {
   return (

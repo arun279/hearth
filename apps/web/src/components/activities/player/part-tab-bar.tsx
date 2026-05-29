@@ -1,5 +1,7 @@
 import type { ActivityPart } from "@hearth/domain";
-import { cn, PartIcon, partKindLabel } from "@hearth/ui";
+import { cn, PartIcon } from "@hearth/ui";
+import { useEffect, useRef } from "react";
+import { partTitle } from "./_lib/part-title.ts";
 
 type Props = {
   readonly parts: readonly ActivityPart[];
@@ -14,19 +16,31 @@ type Props = {
  * always at hand. Matches the prototype mobile-dark layout where the
  * Parts strip sits just below the title and above the body.
  *
- * Scrolls horizontally on overflow; the active pill is `scrollIntoView`-d
- * by the parent when the active id changes, but the affordance for
- * direct-touch reordering stays the user's tap or swipe — no
- * auto-advance.
+ * On overflow the row scrolls horizontally; when the active id changes
+ * (from a footer Next / Previous tap, or a deep-link), the active
+ * pill is brought into view with `scrollIntoView` so the user doesn't
+ * lose orientation. Direct taps still drive the user's own intent —
+ * no auto-advance.
  */
 export function PartTabBar({ parts, orderedPartIds, activePartId, onSelectPart }: Props) {
   const partById = new Map(parts.map((p) => [p.id, p]));
+  const listRef = useRef<HTMLOListElement | null>(null);
+
+  useEffect(() => {
+    const root = listRef.current;
+    if (!root) return;
+    const active = root.querySelector<HTMLElement>('[data-active-pill="true"]');
+    if (active) {
+      active.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" });
+    }
+  }, [activePartId]);
+
   return (
     <nav
       aria-label="Activity Parts"
       className="sticky top-0 z-10 flex shrink-0 overflow-x-auto border-[var(--color-rule)] border-b bg-[var(--color-surface)] md:hidden"
     >
-      <ol className="flex w-max gap-1 px-3 py-2">
+      <ol ref={listRef} className="flex w-max gap-1 px-3 py-2">
         {orderedPartIds.map((partId, index) => {
           const part = partById.get(partId);
           if (!part) return null;
@@ -36,6 +50,7 @@ export function PartTabBar({ parts, orderedPartIds, activePartId, onSelectPart }
               <button
                 type="button"
                 onClick={() => onSelectPart(partId)}
+                data-active-pill={isActive || undefined}
                 className={cn(
                   "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-[12px] transition-colors",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]",
@@ -46,9 +61,7 @@ export function PartTabBar({ parts, orderedPartIds, activePartId, onSelectPart }
                 aria-current={isActive ? "step" : undefined}
               >
                 <PartIcon kind={part.kind} size={11} />
-                <span>
-                  {index + 1}. {partTitle(part) ?? partKindLabel(part.kind)}
-                </span>
+                <span>{partTitle(part, index)}</span>
               </button>
             </li>
           );
@@ -56,9 +69,4 @@ export function PartTabBar({ parts, orderedPartIds, activePartId, onSelectPart }
       </ol>
     </nav>
   );
-}
-
-function partTitle(part: ActivityPart): string | null {
-  if ("title" in part && typeof part.title === "string") return part.title;
-  return null;
 }

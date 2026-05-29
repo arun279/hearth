@@ -9,7 +9,7 @@ import type { User } from "../user.ts";
  * separate.
  */
 export function canUpdateGroupMetadata(
-  actor: User,
+  _actor: User,
   group: StudyGroup,
   membership: GroupMembership | null,
 ): PolicyResult {
@@ -19,6 +19,5 @@ export function canUpdateGroupMetadata(
   if (!membership || membership.removedAt !== null || membership.role !== "admin") {
     return policyDeny("not_group_admin", "Only a Group Admin may edit the group's metadata.");
   }
-  void actor;
   return policyAllow();
 }

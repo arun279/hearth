@@ -43,9 +43,6 @@ export function WatchPart({ activityId, part, readUrl }: Props) {
 
   return (
     <div className="flex flex-col gap-3">
-      {part.title ? (
-        <p className="font-medium text-[13px] text-[var(--color-ink)]">{part.title}</p>
-      ) : null}
       <AspectRatio ratio={16 / 9}>
         <video
           ref={videoRef}

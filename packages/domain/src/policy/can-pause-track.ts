@@ -14,7 +14,7 @@ import { isAuthorityOverTrack } from "./is-authority-over-track.ts";
  * always errors on click.
  */
 export function canPauseTrack(
-  actor: User,
+  _actor: User,
   group: StudyGroup,
   track: LearningTrack,
   groupMembership: GroupMembership | null,
@@ -35,6 +35,5 @@ export function canPauseTrack(
       "Only a Group Admin or Track Facilitator may pause a Learning Track.",
     );
   }
-  void actor;
   return policyAllow();
 }

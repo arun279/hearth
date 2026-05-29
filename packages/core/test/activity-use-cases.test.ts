@@ -537,7 +537,6 @@ describe("update-activity", () => {
       window: null,
       postClosePolicy: null,
       completionRuleKind: "manual_mark",
-      accessState: "open",
       createdAt: TEST_NOW,
       updatedAt: TEST_NOW,
     };
@@ -702,7 +701,6 @@ describe("update-activity", () => {
       window: null,
       postClosePolicy: null,
       completionRuleKind: "manual_mark",
-      accessState: "open",
       createdAt: TEST_NOW,
       updatedAt: TEST_NOW,
     };
@@ -883,9 +881,57 @@ describe("get-activity / list-track-activities", () => {
         tracks: facilitatorTracks(),
         policy: basePolicy(),
         activities: makeActivities({ byTrack: vi.fn(async () => []) }),
+        clock: { now: () => TEST_NOW },
       },
     );
     expect(result).toEqual([]);
+  });
+
+  it("list filters out post-close hidden activities (enumeration-oracle guard)", async () => {
+    // Two rows with identical shape except the post-close policy. The
+    // second's `closesAt` has already passed AND its policy is
+    // `hidden` — the use case must drop it so a viewer who once had
+    // access cannot enumerate it by listing the track.
+    const past = new Date(TEST_NOW.getTime() - 24 * 60 * 60 * 1000);
+    const baseRow = {
+      trackId: TRACK_ID,
+      description: null,
+      partCount: 1,
+      partKindSequence: ["write_reflection"],
+      libraryRefCount: 0,
+      prereqCount: 0,
+      suggestedNextCount: 0,
+      audienceKind: "everyone_enrolled" as const,
+      completionRuleKind: "manual_mark" as const,
+      createdAt: TEST_NOW,
+      updatedAt: TEST_NOW,
+    };
+    const visible: LearningActivityListItem = {
+      ...baseRow,
+      id: "a_visible" as LearningActivityId,
+      title: "visible",
+      window: null,
+      postClosePolicy: null,
+    };
+    const hidden: LearningActivityListItem = {
+      ...baseRow,
+      id: "a_hidden" as LearningActivityId,
+      title: "hidden",
+      window: { opensAt: null, dueAt: null, closesAt: past.getTime() },
+      postClosePolicy: { kind: "hidden" },
+    };
+    const result = await listTrackActivities(
+      { actor: ACTOR_ID, trackId: TRACK_ID },
+      {
+        users: makeUsers(ACTOR),
+        groups: baseGroups(),
+        tracks: facilitatorTracks(),
+        policy: basePolicy(),
+        activities: makeActivities({ byTrack: vi.fn(async () => [visible, hidden]) }),
+        clock: { now: () => TEST_NOW },
+      },
+    );
+    expect(result.map((r) => r.id)).toEqual(["a_visible"]);
   });
 });
 
@@ -1205,7 +1251,6 @@ describe("set-activity-prerequisites / suggested-sequences", () => {
               window: null,
               postClosePolicy: null,
               completionRuleKind: "manual_mark" as const,
-              accessState: "open" as const,
               createdAt: TEST_NOW,
               updatedAt: TEST_NOW,
             })),
@@ -1271,7 +1316,6 @@ describe("set-activity-prerequisites / suggested-sequences", () => {
               window: null,
               postClosePolicy: null,
               completionRuleKind: "manual_mark" as const,
-              accessState: "open" as const,
               createdAt: TEST_NOW,
               updatedAt: TEST_NOW,
             })),

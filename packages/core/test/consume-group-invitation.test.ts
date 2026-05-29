@@ -2,8 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 import { consumeGroupInvitation } from "../src/use-cases/consume-group-invitation.ts";
 import {
   ACTIVE_GROUP,
-  ACTOR_ID,
-  GROUP_ID,
   invitation,
   makeGroups,
   makePolicy,
@@ -142,8 +140,3 @@ describe("consumeGroupInvitation", () => {
     expect(consume).toHaveBeenCalled();
   });
 });
-
-// Quiet the linter: ACTOR_ID + GROUP_ID are unused here but kept exported in
-// `_helpers.ts` so other tests can reuse them.
-void ACTOR_ID;
-void GROUP_ID;

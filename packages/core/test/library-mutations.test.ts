@@ -1,11 +1,9 @@
 import type {
   LibraryItem,
   LibraryItemId,
-  LibraryRevision,
   LibraryRevisionId,
   LibraryStewardship,
 } from "@hearth/domain";
-import type { LibraryItemDetail } from "@hearth/ports";
 import { describe, expect, it, vi } from "vitest";
 import { addLibrarySteward } from "../src/use-cases/add-library-steward.ts";
 import { removeLibrarySteward } from "../src/use-cases/remove-library-steward.ts";
@@ -40,25 +38,6 @@ const livingItem: LibraryItem = {
   retiredBy: null,
   createdAt: TEST_NOW,
   updatedAt: TEST_NOW,
-};
-
-const itemDetail: LibraryItemDetail = {
-  item: livingItem,
-  revisions: [
-    {
-      id: "lr_1" as LibraryRevisionId,
-      libraryItemId: itemId,
-      revisionNumber: 1,
-      storageKey: `library/${GROUP_ID}/${itemId}/lr_1`,
-      mimeType: "application/pdf",
-      sizeBytes: 1000,
-      originalFilename: null,
-      uploadedBy: ACTOR_ID,
-      uploadedAt: TEST_NOW,
-    } satisfies LibraryRevision,
-  ],
-  stewards: [],
-  usedInCount: 0,
 };
 
 describe("updateLibraryMetadata", () => {
@@ -272,5 +251,3 @@ describe("removeLibrarySteward", () => {
     expect(removeSteward).toHaveBeenCalledWith({ libraryItemId: itemId, userId: otherUid });
   });
 });
-
-void itemDetail;

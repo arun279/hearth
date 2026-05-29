@@ -59,9 +59,6 @@ export function EmbedPart({ activityId, part }: Props) {
 
   return (
     <div className="flex flex-col gap-3">
-      {part.title ? (
-        <p className="font-medium text-[13px] text-[var(--color-ink)]">{part.title}</p>
-      ) : null}
       <AspectRatio ratio={ratio}>
         <iframe
           src={src}

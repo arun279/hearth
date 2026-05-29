@@ -107,6 +107,15 @@ class ApiError extends Error {
   }
 }
 
+/**
+ * HTTP status of a thrown value when it's an `ApiError`, else `null`.
+ * Lets call sites branch on 4xx vs 5xx without instanceof-leaking the
+ * class throughout the SPA.
+ */
+export function errorStatus(err: unknown): number | null {
+  return err instanceof ApiError ? err.status : null;
+}
+
 export async function assertOk(res: Response): Promise<Response> {
   if (res.ok) return res;
   const contentType = res.headers.get("content-type") ?? "";

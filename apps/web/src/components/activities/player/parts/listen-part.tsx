@@ -42,9 +42,6 @@ export function ListenPart({ activityId, part, readUrl }: Props) {
 
   return (
     <div className="flex flex-col gap-3 rounded-[var(--radius-md)] border border-[var(--color-rule)] bg-[var(--color-surface)] px-4 py-4">
-      {part.title ? (
-        <p className="font-medium text-[13px] text-[var(--color-ink)]">{part.title}</p>
-      ) : null}
       <audio
         ref={audioRef}
         controls
