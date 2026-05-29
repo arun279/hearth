@@ -1,6 +1,7 @@
 import {
   computeActivityAccessState,
   type LearningActivityListItem,
+  type LearningActivityListRow,
   type LearningTrackId,
   type UserId,
 } from "@hearth/domain";
@@ -53,7 +54,7 @@ export async function loadVisibleActivitiesForTrack(
   const operator = await deps.policy.getOperator(actorId);
   const rows = await deps.activities.byTrack(trackId);
   const now = deps.clock.now();
-  return rows.filter((row) => {
+  const visible = rows.filter((row) => {
     const access = canSeeActivity(
       ctx.actor,
       ctx.group,
@@ -67,4 +68,17 @@ export async function loadVisibleActivitiesForTrack(
     const accessState = computeActivityAccessState(row.window, row.postClosePolicy, now);
     return accessState !== "hidden";
   });
+  return visible.map(toListItem);
+}
+
+/**
+ * Project an internal `LearningActivityListRow` to the wire-safe
+ * `LearningActivityListItem` by reducing the full `audience` envelope to
+ * its `kind` discriminator. This is the boundary that keeps the subset
+ * roster (`audience.userIds`) off the wire — every other layer below
+ * this point sees the richer Row; the API + SPA see only the Item.
+ */
+function toListItem(row: LearningActivityListRow): LearningActivityListItem {
+  const { audience, ...rest } = row;
+  return { ...rest, audienceKind: audience.kind };
 }

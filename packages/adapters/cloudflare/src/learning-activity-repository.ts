@@ -22,7 +22,7 @@ import {
   type LearningActivity,
   type LearningActivityDraft,
   type LearningActivityId,
-  type LearningActivityListItem,
+  type LearningActivityListRow,
   type LearningTrackId,
   type PostClosePolicy,
   partsEnvelopeSchema,
@@ -213,7 +213,7 @@ export function createLearningActivityRepository(
       const prereqCountByActivity = mapCounts(prereqCounts);
       const suggestedCountByActivity = mapCounts(suggestedCounts);
 
-      return rows.map((row): LearningActivityListItem => {
+      return rows.map((row): LearningActivityListRow => {
         const parts = parsePartsEnvelope(row.partsJson, row.id);
         const audience = parseAudienceEnvelope(row.audienceJson, row.id);
         const window = parseWindowEnvelope(row.windowJson, row.id);

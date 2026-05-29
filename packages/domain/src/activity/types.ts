@@ -126,6 +126,13 @@ export type ActivityAccessState = "open" | "pre_open" | "locked" | "hidden";
  * count, library-ref count, suggested-next count, part-kind icon
  * strip) without an N+1 fetch per row.
  */
+/**
+ * Wire shape returned by `GET /api/v1/tracks/:trackId/activities`. The
+ * audience is reduced to its `kind` discriminator so the subset roster
+ * (`audience.userIds`) NEVER ships to clients — visibility filtering
+ * happens server-side using the richer `LearningActivityListRow`, and
+ * the SPA renders the "narrowed" badge from `audienceKind` alone.
+ */
 export type LearningActivityListItem = {
   readonly id: LearningActivityId;
   readonly trackId: LearningTrackId;
@@ -136,19 +143,21 @@ export type LearningActivityListItem = {
   readonly libraryRefCount: number;
   readonly prereqCount: number;
   readonly suggestedNextCount: number;
-  /**
-   * Full audience envelope (not just `kind`). Carried in the list so the
-   * visibility predicate (`canSeeActivity`) can run at the use-case layer
-   * and filter rows that the actor isn't in the audience for — same
-   * decision the `/player` route would make. The SPA badge reads
-   * `audience.kind` for the narrowed indicator; the `userIds` are used
-   * server-side only and stay on this type because the adapter already
-   * parses the envelope to produce the row.
-   */
-  readonly audience: ActivityAudience;
+  readonly audienceKind: ActivityAudience["kind"];
   readonly window: ActivityWindow | null;
   readonly postClosePolicy: PostClosePolicy | null;
   readonly completionRuleKind: CompletionRule["kind"];
   readonly createdAt: Date;
   readonly updatedAt: Date;
+};
+
+/**
+ * Adapter / use-case-internal shape. Identical to `LearningActivityListItem`
+ * but carries the full `audience` envelope so the server-side visibility
+ * predicate (`canSeeActivity`) can decide whether to include the row. The
+ * use case projects this down to `LearningActivityListItem` before
+ * returning to the API boundary — the roster never crosses the wire.
+ */
+export type LearningActivityListRow = Omit<LearningActivityListItem, "audienceKind"> & {
+  readonly audience: ActivityAudience;
 };

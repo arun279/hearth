@@ -28,7 +28,7 @@ type Props = {
  */
 export function ActivityRow({ activity, onOpen, onEdit }: Props) {
   const audienceLabel =
-    activity.audience.kind === "everyone_enrolled" ? "Everyone enrolled" : "Selected participants";
+    activity.audienceKind === "everyone_enrolled" ? "Everyone enrolled" : "Selected participants";
   const prereqLabel = prereqPhrase(activity.prereqCount);
   const partsLabel = partsPhrase(activity.partCount);
   const windowLabel = windowPhrase(activity.window);
@@ -53,7 +53,7 @@ export function ActivityRow({ activity, onOpen, onEdit }: Props) {
           <h3 className="truncate font-medium text-[14px] text-[var(--color-ink)]">
             {activity.title}
           </h3>
-          {activity.audience.kind === "subset" ? <Badge tone="warn">narrowed</Badge> : null}
+          {activity.audienceKind === "subset" ? <Badge tone="warn">narrowed</Badge> : null}
         </div>
         {activity.description ? (
           <p className="truncate text-[12px] text-[var(--color-ink-2)]">{activity.description}</p>

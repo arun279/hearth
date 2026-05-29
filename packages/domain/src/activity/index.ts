@@ -61,5 +61,6 @@ export type {
   LearningActivity,
   LearningActivityDraft,
   LearningActivityListItem,
+  LearningActivityListRow,
   PostClosePolicy,
 } from "./types.ts";
