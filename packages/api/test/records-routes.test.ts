@@ -297,6 +297,85 @@ describe("records routes", () => {
     });
   });
 
+  describe.each([
+    {
+      label: "GET /my-record",
+      method: "GET" as const,
+      path: `/api/v1/activities/${aid}/my-record`,
+      body: undefined,
+    },
+    {
+      label: "POST /my-record/parts/:partId",
+      method: "POST" as const,
+      path: `/api/v1/activities/${aid}/my-record/parts/p_reflect`,
+      body: JSON.stringify({ state: { kind: "write_reflection", completed: true, text: "x" } }),
+    },
+    {
+      label: "POST /my-record/parts/:partId/quiz",
+      method: "POST" as const,
+      path: `/api/v1/activities/${aid}/my-record/parts/p_quiz/quiz`,
+      body: JSON.stringify({ answers: [] }),
+    },
+    {
+      label: "POST /my-record/complete",
+      method: "POST" as const,
+      path: `/api/v1/activities/${aid}/my-record/complete`,
+      body: undefined,
+    },
+  ])("$label surfaces a thrown use-case error as a problem response", ({ method, path, body }) => {
+    it("returns 404 when the activity isn't viewable", async () => {
+      const app = harness({
+        userId: actorId,
+        ports: {
+          ...viewerPorts({}),
+          activities: { byId: vi.fn(async () => null) } as unknown as LearningActivityRepository,
+          records: recordsPort({}),
+        },
+      });
+      const init: RequestInit = { method };
+      if (body !== undefined) {
+        init.headers = { "Content-Type": "application/json" };
+        init.body = body;
+      }
+      const res = await app.request(path, init);
+      expect(res.status).toBe(404);
+    });
+  });
+
+  describe.each([
+    {
+      label: "POST /my-record/parts/:partId",
+      method: "POST" as const,
+      path: `/api/v1/activities/${aid}/my-record/parts/p_reflect`,
+      body: JSON.stringify({ state: { kind: "not_a_part_kind" } }),
+    },
+    {
+      label: "POST /my-record/parts/:partId/quiz",
+      method: "POST" as const,
+      path: `/api/v1/activities/${aid}/my-record/parts/p_quiz/quiz`,
+      body: JSON.stringify({ answers: "not-an-array" }),
+    },
+    {
+      label: "PATCH /records/:recordId/visibility-override",
+      method: "PATCH" as const,
+      path: `/api/v1/records/${rid}/visibility-override`,
+      body: JSON.stringify({ override: "not_a_preference" }),
+    },
+  ])("$label rejects a malformed body", ({ method, path, body }) => {
+    it("returns a 400 problem from the validator", async () => {
+      const app = harness({
+        userId: actorId,
+        ports: { ...viewerPorts({}), records: recordsPort({}) },
+      });
+      const res = await app.request(path, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body,
+      });
+      expect(res.status).toBe(400);
+    });
+  });
+
   it("GET /my-record returns the resume view", async () => {
     const app = harness({
       userId: actorId,
