@@ -8,12 +8,17 @@ import {
 import { Button, Callout } from "@hearth/ui";
 import { useEffect, useMemo } from "react";
 import { toast } from "sonner";
-import { useActivityRecord, useSavePartProgress } from "../../../hooks/use-activity-record.ts";
+import {
+  useActivityRecord,
+  useMarkActivityComplete,
+  useSavePartProgress,
+} from "../../../hooks/use-activity-record.ts";
 import { formatRelative, formatShortDate } from "../../../lib/format.ts";
 import { asUserMessage, errorStatus } from "../../../lib/problem.ts";
 import { ActivityHeader } from "./activity-header.tsx";
 import { FlowSidebar } from "./flow-sidebar.tsx";
 import { PartFooter } from "./part-footer.tsx";
+import { PartHistoryDisclosure } from "./part-history.tsx";
 import { PartTabBar } from "./part-tab-bar.tsx";
 import { type PartParticipation, PartViewport } from "./part-viewport.tsx";
 
@@ -109,6 +114,22 @@ function PlayerBody({
     [orderedPartIds, activity.flow, completedPartIds],
   );
   const saveCompletion = useSavePartProgress(activity.id);
+  const markActivityComplete = useMarkActivityComplete(activity.id);
+
+  const completedCount = completedPartIds.size;
+  const isActivityComplete = record?.completionState === "completed";
+  // The explicit activity-complete action is only meaningful for `manual_mark`
+  // — `all_parts_complete` rolls up server-side when the last Part lands.
+  const canMarkActivityComplete =
+    activity.completionRule.kind === "manual_mark" &&
+    accessState === "open" &&
+    record !== null &&
+    !isActivityComplete &&
+    !recordQuery.isError;
+  const onMarkActivityComplete = () =>
+    markActivityComplete.mutate(undefined, {
+      onError: () => toast.error("Couldn't mark this activity complete."),
+    });
 
   const requestedExists = requestedPartId !== null && orderedPartIds.includes(requestedPartId);
   const activePartId = requestedExists ? (requestedPartId as string) : (orderedPartIds[0] ?? "");
@@ -146,6 +167,11 @@ function PlayerBody({
           accessState={accessState}
           currentPartIndex={0}
           totalParts={orderedPartIds.length}
+          completedCount={completedCount}
+          isComplete={isActivityComplete}
+          canMarkComplete={canMarkActivityComplete}
+          onMarkComplete={onMarkActivityComplete}
+          markCompletePending={markActivityComplete.isPending}
         />
         <div className="px-4 py-5 md:px-8 md:py-7">
           <AccessStateNotice tone="neutral" title="This activity isn't open yet" body={body} />
@@ -181,6 +207,7 @@ function PlayerBody({
       { partId: activePartId, state },
       { onError: () => toast.error("Couldn't update completion.") },
     );
+  const activePartHasHistory = (recordQuery.data?.partsWithHistory ?? []).includes(activePartId);
 
   return (
     <FullViewport>
@@ -189,6 +216,11 @@ function PlayerBody({
         accessState={accessState}
         currentPartIndex={Math.max(activeIndex, 0)}
         totalParts={orderedPartIds.length}
+        completedCount={completedCount}
+        isComplete={isActivityComplete}
+        canMarkComplete={canMarkActivityComplete}
+        onMarkComplete={onMarkActivityComplete}
+        markCompletePending={markActivityComplete.isPending}
       />
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         <FlowSidebar
@@ -213,7 +245,7 @@ function PlayerBody({
               <AccessStateNotice tone="warn" title="This activity is closed" body={lockedBody} />
             ) : null}
             {activePart ? (
-              <div key={activePart.id}>
+              <div key={activePart.id} className="space-y-5">
                 <PartViewport
                   activityId={activity.id}
                   part={activePart}
@@ -222,6 +254,9 @@ function PlayerBody({
                   onMarkComplete={onMarkComplete}
                   markCompletePending={saveCompletion.isPending}
                 />
+                {activePartHasHistory ? (
+                  <PartHistoryDisclosure recordId={record?.id ?? null} partId={activePartId} />
+                ) : null}
               </div>
             ) : (
               <p className="text-[13px] text-[var(--color-ink-2)]">

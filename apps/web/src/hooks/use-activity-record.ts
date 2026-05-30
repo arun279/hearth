@@ -16,7 +16,7 @@ import { assertOk } from "../lib/problem.ts";
  * completion dots, the word-count meter, quiz feedback, and the "earlier
  * attempts" affordance — all from a single round-trip.
  */
-export type MyRecordView = {
+type MyRecordView = {
   readonly record: ActivityRecord;
   readonly partProgress: readonly PartProgress[];
   readonly partsWithHistory: readonly string[];
@@ -26,7 +26,7 @@ export type MyRecordView = {
 type SavePartResult = { readonly partProgress: PartProgress; readonly record: ActivityRecord };
 type QuizResult = { readonly partProgress: PartProgress };
 
-export const myRecordKey = (activityId: string) => ["activity-record", activityId] as const;
+const myRecordKey = (activityId: string) => ["activity-record", activityId] as const;
 
 export function useActivityRecord(activityId: string, enabled = true) {
   return useQuery<MyRecordView>({
