@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { check, index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import { users } from "../auth-tables.ts";
 import { learningActivities } from "./activities.ts";
+import { libraryRevisions } from "./library.ts";
 
 export const activityRecords = sqliteTable(
   "activity_records",
@@ -55,9 +56,20 @@ export const partHistory = sqliteTable(
       .references(() => activityRecords.id, { onDelete: "cascade" }),
     partId: text("part_id").notNull(),
     stateJson: text("state_json").notNull(),
+    // Why the prior Part Progress was preserved here. `revision_bump` carries
+    // the revision it was reopened against in `revisionIdAtTime`; `retry` and
+    // `facilitator_reset` leave it null.
+    reason: text("reason").notNull(),
+    revisionIdAtTime: text("revision_id_at_time").references(() => libraryRevisions.id),
     recordedAt: integer("recorded_at", { mode: "timestamp_ms" }).notNull(),
   },
-  (t) => [index("part_history_record_part_idx").on(t.activityRecordId, t.partId)],
+  (t) => [
+    index("part_history_record_part_idx").on(t.activityRecordId, t.partId),
+    check(
+      "part_history_reason",
+      sql`${t.reason} IN ('retry', 'revision_bump', 'facilitator_reset')`,
+    ),
+  ],
 );
 
 // Surrogate id + UNIQUE on the logical 4-column composite. Composite

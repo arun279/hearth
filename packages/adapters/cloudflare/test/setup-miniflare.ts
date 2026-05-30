@@ -41,6 +41,14 @@ beforeEach(async () => {
     // twice (activityId + the linked activity id) so they must precede
     // the parent table. library_revisions / library_stewards depend on
     // library_items.
+    //
+    // Activity Records sit deepest: part_history references both
+    // activity_records (CASCADE) and library_revisions (RESTRICT), so it
+    // must clear before library_revisions; activity_records references
+    // learning_activities and users, so it must clear before both.
+    env.DB.prepare("DELETE FROM part_history"),
+    env.DB.prepare("DELETE FROM part_progress"),
+    env.DB.prepare("DELETE FROM activity_records"),
     env.DB.prepare("DELETE FROM activity_prerequisites"),
     env.DB.prepare("DELETE FROM activity_suggested_sequences"),
     env.DB.prepare("DELETE FROM activity_library_refs"),
