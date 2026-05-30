@@ -31,6 +31,7 @@ const INVARIANT_AND_VALIDATION_CODES = [
   "library_item_missing",
   "library_item_no_revision",
   "library_item_wrong_group",
+  "quiz_answer_key_regex_unsafe",
   // Profile / group / track validation
   "already_exists",
   "user_not_found",
@@ -161,6 +162,7 @@ export async function assertOk(res: Response): Promise<Response> {
  */
 const policyDenialMessages: Record<KnownProblemCode, string> = {
   // Policy denials
+  activity_window_closed: "This activity isn't open for changes right now.",
   already_revoked: "That operator role was already revoked.",
   cannot_revoke_self: "You can't revoke your own operator role. Ask another operator.",
   email_not_approved_yet:
@@ -182,9 +184,12 @@ const policyDenialMessages: Record<KnownProblemCode, string> = {
   not_instance_operator: "Only an Instance Operator can do that.",
   not_library_steward:
     "Only the uploader, a Steward, a Group Admin, or an Instance Operator can do that.",
+  not_record_owner: "Only the participant can change their own work.",
   not_self: "You can only edit your own profile in this group.",
   not_track_authority: "Only a Track Facilitator, Group Admin, or Instance Operator can do that.",
   not_track_enrollee: "You aren't enrolled on this track.",
+  parts_incomplete: "Finish every Part before marking this activity complete.",
+  prereq_not_met: "Complete the required earlier Part first.",
   track_archived: "This track is archived. Unarchive it first to make changes.",
   track_paused: "This track is paused. Resume it first to make changes.",
   would_orphan_admin:
@@ -224,6 +229,8 @@ const policyDenialMessages: Record<KnownProblemCode, string> = {
   library_item_missing: "A referenced library item is missing. Pick another item.",
   library_item_no_revision: "That library item has no published revision yet.",
   library_item_wrong_group: "A referenced library item belongs to a different group.",
+  quiz_answer_key_regex_unsafe:
+    "A quiz answer-key pattern could be slow to evaluate. Simplify it — avoid nested or repeated groups.",
   // Profile / group / track validation
   already_exists: "That email is already on the Approved Email list.",
   user_not_found:

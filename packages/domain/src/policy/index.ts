@@ -24,7 +24,10 @@ export {
 export { canLeaveGroup } from "./can-leave-group.ts";
 export { canLeaveTrack } from "./can-leave-track.ts";
 export { canManageGroupMembership } from "./can-manage-group-membership.ts";
+export { canMarkActivityComplete } from "./can-mark-activity-complete.ts";
+export { canMarkPartComplete } from "./can-mark-part-complete.ts";
 export { canNarrowAudience } from "./can-narrow-audience.ts";
+export { canOverrideActivityRecordVisibility } from "./can-override-activity-record-visibility.ts";
 export { canPauseTrack } from "./can-pause-track.ts";
 export { canPinLibraryRevision } from "./can-pin-library-revision.ts";
 export { canRemoveApprovedEmail } from "./can-remove-approved-email.ts";
@@ -32,6 +35,7 @@ export { canRemoveGroupMember } from "./can-remove-group-member.ts";
 export { canRemoveTrackEnrollment } from "./can-remove-track-enrollment.ts";
 export { canRemoveTrackFacilitator } from "./can-remove-track-facilitator.ts";
 export { canRenameInstance } from "./can-rename-instance.ts";
+export { canResetParticipantProgress } from "./can-reset-participant-progress.ts";
 export { canResumeTrack } from "./can-resume-track.ts";
 export { canRetireLibraryItem } from "./can-retire-library-item.ts";
 export { canRevokeGroupInvitation } from "./can-revoke-group-invitation.ts";
@@ -44,6 +48,11 @@ export { canUpdateGroupMetadata } from "./can-update-group-metadata.ts";
 export { canUpdateLibraryMetadata } from "./can-update-library-metadata.ts";
 export { canUpdateOwnGroupProfile } from "./can-update-own-group-profile.ts";
 export { canUploadLibraryItem } from "./can-upload-library-item.ts";
+export {
+  type ActivityRecordScope,
+  canViewActivityRecord,
+  type ViewActivityRecordResult,
+} from "./can-view-activity-record.ts";
 export { canViewGroup } from "./can-view-group.ts";
 export {
   isActiveOperator,
