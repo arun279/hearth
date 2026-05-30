@@ -75,3 +75,20 @@ export const MAX_QUIZ_OPTION_TEXT = 500;
 
 /** Quiz questions per quiz — a Part with more belongs in two activities. */
 export const MAX_QUIZ_QUESTIONS = 50;
+
+/**
+ * Stored reflection-response cap. Must exceed the largest authorable
+ * `minWords` (10,000 words ≈ 60–70 K chars) with headroom so the response
+ * cap can never contradict a facilitator's word-count requirement; 100 K
+ * chars (≈16 K words) clears that and still rejects a runaway paste.
+ */
+export const MAX_REFLECTION_TEXT_LENGTH = 100_000;
+
+/**
+ * Short-answer quiz response cap. Doubles as a ReDoS input-length bound:
+ * regex backtracking blows up with input length, so a tight cap flattens
+ * the residual risk from any user-authored answer-key regex that slips
+ * past the static safety screen. 256 chars (~40 words) is roomy for a
+ * genuine short answer; longer-form writing belongs in a reflection Part.
+ */
+export const MAX_SHORT_ANSWER_TEXT_LENGTH = 256;

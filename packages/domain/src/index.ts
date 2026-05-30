@@ -8,6 +8,7 @@ export * from "./instance.ts";
 export * from "./library/index.ts";
 export * from "./me-context.ts";
 export * from "./parts/index.ts";
+export * from "./record/index.ts";
 export * from "./track.ts";
 export * from "./track-invariants.ts";
 export * from "./track-structure.ts";

@@ -1,3 +1,11 @@
+export {
+  VISIBILITY_PREFERENCES,
+  type VisibilityOverrideEnvelope,
+  type VisibilityPreference,
+  visibilityOverrideEnvelopeSchema,
+  visibilityPreferenceSchema,
+} from "./preference.ts";
+
 export type VisibilityAudience = "just_me" | "facilitators_only" | "track" | "group";
 
 export type VisibilityScope = {

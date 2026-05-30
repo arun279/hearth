@@ -1,5 +1,6 @@
 import type { LibraryDisplayKind } from "../library/types.ts";
 import type { ActivityPart, ActivityPartKind } from "../parts/index.ts";
+import { isAnswerKeyRegexSafe } from "../parts/quiz-regex-safety.ts";
 import type { ActivityFlow, ActivityFlowEdge, ActivityWindow, PostClosePolicy } from "./types.ts";
 
 /**
@@ -258,6 +259,38 @@ export function assertPartLibraryRefMimeMatch(
         "part_library_mime_mismatch",
         `Part ${p.id} (${p.kind}) cannot render a ${itemKind} Library Item.`,
       );
+    }
+  }
+  return ok();
+}
+
+/**
+ * Reject quiz short-answer keys whose regex could backtrack catastrophically
+ * (ReDoS). The key is matched server-side at grading time against
+ * participant input, so a pathological pattern is a denial-of-service vector;
+ * `isAnswerKeyRegexSafe` over-approximates the dangerous shapes and the
+ * composer runs the same check client-side for inline feedback. The detail
+ * locates the offending question so the form can highlight the field.
+ */
+export type QuizRegexUnsafeDetail = { readonly partId: string; readonly questionId: string };
+
+export function assertQuizAnswerKeysSafe(
+  parts: readonly ActivityPart[],
+): InvariantResult<QuizRegexUnsafeDetail> {
+  for (const part of parts) {
+    if (part.kind !== "quiz") continue;
+    for (const question of part.questions) {
+      if (
+        question.shape.kind === "short_answer" &&
+        question.shape.answerKeyRegex !== undefined &&
+        !isAnswerKeyRegexSafe(question.shape.answerKeyRegex)
+      ) {
+        return fail<QuizRegexUnsafeDetail>(
+          "quiz_answer_key_regex_unsafe",
+          "A quiz answer-key pattern could be slow to evaluate. Simplify it — avoid nested or repeated groups such as (a+)+ or (a|aa)+.",
+          { partId: part.id, questionId: question.id },
+        );
+      }
     }
   }
   return ok();

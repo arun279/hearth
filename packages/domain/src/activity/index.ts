@@ -10,6 +10,8 @@ export {
   MAX_QUIZ_OPTION_TEXT,
   MAX_QUIZ_OPTIONS_PER_QUESTION,
   MAX_QUIZ_QUESTIONS,
+  MAX_REFLECTION_TEXT_LENGTH,
+  MAX_SHORT_ANSWER_TEXT_LENGTH,
   MAX_TITLE_LENGTH,
   MAX_URL_LENGTH,
 } from "./_limits.ts";
@@ -39,10 +41,12 @@ export {
   assertNoDuplicateLibraryRefs,
   assertNoDuplicatePartIds,
   assertPartLibraryRefMimeMatch,
+  assertQuizAnswerKeysSafe,
   assertWindowConsistent,
   type CycleDetail,
   type InvariantOk,
   type InvariantResult,
+  type QuizRegexUnsafeDetail,
 } from "./invariants.ts";
 export type {
   ActivityPlayerProjection,
