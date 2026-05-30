@@ -5,11 +5,15 @@ import {
   type ActivityPartKind,
   type ActivityWindow,
   type CompletionRule,
+  isAnswerKeyRegexSafe,
   type LearningActivity,
   type LibraryDisplayKind,
   MAX_LONG_TEXT_LENGTH,
+  MAX_QUIZ_OPTIONS_PER_QUESTION,
+  MAX_QUIZ_QUESTIONS,
   MAX_TITLE_LENGTH,
   type PostClosePolicy,
+  type QuizQuestion,
   type UserId,
 } from "@hearth/domain";
 import {
@@ -87,18 +91,14 @@ type Draft = {
 };
 
 /**
- * TODO(m10): re-add `quiz` (Player surface in M10) and
- * `attend_session` (Sessions surface in M13) palette entries when
- * their authoring surfaces land. Part kinds the composer offers in
- * M8. The full domain catalog (in `ACTIVITY_PART_KINDS`) lists 7
- * kinds, but `quiz` and `attend_session` cannot land in production
- * until those player surfaces ship: a quiz needs the multi-question
- * authoring UI + Player surface, and `attend_session` needs the
- * Sessions surface to pick a `studySessionId` from. Until then we
- * hide them from the palette so no facilitator can author an
- * unsavable Part. The discriminated-union schema keeps the other
- * variants intact — when the player surfaces land we re-add the
- * palette entries here.
+ * TODO(m10): re-add the `attend_session` palette entry once the
+ * Sessions surface ships. Part kinds the composer offers. The full
+ * domain catalog (in `ACTIVITY_PART_KINDS`) lists 7 kinds, but
+ * `attend_session` cannot land in production until the Sessions
+ * surface exists to pick a `studySessionId` from. Until then we hide
+ * it from the palette so no facilitator can author an unsavable Part.
+ * The discriminated-union schema keeps the variant intact — when the
+ * Sessions surface lands we re-add the palette entry here.
  */
 const AUTHORABLE_PART_KINDS = [
   "read_library_item",
@@ -106,17 +106,17 @@ const AUTHORABLE_PART_KINDS = [
   "watch_video",
   "write_reflection",
   "embed",
+  "quiz",
 ] as const satisfies readonly ActivityPartKind[];
 
 type AuthorablePartKind = (typeof AUTHORABLE_PART_KINDS)[number];
 
 /**
  * TODO(m10): restructure as five-tab dialog (`Parts | Flow | Audience
- * | Window | Completion`) when M10's player surface re-introduces
- * `quiz` + `attend_session` palette entries — the long-scroll shape
- * works today with the Modal primitive's sticky footer, but the
- * per-section density that justifies tabs arrives with M10's content
- * additions.
+ * | Window | Completion`) once the `attend_session` palette entry also
+ * lands — the long-scroll shape works today with the Modal primitive's
+ * sticky footer, but the per-section density that justifies tabs grows
+ * with each added Part kind.
  *
  * TODO(m10): the Draft state carries `hardEdges` (the intra-Part
  * `flow.prereqs[]` projection) and the serializer round-trips them,
@@ -718,12 +718,7 @@ function PartBody({
         </p>
       );
     case "quiz":
-      return (
-        <p className="text-[11px] text-[var(--color-ink-3)]">
-          A placeholder question is seeded so the activity saves. Multi-question authoring ships
-          alongside the Player surface.
-        </p>
-      );
+      return <QuizPartBody part={part} onUpdate={onUpdate} disabled={disabled} />;
   }
 }
 
@@ -767,6 +762,291 @@ function EmbedPartBody({
         onChange={(e) => onUpdate({ url: e.target.value } as Partial<ActivityPart>)}
         disabled={disabled}
       />
+    </div>
+  );
+}
+
+const emptyMultipleChoice = (): QuizQuestion["shape"] => ({
+  kind: "multiple_choice",
+  options: ["", ""],
+});
+const emptyShortAnswer = (): QuizQuestion["shape"] => ({ kind: "short_answer" });
+
+/**
+ * Quiz Part body. Edits `part.questions` in place — each question is a
+ * card with a prompt, a type toggle (multiple choice / short answer),
+ * the kind-specific answer controls, and an optional post-answer
+ * explanation. The composer mints question ids client-side so reorders
+ * within a session keep `part_progress` references stable, mirroring
+ * how Part ids are minted.
+ */
+function QuizPartBody({
+  part,
+  onUpdate,
+  disabled,
+}: {
+  readonly part: Extract<ActivityPart, { kind: "quiz" }>;
+  readonly onUpdate: (patch: Partial<ActivityPart>) => void;
+  readonly disabled: boolean;
+}) {
+  const { questions } = part;
+  const commit = (next: QuizQuestion[]) => onUpdate({ questions: next } as Partial<ActivityPart>);
+  const updateAt = (idx: number, q: QuizQuestion) =>
+    commit(questions.map((existing, i) => (i === idx ? q : existing)));
+
+  return (
+    <div className="space-y-2">
+      {questions.map((question, i) => (
+        <QuizQuestionCard
+          key={question.id}
+          question={question}
+          index={i}
+          canRemove={questions.length > 1}
+          onChange={(q) => updateAt(i, q)}
+          onRemove={() => commit(questions.filter((_, j) => j !== i))}
+          disabled={disabled}
+        />
+      ))}
+      <Button
+        type="button"
+        size="sm"
+        variant="secondary"
+        disabled={disabled || questions.length >= MAX_QUIZ_QUESTIONS}
+        onClick={() => commit([...questions, blankQuestion()])}
+      >
+        <Plus size={11} strokeWidth={1.75} aria-hidden="true" />
+        Add question
+      </Button>
+    </div>
+  );
+}
+
+function QuizQuestionCard({
+  question,
+  index,
+  canRemove,
+  onChange,
+  onRemove,
+  disabled,
+}: {
+  readonly question: QuizQuestion;
+  readonly index: number;
+  readonly canRemove: boolean;
+  readonly onChange: (next: QuizQuestion) => void;
+  readonly onRemove: () => void;
+  readonly disabled: boolean;
+}) {
+  // Switching type keeps the prompt + explanation and resets only the
+  // shape to its kind's empty form, so a mistaken toggle doesn't wipe
+  // the question text the author already wrote.
+  const setKind = (kind: QuizQuestion["shape"]["kind"]) => {
+    if (kind === question.shape.kind) return;
+    onChange({
+      ...question,
+      shape: kind === "multiple_choice" ? emptyMultipleChoice() : emptyShortAnswer(),
+    });
+  };
+
+  return (
+    <div className="space-y-2 rounded-[var(--radius-sm)] border border-[var(--color-rule)] bg-[var(--color-bg)] p-3">
+      <div className="flex items-start gap-2">
+        <span className="mt-2 w-4 shrink-0 font-mono text-[11px] text-[var(--color-ink-3)]">
+          {index + 1}
+        </span>
+        <div className="min-w-0 flex-1">
+          <Textarea
+            rows={2}
+            aria-label={`Question ${index + 1} prompt`}
+            placeholder="What does “buenos días” mean?"
+            value={question.prompt}
+            onChange={(e) => onChange({ ...question, prompt: e.target.value })}
+            disabled={disabled}
+          />
+        </div>
+        <IconBtn
+          label={`Remove question ${index + 1}`}
+          onClick={onRemove}
+          disabled={disabled || !canRemove}
+          icon={<X size={11} strokeWidth={1.75} aria-hidden="true" />}
+        />
+      </div>
+
+      <div className="flex items-center gap-3 pl-6 text-[11px] text-[var(--color-ink-2)]">
+        {(
+          [
+            ["multiple_choice", "Multiple choice"],
+            ["short_answer", "Short answer"],
+          ] as const
+        ).map(([kind, label]) => (
+          <label key={kind} className="inline-flex items-center gap-1.5">
+            <input
+              type="radio"
+              name={`quiz-qtype-${question.id}`}
+              value={kind}
+              checked={question.shape.kind === kind}
+              disabled={disabled}
+              onChange={() => setKind(kind)}
+            />
+            <span>{label}</span>
+          </label>
+        ))}
+      </div>
+
+      <div className="pl-6">
+        {question.shape.kind === "multiple_choice" ? (
+          <MultipleChoiceControls
+            questionId={question.id}
+            shape={question.shape}
+            onChange={(shape) => onChange({ ...question, shape })}
+            disabled={disabled}
+          />
+        ) : (
+          <ShortAnswerControls
+            shape={question.shape}
+            onChange={(shape) => onChange({ ...question, shape })}
+            disabled={disabled}
+          />
+        )}
+      </div>
+
+      <div className="pl-6">
+        <Textarea
+          rows={2}
+          aria-label={`Question ${index + 1} explanation`}
+          placeholder="Shown after the learner answers (optional)"
+          value={question.explainAfterAnswer ?? ""}
+          onChange={(e) => {
+            const text = e.target.value;
+            onChange({
+              ...question,
+              explainAfterAnswer: text.trim().length > 0 ? text : undefined,
+            });
+          }}
+          disabled={disabled}
+        />
+      </div>
+    </div>
+  );
+}
+
+type MultipleChoiceShape = Extract<QuizQuestion["shape"], { kind: "multiple_choice" }>;
+
+function MultipleChoiceControls({
+  questionId,
+  shape,
+  onChange,
+  disabled,
+}: {
+  readonly questionId: string;
+  readonly shape: MultipleChoiceShape;
+  readonly onChange: (next: MultipleChoiceShape) => void;
+  readonly disabled: boolean;
+}) {
+  const { options, answerKeyIndex } = shape;
+
+  const setOption = (idx: number, value: string) =>
+    onChange({ ...shape, options: options.map((o, i) => (i === idx ? value : o)) });
+
+  const removeOption = (idx: number) => {
+    const nextOptions = options.filter((_, i) => i !== idx);
+    // Keep the answer key pointing at the same option after the splice:
+    // drop it if it marked the removed row, shift it left if it sat
+    // after the removed row, leave it otherwise.
+    let nextKey = answerKeyIndex;
+    if (answerKeyIndex !== undefined) {
+      if (answerKeyIndex === idx) nextKey = undefined;
+      else if (answerKeyIndex > idx) nextKey = answerKeyIndex - 1;
+    }
+    onChange({ ...shape, options: nextOptions, answerKeyIndex: nextKey });
+  };
+
+  return (
+    <div className="space-y-1.5">
+      {options.map((option, i) => (
+        // Options are positional — the answer key is an index, not an id —
+        // so the row key is the array index. The list only ever appends or
+        // removes, never reorders, so index identity stays stable enough.
+        <div key={`${questionId}-opt-${i}`} className="flex items-center gap-2">
+          <label className="inline-flex items-center" title="Mark as the correct answer">
+            <input
+              type="radio"
+              name={`quiz-answer-${questionId}`}
+              aria-label={`Mark option ${i + 1} as correct`}
+              checked={answerKeyIndex === i}
+              disabled={disabled}
+              onChange={() => onChange({ ...shape, answerKeyIndex: i })}
+            />
+          </label>
+          <Input
+            aria-label={`Option ${i + 1}`}
+            placeholder={`Option ${i + 1}`}
+            value={option}
+            onChange={(e) => setOption(i, e.target.value)}
+            disabled={disabled}
+          />
+          <IconBtn
+            label={`Remove option ${i + 1}`}
+            onClick={() => removeOption(i)}
+            disabled={disabled || options.length <= 2}
+            icon={<X size={11} strokeWidth={1.75} aria-hidden="true" />}
+          />
+        </div>
+      ))}
+      <div className="flex items-center gap-3">
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          disabled={disabled || options.length >= MAX_QUIZ_OPTIONS_PER_QUESTION}
+          onClick={() => onChange({ ...shape, options: [...options, ""] })}
+        >
+          <Plus size={11} strokeWidth={1.75} aria-hidden="true" />
+          Add option
+        </Button>
+        <span className="text-[11px] text-[var(--color-ink-3)]">
+          Select a radio to mark the correct answer. Leave unset to keep the question ungraded.
+        </span>
+      </div>
+    </div>
+  );
+}
+
+type ShortAnswerShape = Extract<QuizQuestion["shape"], { kind: "short_answer" }>;
+
+function ShortAnswerControls({
+  shape,
+  onChange,
+  disabled,
+}: {
+  readonly shape: ShortAnswerShape;
+  readonly onChange: (next: ShortAnswerShape) => void;
+  readonly disabled: boolean;
+}) {
+  const regex = shape.answerKeyRegex ?? "";
+  const unsafe = regex.trim().length > 0 && !isAnswerKeyRegexSafe(regex);
+
+  return (
+    <div className="space-y-1">
+      <Input
+        aria-label="Answer key pattern"
+        placeholder="Answer key pattern (optional), e.g. (hola|buenos días)"
+        value={regex}
+        onChange={(e) => {
+          const value = e.target.value;
+          onChange({
+            ...shape,
+            answerKeyRegex: value.length > 0 ? value : undefined,
+          });
+        }}
+        disabled={disabled}
+      />
+      {unsafe ? (
+        <p role="alert" className="text-[11px] text-[var(--color-danger)]">
+          This pattern could be slow to evaluate — avoid nested or repeated groups.
+        </p>
+      ) : (
+        <p className="text-[11px] text-[var(--color-ink-3)]">Matched case-insensitively.</p>
+      )}
     </div>
   );
 }
@@ -1233,6 +1513,15 @@ function AudienceFields({
  * URL-safe ids directly so reorders during a session don't churn ids.
  */
 const newPartId = (): string => `p_${crypto.randomUUID().replace(/-/g, "")}`;
+const newQuestionId = (): string => `q_${crypto.randomUUID().replace(/-/g, "")}`;
+
+function blankQuestion(): QuizQuestion {
+  return {
+    id: newQuestionId(),
+    prompt: "",
+    shape: { kind: "multiple_choice", options: ["", ""] },
+  };
+}
 
 function blankPart(kind: AuthorablePartKind): ActivityPart {
   const id = newPartId();
@@ -1247,6 +1536,8 @@ function blankPart(kind: AuthorablePartKind): ActivityPart {
       return { kind: "watch_video", id, libraryItemId: "" };
     case "embed":
       return { kind: "embed", id, provider: "youtube", url: "https://" };
+    case "quiz":
+      return { kind: "quiz", id, questions: [blankQuestion()] };
   }
 }
 
@@ -1380,8 +1671,10 @@ function serializeDraft(draft: Draft, trackId: string): ActivityComposerPayload 
  * authorable. Lets the composer refuse a save before the API round-trip
  * — server-side Zod still re-validates as defense in depth. Each branch
  * mirrors a `min(1)` constraint in the corresponding Part schema.
+ *
+ * Exported for the focused unit test; `submit` is the only runtime caller.
  */
-function findIncompletePart(parts: readonly ActivityPart[]): string | null {
+export function findIncompletePart(parts: readonly ActivityPart[]): string | null {
   for (let i = 0; i < parts.length; i++) {
     const p = parts[i];
     if (!p) continue;
@@ -1402,6 +1695,37 @@ function findIncompletePart(parts: readonly ActivityPart[]): string | null {
       } catch {
         return `${where}: embed URL must be a valid https URL.`;
       }
+    }
+    if (p.kind === "quiz") {
+      const quizError = findIncompleteQuizQuestion(p.questions, where);
+      if (quizError) return quizError;
+    }
+  }
+  return null;
+}
+
+/** Mirrors the `quizQuestionSchema` constraints the Player relies on. */
+function findIncompleteQuizQuestion(
+  questions: readonly QuizQuestion[],
+  where: string,
+): string | null {
+  for (let q = 0; q < questions.length; q++) {
+    const question = questions[q];
+    if (!question) continue;
+    const at = `${where} question ${q + 1}`;
+    if (question.prompt.trim().length === 0) {
+      return `${at}: write a question prompt.`;
+    }
+    if (question.shape.kind === "multiple_choice") {
+      if (question.shape.options.filter((o) => o.trim().length > 0).length < 2) {
+        return `${at}: give at least two non-empty options.`;
+      }
+    } else if (
+      question.shape.answerKeyRegex !== undefined &&
+      question.shape.answerKeyRegex.trim().length > 0 &&
+      !isAnswerKeyRegexSafe(question.shape.answerKeyRegex)
+    ) {
+      return `${at}: the answer pattern could be slow to evaluate — avoid nested or repeated groups.`;
     }
   }
   return null;

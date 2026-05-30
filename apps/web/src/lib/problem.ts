@@ -32,6 +32,8 @@ const INVARIANT_AND_VALIDATION_CODES = [
   "library_item_no_revision",
   "library_item_wrong_group",
   "quiz_answer_key_regex_unsafe",
+  "record_upsert_failed",
+  "part_progress_save_failed",
   // Profile / group / track validation
   "already_exists",
   "user_not_found",
@@ -231,6 +233,8 @@ const policyDenialMessages: Record<KnownProblemCode, string> = {
   library_item_wrong_group: "A referenced library item belongs to a different group.",
   quiz_answer_key_regex_unsafe:
     "A quiz answer-key pattern could be slow to evaluate. Simplify it — avoid nested or repeated groups.",
+  record_upsert_failed: "We couldn't open your record. Refresh and try again.",
+  part_progress_save_failed: "We couldn't confirm your saved work. Refresh and try again.",
   // Profile / group / track validation
   already_exists: "That email is already on the Approved Email list.",
   user_not_found:
