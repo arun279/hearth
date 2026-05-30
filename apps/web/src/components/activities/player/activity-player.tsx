@@ -1,14 +1,23 @@
-import type { ActivityPart, ActivityPlayerProjection } from "@hearth/domain";
+import {
+  type ActivityPart,
+  type ActivityPlayerProjection,
+  arePartPrerequisitesMet,
+  type PartProgress,
+  type PartProgressState,
+} from "@hearth/domain";
 import { Button, Callout } from "@hearth/ui";
 import { useEffect, useMemo } from "react";
 import { toast } from "sonner";
+import { useActivityRecord, useSavePartProgress } from "../../../hooks/use-activity-record.ts";
 import { formatRelative, formatShortDate } from "../../../lib/format.ts";
 import { asUserMessage, errorStatus } from "../../../lib/problem.ts";
 import { ActivityHeader } from "./activity-header.tsx";
 import { FlowSidebar } from "./flow-sidebar.tsx";
 import { PartFooter } from "./part-footer.tsx";
 import { PartTabBar } from "./part-tab-bar.tsx";
-import { PartViewport } from "./part-viewport.tsx";
+import { type PartParticipation, PartViewport } from "./part-viewport.tsx";
+
+const EMPTY_PROGRESS: readonly PartProgress[] = [];
 
 type QueryShape = {
   readonly isLoading: boolean;
@@ -75,6 +84,32 @@ function PlayerBody({
     [resolvedRefs],
   );
 
+  // The participant's own record: opening the activity starts-or-resumes it, so
+  // every viewer who can see the activity has one. Skipped pre-open (nothing to
+  // interact with yet). A failure here degrades the interactive Parts to a retry
+  // surface while the passive Parts and chrome still render.
+  const recordQuery = useActivityRecord(activity.id, accessState !== "pre_open");
+  const partProgress = recordQuery.data?.partProgress ?? EMPTY_PROGRESS;
+  const record = recordQuery.data?.record ?? null;
+  const completedPartIds = useMemo(
+    () => new Set<string>(partProgress.filter((p) => p.state.completed).map((p) => p.partId)),
+    [partProgress],
+  );
+  const progressByPart = useMemo(
+    () => new Map<string, PartProgressState>(partProgress.map((p) => [p.partId, p.state])),
+    [partProgress],
+  );
+  const lockedPartIds = useMemo(
+    () =>
+      new Set(
+        orderedPartIds.filter(
+          (id) => !arePartPrerequisitesMet(activity.flow, id, completedPartIds),
+        ),
+      ),
+    [orderedPartIds, activity.flow, completedPartIds],
+  );
+  const saveCompletion = useSavePartProgress(activity.id);
+
   const requestedExists = requestedPartId !== null && orderedPartIds.includes(requestedPartId);
   const activePartId = requestedExists ? (requestedPartId as string) : (orderedPartIds[0] ?? "");
 
@@ -125,6 +160,28 @@ function PlayerBody({
       ? `Closed ${formatRelative(new Date(closesAt))} · ${formatShortDate(new Date(closesAt))}. You can still view what's here, but completion is no longer being tracked.`
       : "The window has passed. You can still view what's here, but completion is no longer being tracked.";
 
+  const prereqsMet = !lockedPartIds.has(activePartId);
+  const participation: PartParticipation = {
+    progress: progressByPart.get(activePartId) ?? null,
+    recordId: record?.id ?? null,
+    visibility: record?.visibilityOverride ?? "default",
+    canEdit: accessState === "open" && prereqsMet && !recordQuery.isLoading && !recordQuery.isError,
+    lockReason:
+      accessState === "locked"
+        ? "This activity is closed — completion is no longer tracked."
+        : prereqsMet
+          ? null
+          : "Complete the earlier required parts first.",
+    isLoading: recordQuery.isLoading,
+    isError: recordQuery.isError,
+    onRetry: () => void recordQuery.refetch(),
+  };
+  const onMarkComplete = (state: PartProgressState) =>
+    saveCompletion.mutate(
+      { partId: activePartId, state },
+      { onError: () => toast.error("Couldn't update completion.") },
+    );
+
   return (
     <FullViewport>
       <ActivityHeader
@@ -138,6 +195,8 @@ function PlayerBody({
           parts={activity.parts}
           orderedPartIds={orderedPartIds}
           activePartId={activePartId}
+          completedPartIds={completedPartIds}
+          lockedPartIds={lockedPartIds}
           onSelectPart={onChangeActivePartId}
         />
         <div className="flex min-w-0 flex-1 flex-col">
@@ -145,6 +204,8 @@ function PlayerBody({
             parts={activity.parts}
             orderedPartIds={orderedPartIds}
             activePartId={activePartId}
+            completedPartIds={completedPartIds}
+            lockedPartIds={lockedPartIds}
             onSelectPart={onChangeActivePartId}
           />
           <div className="flex-1 px-4 py-5 md:px-8 md:py-7">
@@ -157,6 +218,9 @@ function PlayerBody({
                   activityId={activity.id}
                   part={activePart}
                   resolvedRef={refByPartId.get(activePart.id) ?? null}
+                  participation={participation}
+                  onMarkComplete={onMarkComplete}
+                  markCompletePending={saveCompletion.isPending}
                 />
               </div>
             ) : (

@@ -34,6 +34,10 @@ const INVARIANT_AND_VALIDATION_CODES = [
   "quiz_answer_key_regex_unsafe",
   "record_upsert_failed",
   "part_progress_save_failed",
+  "record_not_found",
+  "part_not_found",
+  "part_kind_mismatch",
+  "quiz_question_unknown",
   // Profile / group / track validation
   "already_exists",
   "user_not_found",
@@ -235,6 +239,11 @@ const policyDenialMessages: Record<KnownProblemCode, string> = {
     "A quiz answer-key pattern could be slow to evaluate. Simplify it — avoid nested or repeated groups.",
   record_upsert_failed: "We couldn't open your record. Refresh and try again.",
   part_progress_save_failed: "We couldn't confirm your saved work. Refresh and try again.",
+  record_not_found: "We couldn't find your record for this activity. Refresh and try again.",
+  part_not_found: "That part isn't on this activity anymore. Refresh and try again.",
+  part_kind_mismatch: "That part isn't a quiz. Refresh and try again.",
+  quiz_question_unknown:
+    "An answer referenced a question that isn't in this quiz. Refresh and try again.",
   // Profile / group / track validation
   already_exists: "That email is already on the Approved Email list.",
   user_not_found:

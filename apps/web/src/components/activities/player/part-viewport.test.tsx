@@ -1,15 +1,18 @@
 import type { ActivityPart, ResolvedLibraryRef } from "@hearth/domain";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { PartViewport } from "./part-viewport.tsx";
+import { type PartParticipation, PartViewport } from "./part-viewport.tsx";
 import { buildEmbedSrc } from "./parts/embed-part.tsx";
 
 /**
  * Lightweight render-to-string checks for the Part renderer switch.
  * SSR rendering is enough because the assertion is "the right
  * component mounted for this kind" — interactive behaviour
- * (timeupdate, page change, etc.) lives in its own unit tests + the
- * E2E suite, not here.
+ * (autosave, quiz submit, completion mutation) lives in its own unit
+ * tests + the E2E suite, not here. The two interactive kinds mount
+ * components that need a React Query client, so the SSR checks exercise
+ * the viewport's record-gating (loading / error) rather than the live
+ * components.
  *
  * `<ReadPart>` is wrapped in `<Suspense>` because it's `React.lazy`-
  * loaded; the SSR render emits the Suspense fallback ("Loading
@@ -17,8 +20,32 @@ import { buildEmbedSrc } from "./parts/embed-part.tsx";
  * read-library-item branch was taken.
  */
 
-function render(part: ActivityPart, resolvedRef: ResolvedLibraryRef | null = null): string {
-  return renderToString(<PartViewport activityId="a_test" part={part} resolvedRef={resolvedRef} />);
+const DEFAULT_PARTICIPATION: PartParticipation = {
+  progress: null,
+  recordId: null,
+  visibility: "default",
+  canEdit: true,
+  lockReason: null,
+  isLoading: false,
+  isError: false,
+  onRetry: () => undefined,
+};
+
+function render(
+  part: ActivityPart,
+  resolvedRef: ResolvedLibraryRef | null = null,
+  participation: PartParticipation = DEFAULT_PARTICIPATION,
+): string {
+  return renderToString(
+    <PartViewport
+      activityId="a_test"
+      part={part}
+      resolvedRef={resolvedRef}
+      participation={participation}
+      onMarkComplete={() => undefined}
+      markCompletePending={false}
+    />,
+  );
 }
 
 const RESOLVED_PDF: ResolvedLibraryRef = {
@@ -127,7 +154,18 @@ describe("PartViewport", () => {
     expect(html).toContain('sandbox="allow-scripts allow-same-origin allow-popups allow-forms"');
   });
 
-  it("write_reflection / quiz / attend_session: render the NotYetImplemented placeholder", () => {
+  it("passive parts carry an honor-system complete control below the body", () => {
+    const html = render({
+      kind: "embed",
+      id: "p_g",
+      provider: "generic",
+      url: "https://example.com/widget",
+    });
+    expect(html).toContain("Mark complete");
+  });
+
+  it("write_reflection / quiz: wait on the participant record before mounting (loading state)", () => {
+    const loading: PartParticipation = { ...DEFAULT_PARTICIPATION, isLoading: true };
     for (const part of [
       { kind: "write_reflection", id: "p1", prompt: "Why?" },
       {
@@ -141,11 +179,15 @@ describe("PartViewport", () => {
           },
         ],
       },
-      { kind: "attend_session", id: "p3", studySessionId: "ss_1" },
     ] satisfies ActivityPart[]) {
-      const html = render(part);
-      expect(html).toContain("coming in a later milestone");
+      const html = render(part, null, loading);
+      expect(html).toContain("Loading your progress");
     }
+  });
+
+  it("attend_session: renders the NotYetImplemented placeholder", () => {
+    const html = render({ kind: "attend_session", id: "p3", studySessionId: "ss_1" });
+    expect(html).toContain("coming in a later milestone");
   });
 
   it("read_library_item with no resolved ref: shows the missing-resource notice", () => {
