@@ -59,6 +59,15 @@ export function resetInstanceState(): void {
     // pointing at a non-e2e library item still releases the FK before
     // the parent learning_activities row is deleted on the next line.
     "DELETE FROM activity_library_refs WHERE activity_id IN (SELECT a.id FROM learning_activities a WHERE a.track_id IN (SELECT t.id FROM tracks t WHERE t.group_id IN (SELECT g.id FROM groups g WHERE NOT EXISTS (SELECT 1 FROM group_memberships m WHERE m.group_id = g.id))))",
+    // M10/M11 records: opening the player start-or-resumes an Activity Record,
+    // and part writes spawn part_progress / part_history. These FK into
+    // activity_records (part_history has no cascade), and activity_records FK
+    // into learning_activities + users — so clear part_history first, then
+    // activity_records (part_progress + evidence_signals cascade) before the
+    // learning_activities / users deletes below. Scoped to records whose
+    // participant is an e2e user OR whose activity is an e2e-orphan activity.
+    "DELETE FROM part_history WHERE activity_record_id IN (SELECT r.id FROM activity_records r WHERE r.participant_id LIKE 'u_e2e_%' OR r.activity_id IN (SELECT a.id FROM learning_activities a WHERE a.track_id IN (SELECT t.id FROM tracks t WHERE t.group_id IN (SELECT g.id FROM groups g WHERE NOT EXISTS (SELECT 1 FROM group_memberships m WHERE m.group_id = g.id)))))",
+    "DELETE FROM activity_records WHERE participant_id LIKE 'u_e2e_%' OR activity_id IN (SELECT a.id FROM learning_activities a WHERE a.track_id IN (SELECT t.id FROM tracks t WHERE t.group_id IN (SELECT g.id FROM groups g WHERE NOT EXISTS (SELECT 1 FROM group_memberships m WHERE m.group_id = g.id))))",
     "DELETE FROM learning_activities WHERE track_id IN (SELECT t.id FROM tracks t WHERE t.group_id IN (SELECT g.id FROM groups g WHERE NOT EXISTS (SELECT 1 FROM group_memberships m WHERE m.group_id = g.id)))",
     "DELETE FROM tracks WHERE group_id IN (SELECT g.id FROM groups g WHERE NOT EXISTS (SELECT 1 FROM group_memberships m WHERE m.group_id = g.id))",
     // M6 dependents: revisions / stewards / activity refs FK into

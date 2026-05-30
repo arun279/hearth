@@ -86,10 +86,12 @@ test.describe("M9 — Activity player (passive Parts)", () => {
     await page.reload();
     await expect(page.getByText(/Part 2 of 2/i)).toBeVisible();
 
-    // Mark Complete renders as a disabled placeholder — clicking it
-    // performs no action. The Previous / Next chevrons DO navigate.
-    const markComplete = page.getByRole("button", { name: /Mark complete/i });
-    await expect(markComplete).toHaveAttribute("aria-disabled", "true");
+    // The Embed Part carries a functional honor-system complete control;
+    // marking it complete flips the button to "Completed".
+    await page.getByRole("button", { name: /^Mark complete$/i }).click();
+    await expect(page.getByRole("button", { name: /^Completed$/i })).toBeVisible();
+
+    // The Previous / Next chevrons navigate the canonical Part order.
     await page.getByRole("button", { name: /^Previous/i }).click();
     await expect(page.getByText(/Part 1 of 2/i)).toBeVisible();
   });
