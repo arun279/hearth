@@ -48,6 +48,7 @@ export {
   type InvariantResult,
   type QuizRegexUnsafeDetail,
 } from "./invariants.ts";
+export { arePartPrerequisitesMet } from "./part-prerequisites.ts";
 export type {
   ActivityPlayerProjection,
   ActivityPlayerViewer,

@@ -63,3 +63,4 @@ yarn-error.log*
 # Claude Code runtime + local overrides
 .claude/settings.local.json
 .claude/*.lock
+.claude/worktrees/
