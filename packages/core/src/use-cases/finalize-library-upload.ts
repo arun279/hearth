@@ -9,7 +9,9 @@ import {
 import { canAddLibraryRevision } from "@hearth/domain/policy/can-add-library-revision";
 import { canUploadLibraryItem } from "@hearth/domain/policy/can-upload-library-item";
 import type {
+  ActivityRecordRepository,
   InstanceAccessPolicyRepository,
+  LearningActivityRepository,
   LibraryItemDetail,
   LibraryItemRepository,
   ObjectStorage,
@@ -18,6 +20,7 @@ import type {
   UserRepository,
 } from "@hearth/ports";
 import { loadViewableGroup } from "./_lib/load-viewable-group.ts";
+import { revisionBumpRestart } from "./revision-bump-restart.ts";
 
 export type FinalizeLibraryUploadInput = {
   readonly actor: UserId;
@@ -36,6 +39,8 @@ export type FinalizeLibraryUploadDeps = {
   readonly library: LibraryItemRepository;
   readonly storage: ObjectStorage;
   readonly uploads: UploadCoordinationRepository;
+  readonly activities: LearningActivityRepository;
+  readonly records: ActivityRecordRepository;
 };
 
 /**
@@ -217,6 +222,24 @@ export async function finalizeLibraryUpload(
       );
     }
     detail = reloaded;
+
+    // A new revision of an existing item restarts every participant's
+    // progress on the Parts that reference it through an unpinned ref —
+    // the prior work is preserved into Part History first. Pinned refs are
+    // filtered inside `revisionBumpRestart`, so it is safe to fan out to
+    // every referencing activity. The cascade shares the finalize instant.
+    const bumpClock = { now: () => input.now };
+    const referencing = await deps.activities.activitiesUsingLibraryItem(itemId);
+    for (const ref of referencing) {
+      await revisionBumpRestart(
+        {
+          activityId: ref.id,
+          bumpedLibraryItemId: itemId,
+          newRevisionId: revisionId,
+        },
+        { activities: deps.activities, records: deps.records, clock: bumpClock },
+      );
+    }
   }
 
   await deps.uploads.deletePending(input.uploadId);

@@ -8,6 +8,7 @@ import type {
   UserId,
 } from "@hearth/domain";
 import type {
+  ActivityRecordRepository,
   IdGenerator,
   InstanceAccessPolicyRepository,
   LearningActivityRepository,
@@ -273,4 +274,24 @@ export function makeLibrary(overrides: Partial<LibraryItemRepository> = {}): Lib
     restoreFtsIndex: vi.fn(async () => ({ rebuilt: 0 })),
     ...overrides,
   } as LibraryItemRepository;
+}
+
+export function makeRecords(
+  overrides: Partial<ActivityRecordRepository> = {},
+): ActivityRecordRepository {
+  return {
+    upsert: vi.fn(),
+    byId: vi.fn(async () => null),
+    byParticipantAndActivity: vi.fn(async () => null),
+    listByActivity: vi.fn(async () => []),
+    setCompletion: vi.fn(),
+    setVisibilityOverride: vi.fn(),
+    getPartProgress: vi.fn(async () => null),
+    listPartProgress: vi.fn(async () => []),
+    savePartProgress: vi.fn(),
+    listPartHistory: vi.fn(async () => []),
+    countPartHistory: vi.fn(async () => 0),
+    reopenAgainstRevision: vi.fn(),
+    ...overrides,
+  } as ActivityRecordRepository;
 }

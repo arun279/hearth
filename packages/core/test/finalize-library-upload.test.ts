@@ -13,9 +13,11 @@ import {
   ACTOR_ID,
   ARCHIVED_GROUP,
   GROUP_ID,
+  makeActivities,
   makeGroups,
   makeLibrary,
   makePolicy,
+  makeRecords,
   makeStorage,
   makeUploads,
   makeUsers,
@@ -81,6 +83,8 @@ function defaultDeps() {
       membership: vi.fn(async () => membership({ role: "participant" })),
     }),
     policy: makePolicy(),
+    activities: makeActivities(),
+    records: makeRecords(),
   };
 }
 

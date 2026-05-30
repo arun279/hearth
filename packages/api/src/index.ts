@@ -7,6 +7,7 @@ import { instanceRoutes } from "./routes/instance.ts";
 import { invitationsRoutes } from "./routes/invitations.ts";
 import { libraryRoutes } from "./routes/library.ts";
 import { meRoutes } from "./routes/me.ts";
+import { recordsRoutes } from "./routes/records.ts";
 import { tracksRoutes } from "./routes/tracks.ts";
 
 /**
@@ -33,7 +34,12 @@ export function createApiRouter() {
     // routers and mounting separately would require duplicating
     // session-auth middleware setup; one router with a "/" mount keeps
     // the contract co-located.
-    .route("/", activitiesRoutes);
+    .route("/", activitiesRoutes)
+    // Activity Record routes share the same dual-root shape: per-record
+    // reads/mutations live under `/records/:recordId` while the
+    // participant's own-record + reset surfaces hang off
+    // `/activities/:activityId`. Mount at "/" for the same reason.
+    .route("/", recordsRoutes);
   return app;
 }
 

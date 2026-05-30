@@ -275,4 +275,108 @@ describe("getActivityForPlayer", () => {
     const result = await getActivityForPlayer({ actor: ACTOR_ID, id: ACTIVITY_ID }, deps);
     expect(result.viewer.enrollmentStatus).toBe("not_enrolled");
   });
+
+  describe("quiz answer-key stripping", () => {
+    function activityWithQuiz(): LearningActivity {
+      return makeActivity({
+        parts: [
+          {
+            kind: "quiz",
+            id: "p_quiz",
+            questions: [
+              {
+                id: "q_mc",
+                prompt: "Pick one",
+                shape: { kind: "multiple_choice", options: ["A", "B"], answerKeyIndex: 1 },
+                explainAfterAnswer: "B is correct because reasons.",
+              },
+              {
+                id: "q_sa",
+                prompt: "Type the city",
+                shape: { kind: "short_answer", answerKeyRegex: "paris" },
+                explainAfterAnswer: "Paris is the capital.",
+              },
+            ],
+          },
+        ],
+        flow: { prereqs: [], displayOrder: ["p_quiz"] },
+        libraryRefs: [],
+      });
+    }
+
+    type QuizPartShape = {
+      readonly kind: "quiz";
+      readonly questions: ReadonlyArray<{
+        readonly explainAfterAnswer?: string;
+        readonly shape:
+          | {
+              readonly kind: "multiple_choice";
+              readonly options: readonly string[];
+              readonly answerKeyIndex?: number;
+            }
+          | { readonly kind: "short_answer"; readonly answerKeyRegex?: string };
+      }>;
+    };
+
+    it("strips answerKeyIndex / answerKeyRegex / explainAfterAnswer for a participant", async () => {
+      const deps = depsOk({ activity: activityWithQuiz() });
+      const result = await getActivityForPlayer({ actor: ACTOR_ID, id: ACTIVITY_ID }, deps);
+
+      const quiz = result.activity.parts.find((p) => p.kind === "quiz") as QuizPartShape;
+      expect(quiz).toBeDefined();
+      for (const q of quiz.questions) {
+        expect(q.explainAfterAnswer).toBeUndefined();
+        if (q.shape.kind === "multiple_choice") {
+          expect(q.shape.answerKeyIndex).toBeUndefined();
+          // Participant-facing fields survive.
+          expect(q.shape.options).toEqual(["A", "B"]);
+        } else {
+          expect(q.shape.answerKeyRegex).toBeUndefined();
+        }
+      }
+      // Belt-and-suspenders: the serialized projection carries no key at all.
+      const serialized = JSON.stringify(result.activity);
+      expect(serialized).not.toContain("answerKeyIndex");
+      expect(serialized).not.toContain("answerKeyRegex");
+      expect(serialized).not.toContain("explainAfterAnswer");
+    });
+
+    it("keeps the full quiz (keys + explanations) for a facilitator", async () => {
+      const deps = depsOk({ activity: activityWithQuiz() });
+      deps.tracks.enrollment = vi.fn(async () => ({
+        trackId: TRACK_ID,
+        userId: ACTOR_ID,
+        role: "facilitator" as const,
+        enrolledAt: TEST_NOW,
+        leftAt: null,
+        leftBy: null,
+      }));
+      const result = await getActivityForPlayer({ actor: ACTOR_ID, id: ACTIVITY_ID }, deps);
+
+      const quiz = result.activity.parts.find((p) => p.kind === "quiz") as QuizPartShape;
+      const mc = quiz.questions[0];
+      const sa = quiz.questions[1];
+      expect(mc?.shape.kind === "multiple_choice" && mc.shape.answerKeyIndex).toBe(1);
+      expect(mc?.explainAfterAnswer).toBe("B is correct because reasons.");
+      expect(sa?.shape.kind === "short_answer" && sa.shape.answerKeyRegex).toBe("paris");
+    });
+
+    it("keeps the full quiz for an Instance Operator viewer", async () => {
+      const deps = depsOk({ activity: activityWithQuiz() });
+      // Not enrolled / not admin, but an active operator.
+      deps.groups.membership = vi.fn(async () => membership({ role: "participant" }));
+      deps.tracks.enrollment = vi.fn(async () => null);
+      deps.policy.getOperator = vi.fn(async () => ({
+        userId: ACTOR_ID,
+        grantedAt: TEST_NOW,
+        grantedBy: ACTOR_ID,
+        revokedAt: null,
+        revokedBy: null,
+      }));
+      const result = await getActivityForPlayer({ actor: ACTOR_ID, id: ACTIVITY_ID }, deps);
+      const quiz = result.activity.parts.find((p) => p.kind === "quiz") as QuizPartShape;
+      const mc = quiz.questions[0];
+      expect(mc?.shape.kind === "multiple_choice" && mc.shape.answerKeyIndex).toBe(1);
+    });
+  });
 });

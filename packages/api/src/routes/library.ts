@@ -246,6 +246,8 @@ export const libraryRoutes = new Hono<AppBindings>()
             library: c.var.ports.libraryItems,
             storage: c.var.ports.storage,
             uploads: c.var.ports.uploads,
+            activities: c.var.ports.activities,
+            records: c.var.ports.records,
           },
         );
         return c.json(detail, 201);

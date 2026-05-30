@@ -8,11 +8,13 @@ import {
   type LibraryItemId,
   type LibraryRevision,
   type LibraryRevisionId,
+  type QuizPart,
+  type QuizQuestion,
   type ResolvedLibraryRef,
   type UserId,
   type ViewerEnrollmentStatus,
 } from "@hearth/domain";
-import { canSeeActivity } from "@hearth/domain/policy";
+import { canSeeActivity, isActiveOperator, isAuthorityOverTrack } from "@hearth/domain/policy";
 import type {
   Clock,
   InstanceAccessPolicyRepository,
@@ -108,12 +110,49 @@ export async function getActivityForPlayer(
   const resolvedRefs =
     accessState === "pre_open" ? [] : await resolveLibraryRefs(ctx.activity, deps, now);
 
+  // Quiz grading is server-side; the answer key must never reach a
+  // participant. Authorities (Track Facilitator / Group Admin / Instance
+  // Operator) keep the full quiz for authoring + QA. Everyone else gets a
+  // projection with every key and post-answer explanation removed.
+  const isAuthority =
+    isAuthorityOverTrack(ctx.track, ctx.groupMembership, ctx.trackEnrollment) ||
+    isActiveOperator(ctx.actor, operator);
+  const activity = isAuthority ? ctx.activity : stripQuizAnswerKeys(ctx.activity);
+
   return {
-    activity: ctx.activity,
+    activity,
     resolvedRefs,
     accessState,
     viewer: { enrollmentStatus: enrollmentStatusOf(ctx.trackEnrollment) },
   };
+}
+
+/**
+ * Return a copy of the activity whose `quiz` Parts carry no answer key.
+ * Strips each multiple-choice `answerKeyIndex`, each short-answer
+ * `answerKeyRegex`, and every question's `explainAfterAnswer` reveal,
+ * leaving the participant-facing fields (prompt, options, ids, shape
+ * kind) intact. Non-quiz Parts pass through untouched.
+ */
+function stripQuizAnswerKeys(activity: LearningActivity): LearningActivity {
+  return {
+    ...activity,
+    parts: activity.parts.map((part) => (part.kind === "quiz" ? stripQuizPart(part) : part)),
+  };
+}
+
+function stripQuizPart(part: QuizPart): QuizPart {
+  return { ...part, questions: part.questions.map(stripQuizQuestion) };
+}
+
+function stripQuizQuestion(question: QuizQuestion): QuizQuestion {
+  const { explainAfterAnswer: _explain, ...rest } = question;
+  if (question.shape.kind === "multiple_choice") {
+    const { answerKeyIndex: _key, ...shapeRest } = question.shape;
+    return { ...rest, shape: shapeRest };
+  }
+  const { answerKeyRegex: _key, ...shapeRest } = question.shape;
+  return { ...rest, shape: shapeRest };
 }
 
 function enrollmentStatusOf(
