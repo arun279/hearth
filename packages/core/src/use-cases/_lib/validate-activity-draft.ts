@@ -6,6 +6,7 @@ import {
   assertNoDuplicateLibraryRefs,
   assertNoDuplicatePartIds,
   assertPartLibraryRefMimeMatch,
+  assertQuizAnswerKeysSafe,
   assertWindowConsistent,
   DomainError,
   displayKindFor,
@@ -46,6 +47,11 @@ export async function validateActivityDraft(
     assertDisplayOrderIsTopoSort(draft.flow, draft.parts),
     assertWindowConsistent(draft.window, draft.postClosePolicy),
     assertNoDuplicateLibraryRefs(draft.libraryRefs),
+    // A user-authored quiz answer-key regex is a ReDoS vector matched
+    // server-side at grading time; reject the catastrophic shapes before
+    // they can be stored. The composer screens the same patterns client-
+    // side, but the client is bypassable, so this is the authoritative gate.
+    assertQuizAnswerKeysSafe(draft.parts),
   ] as const;
   for (const r of invariants) {
     if (!r.ok) {
