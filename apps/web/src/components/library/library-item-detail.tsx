@@ -279,13 +279,14 @@ function DetailBody({
               {`Used in ${usedIn.length} ${usedIn.length === 1 ? "activity" : "activities"} — retiring is allowed; hard-deleting is blocked while any reference remains.`}
             </p>
             {/*
-             * TODO(m10): link each activity title to its viewable URL
-             * so a steward can navigate to the consumer (to swap the
-             * library reference) before retiring this item. Today
-             * activities are modal-only on the Activities tab — no
-             * dedicated URL surface to link to. M10 ships the player,
-             * which IS a real activity URL; that's the natural link
-             * target. Until then, plain `<li>` text is honest.
+             * TODO(library-used-in-links): link each activity title to
+             * its player URL so a steward can navigate to the consumer
+             * (to swap the library reference) before retiring this item.
+             * The player URL exists now, but the `usedIn` projection
+             * returns only `{ id, title }` — it needs the activity's
+             * `trackId` to build `/g/:groupId/t/:trackId/a/:activityId`.
+             * Until that projection carries `trackId`, plain `<li>` text
+             * is honest.
              */}
             <ul className="space-y-1 rounded-[var(--radius-sm)] border border-[var(--color-rule)] px-3 py-2 text-[12px] text-[var(--color-ink)]">
               {usedIn.map((entry) => (

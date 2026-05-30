@@ -128,6 +128,7 @@ Each entry names the **pinned tool**, the **condition** that triggers a reassess
 
 - **Trigger**: M11 ships `ActivityRecord` rows whose existence depends on the activity's children being internally consistent (e.g., a learner's progress against a Part the activity claims to have).
 - **Action**: re-evaluate the four-step orchestration in `packages/core/src/use-cases/update-activity.ts` (body update + `setLibraryRefs` + `setPrerequisites` + `setSuggestedSequences`). Each call is atomic on its own; a mid-sequence failure leaves the body updated but children stale, which the use case docstring concedes. The current "user retries → idempotent wholesale-replace converges" model is acceptable while no Records exist. Once Records exist, an inconsistent intermediate state during a retry could produce a Record against a Part that the activity no longer carries. Either compose the four writes into one D1 batch (requires a port-level rethink — children writes would need to surface from inside the parent UPDATE) or accept the eventual-consistency story explicitly with an integration test pinning the recovery shape.
+- **Status (Records now exist)**: the trigger has fired. The orphan risk is bounded: `part_progress.partId` keys on the logical Part id, and Part ids are stable across edits, so reordering / re-wording Parts never orphans progress — only _deleting_ a Part does, which is a domain question independent of atomicity. A mid-failure's worst case is a Part whose `activity_library_refs` row didn't land, so the player resolves no library URL for it (a degraded render, not corruption) until the facilitator retries and the wholesale-replace converges. For v1 (~20 users, no expected concurrent facilitator edits) the eventual-consistency model is **accepted**; the pinning integration test named above is still outstanding and should land before concurrent editing or larger scale does.
 - **Location**: `packages/core/src/use-cases/update-activity.ts`.
 
 ### Test files are not type-checked — `Write<F>` mock brand mismatches slip through
@@ -149,6 +150,29 @@ Each entry names the **pinned tool**, the **condition** that triggers a reassess
 - **Trigger**: a confirmed heuristic-evading catastrophic pattern in practice, OR moving grading off the free-tier 10 ms CPU cap, OR a maintainer decision to harden proactively.
 - **Action**: delete the ReDoS class instead of screening for it — grade short-answer keys with a non-backtracking matcher (a Wasm RE2 build in the adapter/runtime layer, off the SPA bundle and off the pure domain layer), OR run grading in a dedicated low-`cpu_ms` subrequest so a runaway kills only that isolate and returns `no_key`. Either makes the static screen a nicety rather than the primary defense.
 - **Location**: `packages/domain/src/parts/quiz-regex-safety.ts`, `packages/domain/src/parts/quiz-evaluate.ts`, and the quiz-grading use case in `packages/core/src/use-cases/`.
+
+## Activity authoring + records follow-ups
+
+### Composer Flow editor is unblocked (intra-Part hard-prerequisite edges)
+
+- **Status**: the player now consumes `flow.prereqs` — it dims and blocks completion of a Part whose hard prerequisite Part isn't complete (`arePartPrerequisitesMet`). That was the missing consumer. The composer Draft already carries `hardEdges` and the serializer round-trips them, but no UI lets a facilitator wire an edge between two Parts, so authored activities ship with an empty hard-prereq set.
+- **Trigger**: a facilitator needs to gate one Part behind another, OR the next composer-focused change touches the Flow section.
+- **Action**: add a Flow editor (a section, or the "Flow" tab of the design's five-tab composer) that writes `flow.prereqs[]` edges; the player already enforces them. Clear the `TODO(activity-flow-editor)` in the composer once wired.
+- **Location**: `apps/web/src/components/activities/activity-composer.tsx`.
+
+### Facilitator reset + per-participant records have no SPA surface yet
+
+- **Status**: `resetParticipantProgress` (use case + `POST /activities/:id/participants/:participantId/reset` route) and `reopenAgainstRevision` are implemented and tested. No SPA surface lets a facilitator view another participant's Activity Record or reset it; the player only renders the viewer's own record.
+- **Trigger**: M12 (visibility computation + per-record overrides) ships the surface that shows others' records under a resolved Visibility Scope — that screen is the natural home for the reset action.
+- **Action**: wire the reset affordance into the participant-records view M12 introduces, gated on `canResetParticipantProgress`. Until then the backend is reachable only via the API.
+- **Location**: backend at `packages/core/src/use-cases/reset-participant-progress.ts`; no SPA consumer.
+
+### Part-history disclosure shows no per-Part count
+
+- **Status**: the player's per-Part "Earlier attempts preserved" disclosure fetches the snapshots on open, but the chip can't show a count because the record projection returns a record-wide `partHistoryCount`, not per-Part counts.
+- **Trigger**: surfacing a count ("N prior attempts preserved", per the prototype) becomes worth the projection change.
+- **Action**: add per-Part counts to the `my-record` projection (e.g. `partsWithHistory: Array<{ partId, count }>`), then surface the count on the chip.
+- **Location**: `packages/core/src/use-cases/_lib/record-view.ts`; `apps/web/src/components/activities/player/part-history.tsx`.
 
 ## How to remove an entry
 

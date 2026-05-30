@@ -91,7 +91,7 @@ type Draft = {
 };
 
 /**
- * TODO(m10): re-add the `attend_session` palette entry once the
+ * TODO(m14): re-add the `attend_session` palette entry once the
  * Sessions surface ships. Part kinds the composer offers. The full
  * domain catalog (in `ACTIVITY_PART_KINDS`) lists 7 kinds, but
  * `attend_session` cannot land in production until the Sessions
@@ -112,20 +112,19 @@ const AUTHORABLE_PART_KINDS = [
 type AuthorablePartKind = (typeof AUTHORABLE_PART_KINDS)[number];
 
 /**
- * TODO(m10): restructure as five-tab dialog (`Parts | Flow | Audience
+ * TODO(m14): restructure as five-tab dialog (`Parts | Flow | Audience
  * | Window | Completion`) once the `attend_session` palette entry also
  * lands — the long-scroll shape works today with the Modal primitive's
  * sticky footer, but the per-section density that justifies tabs grows
  * with each added Part kind.
  *
- * TODO(m10): the Draft state carries `hardEdges` (the intra-Part
- * `flow.prereqs[]` projection) and the serializer round-trips them,
- * but no UI exposes wiring an edge between two Parts. The schema
- * supports it; M8 simply ships no Flow editor. M10's player surface
- * is the consumer of `flow.prereqs[]` (gates Part access by completion
- * of upstream Parts) — without that consumer, a Flow editor would
- * write data nothing reads. Wire the editor as a sibling section /
- * tab when M10 lands.
+ * TODO(activity-flow-editor): the Draft state carries `hardEdges` (the
+ * intra-Part `flow.prereqs[]` projection) and the serializer round-trips
+ * them, but no UI exposes wiring an edge between two Parts. The schema
+ * supports it; M8 shipped no Flow editor. The player now consumes
+ * `flow.prereqs[]` — it dims and blocks completion of a Part whose hard
+ * prerequisite isn't met — so the editor is unblocked; wire it as a
+ * sibling section / tab.
  *
  * Compose or edit a Learning Activity. The dialog mirrors the design
  * prototype: a single scrolled modal with discrete sections (Parts /
