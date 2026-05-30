@@ -23,26 +23,19 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { AppBindings } from "../bindings.ts";
 import { getUserId, sessionAuthMiddleware } from "../middleware/session-auth.ts";
-import { mapUnknown, problemFromZodError, problemResponse } from "../problem.ts";
+import { mapUnknown, problemResponse } from "../problem.ts";
+import {
+  activityIdParam,
+  activityParticipantParam,
+  activityPartParam,
+  problemFromInvalid,
+} from "./_shared.ts";
 
-const activityIdParam = z.object({ activityId: z.string().min(1).max(MAX_ID_LENGTH) });
-const activityPartParam = z.object({
-  activityId: z.string().min(1).max(MAX_ID_LENGTH),
-  partId: z.string().min(1).max(MAX_ID_LENGTH),
-});
-const activityParticipantParam = z.object({
-  activityId: z.string().min(1).max(MAX_ID_LENGTH),
-  participantId: z.string().min(1).max(MAX_ID_LENGTH),
-});
 const recordIdParam = z.object({ recordId: z.string().min(1).max(MAX_ID_LENGTH) });
 const historyQuery = z.object({ partId: z.string().min(1).max(MAX_ID_LENGTH).optional() });
 
 const partProgressBody = z.object({ state: partProgressStateSchema });
 const visibilityOverrideBody = z.object({ override: visibilityPreferenceSchema.nullable() });
-
-function problemFromInvalid(c: Context, error: unknown) {
-  return problemResponse(c, problemFromZodError(error as z.ZodError));
-}
 
 function depsFor(c: Context<AppBindings>) {
   return {

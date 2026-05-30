@@ -35,9 +35,9 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { AppBindings } from "../bindings.ts";
 import { getUserId, sessionAuthMiddleware } from "../middleware/session-auth.ts";
-import { mapUnknown, problemFromZodError, problemResponse } from "../problem.ts";
+import { mapUnknown, problemResponse } from "../problem.ts";
+import { activityIdParam, problemFromInvalid } from "./_shared.ts";
 
-const activityIdParam = z.object({ activityId: z.string().min(1).max(MAX_ID_LENGTH) });
 const trackIdParam = z.object({ trackId: z.string().min(1).max(MAX_ID_LENGTH) });
 const activityItemParam = z.object({
   activityId: z.string().min(1).max(MAX_ID_LENGTH),
@@ -107,10 +107,6 @@ const prerequisitesBody = z.object({
 const suggestedBody = z.object({
   nextActivityIds: z.array(learningActivityIdField).max(MAX_CROSS_ACTIVITY_EDGES),
 });
-
-function problemFromInvalid(c: Context, error: unknown) {
-  return problemResponse(c, problemFromZodError(error as z.ZodError));
-}
 
 function depsFor(c: Context<AppBindings>) {
   return {

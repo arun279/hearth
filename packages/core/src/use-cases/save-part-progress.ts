@@ -1,15 +1,12 @@
 import {
   type ActivityPartId,
   type ActivityRecord,
-  arePartPrerequisitesMet,
-  computeActivityAccessState,
   DomainError,
   type LearningActivityId,
   type PartProgress,
   type PartProgressState,
   type UserId,
 } from "@hearth/domain";
-import { canMarkPartComplete } from "@hearth/domain/policy/can-mark-part-complete";
 import type {
   ActivityRecordRepository,
   Clock,
@@ -19,6 +16,7 @@ import type {
   StudyGroupRepository,
   UserRepository,
 } from "@hearth/ports";
+import { assertWritablePart } from "./_lib/assert-writable-part.ts";
 import { loadViewableActivity } from "./_lib/load-viewable-activity.ts";
 
 export type SavePartProgressInput = {
@@ -64,34 +62,12 @@ export async function savePartProgress(
     throw new DomainError("NOT_FOUND", "Part not found on this activity.", "part_not_found");
   }
 
-  const now = deps.clock.now();
-  const record = await deps.records.upsert({
-    activityId: input.activityId,
-    participantId: input.actor,
-    now,
-  });
-
-  const priorProgress = await deps.records.listPartProgress(record.id);
-  const completedOtherPartIds = new Set<string>(
-    priorProgress
-      .filter((p) => p.partId !== input.partId && p.state.completed)
-      .map((p) => p.partId),
-  );
-  const prerequisitesMet = arePartPrerequisitesMet(
-    ctx.activity.flow,
+  const { record, now, priorProgress, completedOtherPartIds } = await assertWritablePart(
+    ctx,
+    input.actor,
     input.partId,
-    completedOtherPartIds,
+    deps,
   );
-  const accessState = computeActivityAccessState(
-    ctx.activity.window,
-    ctx.activity.postClosePolicy,
-    now,
-  );
-
-  const verdict = canMarkPartComplete(ctx.actor, record, accessState, prerequisitesMet);
-  if (!verdict.ok) {
-    throw new DomainError("FORBIDDEN", verdict.reason.message, verdict.reason.code);
-  }
 
   const priorThisPart = priorProgress.find((p) => p.partId === input.partId);
   const justCompleted = !(priorThisPart?.state.completed ?? false) && input.state.completed;

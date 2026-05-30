@@ -1,7 +1,5 @@
 import {
   type ActivityPartId,
-  arePartPrerequisitesMet,
-  computeActivityAccessState,
   DomainError,
   evaluateQuizAnswer,
   type LearningActivityId,
@@ -11,7 +9,6 @@ import {
   type QuizSubmission,
   type UserId,
 } from "@hearth/domain";
-import { canMarkPartComplete } from "@hearth/domain/policy/can-mark-part-complete";
 import type {
   ActivityRecordRepository,
   Clock,
@@ -21,6 +18,7 @@ import type {
   StudyGroupRepository,
   UserRepository,
 } from "@hearth/ports";
+import { assertWritablePart } from "./_lib/assert-writable-part.ts";
 import { loadViewableActivity } from "./_lib/load-viewable-activity.ts";
 
 export type SubmitQuizAnswersInput = {
@@ -64,34 +62,12 @@ export async function submitQuizAnswers(
     throw new DomainError("INVARIANT_VIOLATION", "This Part is not a quiz.", "part_kind_mismatch");
   }
 
-  const now = deps.clock.now();
-  const record = await deps.records.upsert({
-    activityId: input.activityId,
-    participantId: input.actor,
-    now,
-  });
-
-  const priorProgress = await deps.records.listPartProgress(record.id);
-  const completedOtherPartIds = new Set(
-    priorProgress
-      .filter((p) => p.partId !== input.partId && p.state.completed)
-      .map((p) => p.partId),
-  );
-  const prerequisitesMet = arePartPrerequisitesMet(
-    ctx.activity.flow,
+  const { record, now, priorProgress } = await assertWritablePart(
+    ctx,
+    input.actor,
     input.partId,
-    completedOtherPartIds,
+    deps,
   );
-  const accessState = computeActivityAccessState(
-    ctx.activity.window,
-    ctx.activity.postClosePolicy,
-    now,
-  );
-
-  const verdict = canMarkPartComplete(ctx.actor, record, accessState, prerequisitesMet);
-  if (!verdict.ok) {
-    throw new DomainError("FORBIDDEN", verdict.reason.message, verdict.reason.code);
-  }
 
   const answers: QuizAnswer[] = input.submission.answers.map((submitted) => {
     const question = part.questions.find((q) => q.id === submitted.questionId);
