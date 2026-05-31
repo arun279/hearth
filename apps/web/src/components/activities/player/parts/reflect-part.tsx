@@ -5,10 +5,11 @@ import {
   type WriteReflectionPart,
 } from "@hearth/domain";
 import { cn, SaveIndicator, type SaveStatus, Textarea } from "@hearth/ui";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useSaveReflection } from "../../../../hooks/use-activity-record.ts";
 import { useDebouncedValue } from "../../../../hooks/use-debounced-value.ts";
+import { api } from "../../../../lib/api-client.ts";
 import { asUserMessage } from "../../../../lib/problem.ts";
 import { VisibilitySelector } from "../visibility-selector.tsx";
 
@@ -19,6 +20,29 @@ type Props = {
   readonly canParticipate: boolean;
   readonly visibilityOverride: VisibilityPreference | null;
 };
+
+/**
+ * Collapse the mutation flags into the indicator's status. A pending mutation
+ * OR unsaved edits read as "saving" so the pill stays honest between a
+ * keystroke and the debounced flush; an error wins over everything so a
+ * failed save is never masked by a stale success.
+ */
+export function deriveSaveStatus({
+  isError,
+  isPending,
+  dirty,
+  isSuccess,
+}: {
+  readonly isError: boolean;
+  readonly isPending: boolean;
+  readonly dirty: boolean;
+  readonly isSuccess: boolean;
+}): SaveStatus {
+  if (isError) return "error";
+  if (isPending || dirty) return "saving";
+  if (isSuccess) return "saved";
+  return "idle";
+}
 
 function Prompt({ prompt }: { readonly prompt: string }) {
   return (
@@ -91,28 +115,38 @@ function ReflectEditor({
   const textRef = useRef(text);
   textRef.current = text;
 
-  // Debounced autosave: persist only after typing pauses, and never re-save
-  // an unchanged value. Failures keep a persistent indicator but only toast
+  // Single source of truth for the save side-effects: both the debounced
+  // autosave and the retry affordance route through here so a successful retry
+  // advances `lastSaved` (settling the pill past "Saving…") and clears the
+  // one-shot toast latch. Failures keep a persistent indicator but only toast
   // once per failure burst (offline shouldn't spam).
+  const persist = useCallback(
+    (pending: string) => {
+      saveMutate(
+        { partId: part.id, text: pending },
+        {
+          onSuccess: () => {
+            lastSaved.current = pending;
+            toastedFailure.current = false;
+          },
+          onError: (err) => {
+            if (!toastedFailure.current) {
+              toast.error(asUserMessage(err, "Couldn't save your reflection — we'll keep trying."));
+              toastedFailure.current = true;
+            }
+          },
+        },
+      );
+    },
+    [saveMutate, part.id],
+  );
+
+  // Debounced autosave: persist only after typing pauses, and never re-save
+  // an unchanged value.
   useEffect(() => {
     if (debounced === lastSaved.current) return;
-    const pending = debounced;
-    saveMutate(
-      { partId: part.id, text: pending },
-      {
-        onSuccess: () => {
-          lastSaved.current = pending;
-          toastedFailure.current = false;
-        },
-        onError: (err) => {
-          if (!toastedFailure.current) {
-            toast.error(asUserMessage(err, "Couldn't save your reflection — we'll keep trying."));
-            toastedFailure.current = true;
-          }
-        },
-      },
-    );
-  }, [debounced, part.id, saveMutate]);
+    persist(debounced);
+  }, [debounced, persist]);
 
   // Last-ditch flush so a draft isn't lost when the tab is hidden (mobile
   // background) or the component unmounts mid-pause. `keepalive` lets the
@@ -126,7 +160,10 @@ function ReflectEditor({
       if (textRef.current === lastSaved.current) return;
       const body = JSON.stringify({ text: textRef.current });
       lastSaved.current = textRef.current;
-      void fetch(`/api/v1/activities/${activityId}/my-record/parts/${part.id}/reflection`, {
+      const url = api.activities[":activityId"]["my-record"].parts[":partId"].reflection.$url({
+        param: { activityId, partId: part.id },
+      });
+      void fetch(url, {
         method: "PUT",
         credentials: "include",
         keepalive: true,
@@ -145,13 +182,12 @@ function ReflectEditor({
   }, [activityId, part.id]);
 
   const dirty = text !== lastSaved.current;
-  const status: SaveStatus = save.isError
-    ? "error"
-    : save.isPending || dirty
-      ? "saving"
-      : save.isSuccess
-        ? "saved"
-        : "idle";
+  const status = deriveSaveStatus({
+    isError: save.isError,
+    isPending: save.isPending,
+    dirty,
+    isSuccess: save.isSuccess,
+  });
 
   const words = countWords(text);
   const meetsMin = part.minWords === undefined || words >= part.minWords;
@@ -180,7 +216,7 @@ function ReflectEditor({
               ? `${words} / ${part.minWords} words`
               : `${words} ${words === 1 ? "word" : "words"}`}
           </span>
-          <SaveIndicator status={status} onRetry={() => save.mutate({ partId: part.id, text })} />
+          <SaveIndicator status={status} onRetry={() => persist(text)} />
         </div>
         <VisibilitySelector activityId={activityId} value={visibilityOverride} />
       </div>

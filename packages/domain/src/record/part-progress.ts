@@ -49,7 +49,7 @@ export type PartProgressState = z.infer<typeof partProgressStateSchema>;
 /**
  * Versioned envelope persisted in `part_progress.stateJson`. The adapter
  * parses through this on read so a malformed or future-version row surfaces
- * as a validation failure rather than silently mis-rendering.
+ * as a validation failure rather than silently rendering a malformed value.
  */
 export const partProgressEnvelopeSchema = z.object({
   v: z.literal(1),

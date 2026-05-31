@@ -115,21 +115,23 @@ const AUTHORABLE_PART_KINDS = [
 type AuthorablePartKind = (typeof AUTHORABLE_PART_KINDS)[number];
 
 /**
- * TODO(m10): restructure as five-tab dialog (`Parts | Flow | Audience
+ * TODO(m19): restructure as five-tab dialog (`Parts | Flow | Audience
  * | Window | Completion`) — the long-scroll shape works today with the
  * Modal primitive's sticky footer, but quiz authoring's per-question
  * density pushes the Parts section toward the point where tabs earn
- * their keep. Hold until the Flow editor lands so the tab set is sized
- * once against the full section roster.
+ * their keep. M19 owns composer reorder/tab polish (it enables a
+ * dnd-kit KeyboardSensor on the Activity Composer Parts list), so the
+ * tab set is sized once there against the full section roster — with
+ * M11 (the dependency that makes the Flow tab worth sizing) landed.
  *
- * TODO(m10): the Draft state carries `hardEdges` (the intra-Part
+ * TODO(m11): the Draft state carries `hardEdges` (the intra-Part
  * `flow.prereqs[]` projection) and the serializer round-trips them,
  * but no UI exposes wiring an edge between two Parts. The schema
- * supports it; M8 simply ships no Flow editor. M10's player surface
- * is the consumer of `flow.prereqs[]` (gates Part access by completion
- * of upstream Parts) — without that consumer, a Flow editor would
- * write data nothing reads. Wire the editor as a sibling section /
- * tab when M10 lands.
+ * supports it; M8 simply ships no Flow editor. M11 is the consumer of
+ * `flow.prereqs[]`: `canMarkPartComplete` rejects `prereq_not_met`, and
+ * the PartFooter Mark Complete control disables when prereqs are unmet
+ * — without that consumer, a Flow editor would write data nothing
+ * reads. Wire the editor as a sibling section / tab when M11 lands.
  *
  * Compose or edit a Learning Activity. The dialog mirrors the design
  * prototype: a single scrolled modal with discrete sections (Parts /
@@ -872,7 +874,6 @@ function QuizQuestionEditor({
           label={`Remove question ${index + 1}`}
           onClick={onRemove}
           disabled={disabled || total <= 1}
-          className="disabled:cursor-not-allowed disabled:opacity-40"
         >
           <X size={11} strokeWidth={1.75} aria-hidden="true" />
         </IconButton>
@@ -1030,7 +1031,6 @@ function QuizOptionsEditor({
               label={`Remove option ${i + 1}`}
               onClick={() => removeOption(i)}
               disabled={disabled || options.length <= 2}
-              className="disabled:cursor-not-allowed disabled:opacity-40"
             >
               <X size={11} strokeWidth={1.75} aria-hidden="true" />
             </IconButton>

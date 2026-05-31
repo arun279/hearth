@@ -5,8 +5,6 @@ export type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 export type SaveIndicatorProps = {
   readonly status: SaveStatus;
-  /** Label for the saved state, e.g. "Saved" or "Saved 2s ago". */
-  readonly savedLabel?: string;
   readonly onRetry?: () => void;
   readonly className?: string;
 };
@@ -18,12 +16,7 @@ export type SaveIndicatorProps = {
  * keeps a retry affordance inline (the call site shows a one-off toast for
  * the failure; this pill is the durable signal, not a toast per keystroke).
  */
-export function SaveIndicator({
-  status,
-  savedLabel = "Saved",
-  onRetry,
-  className,
-}: SaveIndicatorProps) {
+export function SaveIndicator({ status, onRetry, className }: SaveIndicatorProps) {
   if (status === "idle") return null;
   const base = "inline-flex items-center gap-1 text-[11px]";
   if (status === "saving") {
@@ -38,7 +31,7 @@ export function SaveIndicator({
     return (
       <span className={cn(base, "text-[var(--color-ink-2)]", className)} aria-live="polite">
         <Check size={11} strokeWidth={1.75} aria-hidden="true" />
-        {savedLabel}
+        Saved
       </span>
     );
   }

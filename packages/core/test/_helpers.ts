@@ -270,7 +270,7 @@ export function makeRecords(
 
 /**
  * Fake regex engine. Defaults grade via native `RegExp` (realistic enough
- * for use-case truth tables); `isValid` mirrors compilability. Override
+ * for use-case truth tables); `isValid` mirrors whether the pattern compiles. Override
  * `matches`/`isValid` to model the linear-time engine's RE2 semantics or a
  * throw-on-uncompilable boundary.
  */

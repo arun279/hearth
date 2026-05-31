@@ -25,7 +25,7 @@ function blankAnswer(q: QuizQuestion): QuizAnswer {
     : { questionId: q.id, kind: "short_answer", text: "" };
 }
 
-function initialAnswers(
+export function initialAnswers(
   part: QuizPartT,
   partState: PartProgressState | null,
 ): Record<string, QuizAnswer> {

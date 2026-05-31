@@ -142,6 +142,50 @@ Each entry names the **pinned tool**, the **condition** that triggers a reassess
 - **Action**: extract or reuse the existing shared helper (`packages/core/src/use-cases/_lib/load-visible-activities-for-track.ts` is the canonical M9 example) so the list and the detail surface run the SAME predicate. The list MUST omit rows whose detail route would 404 — otherwise the title leaks via the list and the click 404s, creating an enumeration oracle on whichever axis the list skipped (subset audience, prerequisite lock, etc.). M11 prerequisite-driven `locked` state and M12 visibility evolution will introduce new axes; the per-use-case half-fix pattern does not scale.
 - **Location**: `packages/core/src/use-cases/_lib/load-visible-activities-for-track.ts` (the existing shared helper); any new `list*` use case + its repository projection.
 
+## Activity records
+
+### Evidence Signals are computed but not emitted
+
+- **Trigger**: M11 lands the `flushEvidenceSignals` port surface on `ActivityRecordRepository` (M11 PRD § Ports). Until then there is no sink for these signals.
+- **Action**: the five signal types — `word_count` + `draft_saved_at` (computable in `save-reflection-draft.ts`) and `answers_submitted` + `last_answered_at` + `auto_score` (computable in `submit-quiz-answers.ts`) — are not enqueued anywhere because no port method accepts them. When M11 wires the port, emit both sets from the two use cases. M17 owns the throttled batcher and the ≤ 50-write/user/day budget CI test that consume them (M10 PRD § Definition of done, the Evidence-Signals row).
+- **Location**: `packages/core/src/use-cases/save-reflection-draft.ts`, `packages/core/src/use-cases/submit-quiz-answers.ts`.
+
+## Frontend test coverage
+
+### M10 interactive Part components have no behavioral state-transition coverage
+
+- **Trigger**: M11 wires the SPA's record state and ships the interactive 3-Part E2E (M11 PRD § SPA + § Tests, the 3-Part Playwright row).
+- **Action**: the M10 interactive Parts (ReflectEditor, QuizPart, VisibilitySelector) have pure-logic + handler-wiring unit tests but no behavioral rendering tests — the workspace ships no jsdom / `@testing-library` by design. Confirm M11's E2E covers the ReflectEditor autosave-debounce, QuizPart verdict-clears-on-edit, and VisibilitySelector use-my-default transitions; if a unit-level gap remains after that, propose maintainer-approved jsdom + `@testing-library` (a new dependency needs approval per AGENTS.md § Convention carve-outs).
+- **Location**: `apps/web/src/components/activities/player/parts/*.tsx`.
+
+## Composer UX
+
+### "Answer key (regex)" exposes RE2 jargon
+
+- **Trigger**: facilitator research or support reports authoring friction with the quiz answer-key field.
+- **Action**: soften to progressive disclosure ("Accepted answers — advanced" with the RE2 pattern behind a toggle) while keeping the worked example. Today the field is mitigated by a worked-example placeholder and a plain-language "left blank = ungraded" fallback, and the M10 design review rated it defensible as-is — so this is a watch entry, not a fix-now.
+- **Location**: `apps/web/src/components/activities/activity-composer.tsx` (the answer-key label).
+
+## Deferred consolidations
+
+### Composer `IconBtn` helper duplicates the `@hearth/ui` `IconButton` primitive
+
+- **Trigger**: a focused UI pass over the composer (or the M19 polish milestone), where a small visual shift on existing controls is in-scope and reviewable.
+- **Action**: the composer's local `IconBtn` helper renders the same affordance as the shared `IconButton` primitive but with one ink shade lighter and a slightly smaller corner radius. Consolidate onto the primitive (children, not an `icon` prop). Deferred here because converting introduces a minor visual shift on pre-existing controls that should land in a pass where /design-review is the gate, not bundled into an unrelated change.
+- **Location**: `apps/web/src/components/activities/activity-composer.tsx` (the local `IconBtn` helper + its call sites).
+
+### Graded quiz options are not tinted at the option level
+
+- **Trigger**: facilitator/participant feedback that the per-question verdict is hard to bind to a specific option, or an M19 grading-surface polish pass.
+- **Action**: tint each graded option (good/danger) with a non-color cue (check/cross icon) so the correct + selected-wrong options read at a glance. Deferred because the per-question verdict badge already sits directly under each question's options, so the verdict→question binding is clear today; option-level tinting is an enhancement, not a correctness fix.
+- **Location**: `apps/web/src/components/activities/player/parts/quiz-part.tsx`, `packages/ui/src/radio-group.tsx`.
+
+### `typos` text gate and TODO-staleness check are CI-only / unwired
+
+- **Trigger**: a maintainer validates wiring `crate-ci/typos` into lefthook and/or adding `check:conventions` rules for stale `TODO(mN)` tags and raw `/api/v1/` literals in SPA `.tsx`.
+- **Action**: `typos` currently runs only in CI — it is absent from `pnpm check`, lefthook, and the AGENTS.md "When each check runs" table, so typo fixes (like the M10 PR's) are caught only after push. Wiring it locally (a pinned pre-built binary, not the npm `typos-cli` squatter) closes the parity gap. Separately, a `check:conventions` rule flagging `TODO(mN)` whose milestone is already shipped, and one banning raw `/api/v1/` literals outside the hc client + documented download helpers, would have caught this PR's stale tags and hardcoded URL. Both are infra/gate changes — validate the diagnosis and fix with the Architecture Analyst before wiring (per the validate-before-changing-infra rule).
+- **Location**: `lefthook.yml`, `scripts/check-conventions.mjs`, AGENTS.md § When each check runs.
+
 ## How to remove an entry
 
 An entry leaves this list only when one of the following is true:

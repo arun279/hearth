@@ -52,6 +52,15 @@ describe("partProgressEnvelopeSchema", () => {
     expect(partProgressEnvelopeSchema.parse(env)).toEqual(env);
   });
 
+  it("rejects an envelope with a future version", () => {
+    expect(
+      partProgressEnvelopeSchema.safeParse({
+        v: 2,
+        data: { kind: "write_reflection", completed: true, text: "hi" },
+      }).success,
+    ).toBe(false);
+  });
+
   it("rejects a state whose discriminator is unknown", () => {
     expect(() => partProgressStateSchema.parse({ kind: "nope", completed: false })).toThrow();
   });

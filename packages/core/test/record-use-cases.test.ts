@@ -275,6 +275,46 @@ describe("saveReflectionDraft", () => {
       ),
     ).rejects.toMatchObject({ code: "CONFLICT", reason: "activity_closed" });
   });
+
+  it("409s when the activity window is pre-open (activity_not_open)", async () => {
+    const deps = depsOk({
+      activity: makeActivity({
+        window: {
+          opensAt: new Date("2026-06-01T00:00:00.000Z").getTime(),
+          dueAt: null,
+          closesAt: null,
+        },
+        postClosePolicy: null,
+      }),
+      now: new Date("2026-05-02T00:00:00.000Z"),
+    });
+    await expect(
+      saveReflectionDraft(
+        { actor: ACTOR_ID, activityId: ACTIVITY_ID, partId: "p_reflect", text: "hi" },
+        deps,
+      ),
+    ).rejects.toMatchObject({ code: "CONFLICT", reason: "activity_not_open" });
+  });
+
+  it("404s when the activity is post-close hidden (not_found)", async () => {
+    const deps = depsOk({
+      activity: makeActivity({
+        window: {
+          opensAt: null,
+          dueAt: null,
+          closesAt: new Date("2026-05-01T00:00:00.000Z").getTime(),
+        },
+        postClosePolicy: { kind: "hidden" },
+      }),
+      now: new Date("2026-05-02T00:00:00.000Z"),
+    });
+    await expect(
+      saveReflectionDraft(
+        { actor: ACTOR_ID, activityId: ACTIVITY_ID, partId: "p_reflect", text: "hi" },
+        deps,
+      ),
+    ).rejects.toMatchObject({ code: "NOT_FOUND", reason: "not_found" });
+  });
 });
 
 describe("submitQuizAnswers", () => {

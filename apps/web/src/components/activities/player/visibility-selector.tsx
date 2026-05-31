@@ -1,10 +1,10 @@
-import type { VisibilityPreference } from "@hearth/domain";
+import { VISIBILITY_PREFERENCES, type VisibilityPreference } from "@hearth/domain";
 import { Popover, RadioGroup } from "@hearth/ui";
 import { ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { useSetRecordVisibility } from "../../../hooks/use-activity-record.ts";
 import { asUserMessage } from "../../../lib/problem.ts";
-import { VISIBILITY_LABELS, VISIBILITY_ORDER } from "../../../lib/visibility-labels.ts";
+import { VISIBILITY_LABELS } from "../../../lib/visibility-labels.ts";
 
 type Props = {
   readonly activityId: string;
@@ -44,7 +44,7 @@ export function VisibilitySelector({ activityId, value }: Props) {
         value={value}
         onValueChange={pick}
         disabled={setVisibility.isPending}
-        options={VISIBILITY_ORDER.map((p) => ({
+        options={VISIBILITY_PREFERENCES.map((p) => ({
           value: p,
           label: VISIBILITY_LABELS[p].label,
           description: VISIBILITY_LABELS[p].description,

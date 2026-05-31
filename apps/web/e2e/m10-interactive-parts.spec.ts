@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { attachSession, resetInstanceState, seedOperator } from "./auth.ts";
+import { attachSession, resetInstanceState, seedGroupWithTrack, seedOperator } from "./auth.ts";
 
 const BOOTSTRAP_USER = {
   userId: "u_e2e_op_m10",
@@ -24,24 +24,15 @@ test.describe("M10 — Activity rendering: interactive Parts", () => {
     await attachSession(context, op.cookie);
     const page = await context.newPage();
 
-    // Seed group + track via API. The track creator is auto-enrolled as a
-    // facilitator — a current enrollment — so the same account both authors
-    // the activity and participates in it (canRecordOwnActivityProgress is
-    // role-agnostic: it gates on a current enrollment, not on being a
-    // non-facilitator).
-    const groupRes = await context.request.post("/api/v1/g", {
-      data: { name: "Tuesday Night Learners" },
-      headers: { "content-type": "application/json" },
+    // The track creator is auto-enrolled as a facilitator — a current
+    // enrollment — so the same account both authors the activity and
+    // participates in it (canRecordOwnActivityProgress is role-agnostic: it
+    // gates on a current enrollment, not on being a non-facilitator).
+    const { groupId, trackId } = await seedGroupWithTrack(context, {
+      groupName: "Tuesday Night Learners",
+      trackName: "Beginner Spanish",
+      description: "Tuesday practice.",
     });
-    expect(groupRes.status()).toBe(201);
-    const { id: groupId } = (await groupRes.json()) as { id: string };
-
-    const trackRes = await context.request.post(`/api/v1/g/${groupId}/tracks`, {
-      data: { name: "Beginner Spanish", description: "Tuesday practice." },
-      headers: { "content-type": "application/json" },
-    });
-    expect(trackRes.status()).toBe(201);
-    const { id: trackId } = (await trackRes.json()) as { id: string };
 
     // --- Compose: a write_reflection Part + a single-question quiz ---
     await page.goto(`/g/${groupId}/t/${trackId}`);
@@ -112,5 +103,47 @@ test.describe("M10 — Activity rendering: interactive Parts", () => {
     await expect(page.getByText(/^Correct$/i)).toBeVisible();
     await expect(page.getByText(/formal daytime greeting/i)).toBeVisible();
     await expect(page.getByText(/1 of 1/i)).toBeVisible();
+  });
+
+  test("reflection autosave surfaces a failed state with a working retry", async ({ browser }) => {
+    const op = await seedOperator(BOOTSTRAP_USER);
+    const context = await browser.newContext();
+    await attachSession(context, op.cookie);
+    const page = await context.newPage();
+
+    const { groupId, trackId } = await seedGroupWithTrack(context, {
+      groupName: "Tuesday Night Learners",
+      trackName: "Beginner Spanish",
+      description: "Tuesday practice.",
+    });
+
+    await page.goto(`/g/${groupId}/t/${trackId}`);
+    await page.getByRole("button", { name: /New activity/i }).click();
+    const composer = page.getByRole("dialog", { name: /New activity/i });
+    await composer.getByRole("textbox", { name: /^Title$/i }).fill("Greetings & introductions");
+    await composer.getByRole("button", { name: /Reflection/i }).click();
+    await composer
+      .getByRole("textbox", { name: /Reflection prompt/i })
+      .fill("What's your favorite Spanish phrase so far?");
+    await composer.getByRole("button", { name: /Create activity/i }).click();
+    await expect(page.getByText(/Activity created/i)).toBeVisible();
+
+    await page.getByRole("button", { name: /Open activity: Greetings & introductions/i }).click();
+    await expect(page.getByRole("heading", { name: /Greetings & introductions/i })).toBeVisible();
+
+    // Force the autosave PUT to fail so the indicator must reach its failed
+    // state and expose a retry affordance — the regression this guards is a
+    // successful retry never advancing the pill past "Saving…".
+    await page.route("**/my-record/parts/*/reflection", (route) => route.abort());
+    const reflection = page.getByRole("textbox", { name: /Your reflection/i });
+    await reflection.fill(REFLECTION);
+    await expect(page.getByText(/Couldn't save/i)).toBeVisible();
+    const retry = page.getByRole("button", { name: /^retry$/i });
+    await expect(retry).toBeVisible();
+
+    // Let the next attempt succeed and confirm the retry settles to "Saved".
+    await page.unroute("**/my-record/parts/*/reflection");
+    await retry.click();
+    await expect(page.getByText("Saved", { exact: true })).toBeVisible();
   });
 });

@@ -28,10 +28,3 @@ export const VISIBILITY_LABELS: Record<
     description: "Hidden from the group; others in your track see only that you took part.",
   },
 };
-
-/** Display order for the selector (most open → most private). */
-export const VISIBILITY_ORDER: readonly VisibilityPreference[] = [
-  "default",
-  "track_only",
-  "private",
-];

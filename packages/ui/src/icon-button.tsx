@@ -14,7 +14,7 @@ export function IconButton({ label, className, children, type, ...props }: IconB
       className={cn(
         "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--radius-md)] text-[var(--color-ink-2)] transition-colors",
         "hover:bg-[var(--color-surface-2)] hover:text-[var(--color-ink)]",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] disabled:pointer-events-none disabled:opacity-40",
         className,
       )}
       {...props}

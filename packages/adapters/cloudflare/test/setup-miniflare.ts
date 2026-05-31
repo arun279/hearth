@@ -44,12 +44,11 @@ beforeEach(async () => {
     env.DB.prepare("DELETE FROM activity_prerequisites"),
     env.DB.prepare("DELETE FROM activity_suggested_sequences"),
     env.DB.prepare("DELETE FROM activity_library_refs"),
-    // Participant state: part_progress / part_history cascade from
-    // activity_records; activity_records + evidence_signals reference
-    // learning_activities under FK RESTRICT, so both must be cleared
-    // before the learning_activities delete below.
-    env.DB.prepare("DELETE FROM part_progress"),
-    env.DB.prepare("DELETE FROM part_history"),
+    // Participant state: part_progress + part_history have NOT-NULL FKs into
+    // activity_records with onDelete cascade, so the activity_records delete
+    // clears them. activity_records + evidence_signals reference
+    // learning_activities under FK no-action, so both must be cleared before
+    // the learning_activities delete below.
     env.DB.prepare("DELETE FROM evidence_signals"),
     env.DB.prepare("DELETE FROM activity_records"),
     env.DB.prepare("DELETE FROM learning_activities"),

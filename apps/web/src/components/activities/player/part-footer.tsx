@@ -45,8 +45,6 @@ export function PartFooter({ previousPartId, nextPartId, onNavigate, groupId, tr
         Previous
       </Button>
       {isLastPart ? (
-        // TODO(part-footer): once @hearth/ui Button supports an `asChild`
-        // slot, collapse this hand-styled Link to <Button asChild><Link/></Button>.
         <Link
           to="/g/$groupId/t/$trackId"
           params={{ groupId, trackId }}

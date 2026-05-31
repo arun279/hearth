@@ -28,7 +28,7 @@ import { createIdGenerator } from "./id-generator.ts";
  * - `savePartProgress` UPSERTs the (record, part) row and touches the
  *   parent record's `updatedAt`. The stored `stateJson` is the versioned
  *   envelope, parsed through the same Zod schema on read so a malformed
- *   row surfaces as `INVARIANT_VIOLATION` rather than mis-rendering.
+ *   row surfaces as `INVARIANT_VIOLATION` rather than rendering a malformed value.
  * - `setVisibilityOverride` writes (or clears, on `null`) the record-level
  *   override envelope.
  *
