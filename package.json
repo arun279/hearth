@@ -10,7 +10,7 @@
   "scripts": {
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
-    "check": "pnpm install --resolution-only && pnpm biome check . && pnpm check:md && pnpm typecheck && pnpm check:types:boundaries && pnpm check:arch && pnpm check:knip && pnpm check:conventions && pnpm check:dup && pnpm check:env-example && pnpm db:check-auth && pnpm test && pnpm test:scripts && pnpm test:integration && pnpm test:bundle && pnpm check:coverage && pnpm check:licenses && pnpm audit --audit-level=high",
+    "check": "pnpm install --resolution-only && pnpm biome check . && pnpm check:md && pnpm check:typos && pnpm typecheck && pnpm check:types:boundaries && pnpm check:arch && pnpm check:knip && pnpm check:conventions && pnpm check:dup && pnpm check:env-example && pnpm db:check-auth && pnpm test && pnpm test:scripts && pnpm test:integration && pnpm test:bundle && pnpm check:coverage && pnpm check:licenses && pnpm audit --audit-level=high",
     "test:bundle": "turbo run test:bundle",
     "check:types:boundaries": "pnpm --filter @hearth/domain --filter @hearth/core --filter @hearth/ports typecheck",
     "check:conventions": "node scripts/check-conventions.mjs",
@@ -19,6 +19,7 @@
     "check:licenses": "node scripts/check-licenses.mjs",
     "test:scripts": "node --test scripts/lib/*.test.mjs",
     "check:md": "dprint check",
+    "check:typos": "node scripts/ensure-typos.mjs .",
     "format:md": "dprint fmt",
     "test": "turbo run test",
     "test:integration": "turbo run test:integration",

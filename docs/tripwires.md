@@ -151,14 +151,6 @@ Each entry names the **pinned tool**, the **condition** that triggers a reassess
 - **Action**: M11 declares the port + wires the enqueue at the two marked call sites; M17 adds the batcher + budget CI test. The values are already computed in both use cases, and each enqueue point carries a `TODO(m11)` marker, so M11 only adds the port dependency + one call per use case — no restructuring.
 - **Location**: `packages/core/src/use-cases/save-reflection-draft.ts`, `packages/core/src/use-cases/submit-quiz-answers.ts` (see the `TODO(m11)` markers).
 
-## Deferred tooling
-
-### `typos` text gate and TODO-staleness check are CI-only / unwired
-
-- **Trigger**: a maintainer validates wiring `crate-ci/typos` into lefthook and/or adding `check:conventions` rules for stale `TODO(mN)` tags and raw `/api/v1/` literals in SPA `.tsx`.
-- **Action**: `typos` currently runs only in CI — it is absent from `pnpm check`, lefthook, and the AGENTS.md "When each check runs" table, so typo fixes (like the M10 PR's) are caught only after push. Wiring it locally (a pinned pre-built binary, not the npm `typos-cli` squatter) closes the parity gap. Separately, a `check:conventions` rule flagging `TODO(mN)` whose milestone is already shipped, and one banning raw `/api/v1/` literals outside the hc client + documented download helpers, would have caught this PR's stale tags and hardcoded URL. Both are infra/gate changes — validate the diagnosis and fix with the Architecture Analyst before wiring (per the validate-before-changing-infra rule).
-- **Location**: `lefthook.yml`, `scripts/check-conventions.mjs`, AGENTS.md § When each check runs.
-
 ## How to remove an entry
 
 An entry leaves this list only when one of the following is true:

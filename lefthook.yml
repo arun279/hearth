@@ -39,6 +39,9 @@ pre-commit:
       glob: "*.md"
       run: pnpm exec dprint fmt {staged_files}
       stage_fixed: true
+    typos:
+      glob: "*.{ts,tsx,js,jsx,mjs,cjs,json,jsonc,css,md,mdx,toml,yml,yaml,txt}"
+      run: node scripts/ensure-typos.mjs {staged_files}
     typecheck:
       glob: "*.{ts,tsx}"
       # Full turbo typecheck — cache makes incremental runs near-instant.
@@ -97,6 +100,9 @@ pre-push:
       run: pnpm biome check .
     dprint:
       run: pnpm check:md
+    typos:
+      # Belt-and-suspenders full-repo spell-check (mirrors biome/dprint above).
+      run: pnpm check:typos
     test:
       # Full turbo test run — cache makes incremental runs fast. Using
       # `--filter "...[HEAD]"` would be more targeted but breaks when HEAD

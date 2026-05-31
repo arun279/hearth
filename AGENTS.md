@@ -24,18 +24,19 @@ All of these must pass locally before merge. Most run automatically via `lefthoo
 1. `pnpm install --resolution-only`
 2. `pnpm biome check .`
 3. `pnpm check:md` (dprint markdown formatting)
-4. `pnpm typecheck`
-5. `pnpm check:arch`
-6. `pnpm check:knip`
-7. `pnpm check:types:boundaries`
-8. `pnpm check:conventions`
-9. `pnpm check:env-example`
-10. `pnpm db:check-auth`
-11. `pnpm test`
-12. `pnpm test:integration`
-13. `pnpm check:coverage`
-14. `pnpm check:licenses`
-15. `pnpm audit --audit-level=high`
+4. `pnpm check:typos` (crate-ci/typos spell-check, via a pinned local binary)
+5. `pnpm typecheck`
+6. `pnpm check:arch`
+7. `pnpm check:knip`
+8. `pnpm check:types:boundaries`
+9. `pnpm check:conventions`
+10. `pnpm check:env-example`
+11. `pnpm db:check-auth`
+12. `pnpm test`
+13. `pnpm test:integration`
+14. `pnpm check:coverage`
+15. `pnpm check:licenses`
+16. `pnpm audit --audit-level=high`
 
 `pnpm check` runs all of the above in one pass.
 
@@ -123,6 +124,7 @@ Implementation lives at `scripts/lib/auth-session.mjs` (shared module, JSDoc-typ
 | `pnpm install --resolution-only` | —                  | —                                | ✓                               | (part of `pnpm install --frozen-lockfile`) |
 | Biome lint + format              | ✓                  | staged files only                | —                               | all files                                  |
 | dprint markdown format           | —                  | staged files only                | full repo (belt-and-suspenders) | ✓                                          |
+| `pnpm check:typos`               | —                  | staged files only                | full repo (belt-and-suspenders) | ✓                                          |
 | `pnpm typecheck`                 | ✓ (via tsc server) | changed packages only            | —                               | all packages                               |
 | `pnpm check:types:boundaries`    | —                  | —                                | —                               | ✓                                          |
 | `pnpm check:arch`                | —                  | —                                | ✓                               | ✓                                          |
