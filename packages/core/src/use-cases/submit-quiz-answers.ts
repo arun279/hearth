@@ -7,7 +7,7 @@ import {
   type QuizVerdict,
   type UserId,
 } from "@hearth/domain";
-import type { ActivityRecordRepository, RegexMatcher } from "@hearth/ports";
+import type { ActivityRecordRepository } from "@hearth/ports";
 import {
   type LoadWritableOwnPartDeps,
   loadWritableOwnPart,
@@ -36,15 +36,14 @@ export type SubmitQuizAnswersResult = {
 
 export type SubmitQuizAnswersDeps = LoadWritableOwnPartDeps & {
   readonly records: ActivityRecordRepository;
-  readonly regexMatcher: RegexMatcher;
 };
 
 /**
  * Submit (or re-submit) a quiz Part. Own-record only. Grades each answer via
- * the pure `evaluateQuizAnswer` driven by the injected linear-time regex
- * engine, persists the answers (latest wins; preserves `completed`), and
- * returns per-question verdicts + an aggregate score. Grading is honor-system
- * and fail-soft — an ungraded question never blocks the learner.
+ * the pure `evaluateQuizAnswer`, persists the answers (latest wins; preserves
+ * `completed`), and returns per-question verdicts + an aggregate score.
+ * Grading is honor-system and fail-soft — an ungraded question never blocks
+ * the learner.
  */
 export async function submitQuizAnswers(
   input: SubmitQuizAnswersInput,
@@ -84,6 +83,22 @@ export async function submitQuizAnswers(
         "quiz_answers_mismatch",
       );
     }
+    // The wire schema caps `selectedIndex` at the global option max, not
+    // the question's actual option count — reject an index that points
+    // past this question's options as a malformed submission rather than
+    // silently grading it incorrect.
+    if (
+      a.kind === "multiple_choice" &&
+      a.selectedIndex !== null &&
+      q.shape.kind === "multiple_choice" &&
+      a.selectedIndex >= q.shape.options.length
+    ) {
+      throw new DomainError(
+        "INVARIANT_VIOLATION",
+        `Selected option ${a.selectedIndex} is out of range for question ${a.questionId}.`,
+        "quiz_answers_mismatch",
+      );
+    }
     if (answerById.has(a.questionId)) {
       throw new DomainError(
         "INVARIANT_VIOLATION",
@@ -94,11 +109,9 @@ export async function submitQuizAnswers(
     answerById.set(a.questionId, a);
   }
 
-  const matches = (pattern: string, value: string): boolean =>
-    deps.regexMatcher.matches(pattern, value);
   const perQuestion = part.questions.map((q) => ({
     questionId: q.id,
-    verdict: evaluateQuizAnswer(q, answerById.get(q.id), matches),
+    verdict: evaluateQuizAnswer(q, answerById.get(q.id)),
     correctIndex: q.shape.kind === "multiple_choice" ? (q.shape.answerKeyIndex ?? null) : null,
   }));
   const gradeable = perQuestion.filter((v) => v.verdict !== "no_key").length;

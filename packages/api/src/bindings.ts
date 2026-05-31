@@ -9,7 +9,6 @@ import type {
   LearningTrackRepository,
   LibraryItemRepository,
   ObjectStorage,
-  RegexMatcher,
   StudyGroupRepository,
   StudySessionRepository,
   SystemFlagRepository,
@@ -99,7 +98,6 @@ export type AppBindings = {
       readonly flags: SystemFlagRepository;
       readonly clock: Clock;
       readonly ids: IdGenerator;
-      readonly regexMatcher: RegexMatcher;
     };
   };
 };

@@ -22,6 +22,8 @@ import {
   Avatar,
   Badge,
   Button,
+  Callout,
+  cn,
   Field,
   IconButton,
   Input,
@@ -64,6 +66,60 @@ type Props = {
    */
   readonly deleteSlot?: ReactNode;
 };
+
+/**
+ * A submit-time validation failure, bound to the field that gates it so the
+ * composer can scroll the field into view, outline it, and link an inline
+ * message via `aria-describedby` (WCAG 3.3.1 / 3.3.3). A Part-level failure
+ * carries the offending Part's index so the per-Part anchor can be targeted.
+ */
+type SubmitError =
+  | { readonly target: "title"; readonly message: string }
+  | { readonly target: "audience"; readonly message: string }
+  | { readonly target: "parts"; readonly message: string }
+  | { readonly target: "post-close"; readonly message: string }
+  | { readonly target: "part"; readonly partIndex: number; readonly message: string };
+
+type SubmitErrorAnchor = "title" | "audience" | "parts" | "post-close" | `part-${number}`;
+
+function anchorKeyFor(error: SubmitError): SubmitErrorAnchor {
+  return error.target === "part" ? `part-${error.partIndex}` : error.target;
+}
+
+/** The inline message for a non-Part gate, or undefined when the active
+ * error targets a different field. */
+function errorFor(
+  error: SubmitError | null,
+  target: "title" | "audience" | "post-close",
+): string | undefined {
+  return error?.target === target ? error.message : undefined;
+}
+
+/**
+ * Label text with a bold required asterisk and a "Required" pill, so the
+ * requirement is discoverable before the user clicks Save rather than only
+ * after the submit bounce (Nielsen #5 error prevention; WCAG 3.3.2). The
+ * marks are `aria-hidden`; AT learns the requirement from the input's HTML
+ * `required` attribute instead, keeping the field's accessible name stable.
+ */
+function RequiredLabel({ children }: { readonly children: ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span>
+        {children}
+        <span aria-hidden="true" className="ml-0.5 font-bold text-[var(--color-danger)]">
+          *
+        </span>
+      </span>
+      <span
+        aria-hidden="true"
+        className="rounded-full bg-[var(--color-danger-soft)] px-1.5 py-px font-medium text-[10px] text-[var(--color-danger)] normal-case tracking-normal"
+      >
+        Required
+      </span>
+    </span>
+  );
+}
 
 type Draft = {
   title: string;
@@ -166,20 +222,24 @@ export function ActivityComposer({
   const initial = useMemo(() => buildDraft(activity), [activity]);
   const [draft, setDraft] = useState<Draft>(initial);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<SubmitError | null>(null);
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
-  // The alert is rendered at the bottom of the form body. With the
-  // sticky footer always visible, a Save click from `scrollTop=0` can
-  // place the alert below the visible viewport — the user gets no
-  // signal about which field is gating the action. Scroll the alert
-  // into view inside the modal's scrollable body on every `error`
-  // transition (first set + subsequent message changes during a
-  // fix-then-fail-elsewhere flow).
-  const errorRef = useRef<HTMLDivElement | null>(null);
+  // Each gating field registers a scroll anchor here so a submit error can
+  // bring the offending field into view inside the modal's scrollable body
+  // (a Save click from scrollTop=0 otherwise leaves the field off-screen,
+  // giving the user no signal about what to fix). Per-Part anchors are keyed
+  // by Part index since Parts are dynamic.
+  const fieldAnchors = useRef(new Map<SubmitErrorAnchor, HTMLElement | null>());
+  const registerAnchor = (key: SubmitErrorAnchor) => (el: HTMLElement | null) => {
+    fieldAnchors.current.set(key, el);
+  };
   useEffect(() => {
-    if (error && errorRef.current) {
-      errorRef.current.scrollIntoView({ block: "end", behavior: "smooth" });
-    }
+    if (!error) return;
+    const anchor = fieldAnchors.current.get(anchorKeyFor(error));
+    anchor?.scrollIntoView({ block: "center", behavior: "smooth" });
+    anchor
+      ?.querySelector<HTMLElement>("input, select, textarea, [tabindex]")
+      ?.focus({ preventScroll: true });
   }, [error]);
 
   useEffect(() => {
@@ -193,8 +253,8 @@ export function ActivityComposer({
   // The submit handler is the only writer of `error`; any draft mutation
   // is a user-input event (open-reset clears `error` first, so the dep
   // firing on initial mount is a no-op). Clearing on draft change keeps
-  // the field-named alert tied to its gating value: once the user has
-  // moved past the named field, the message disappears.
+  // the field-bound error tied to its gating value: once the user has
+  // edited past the named field, the message disappears.
   useEffect(() => {
     if (error !== null) setError(null);
   }, [draft]);
@@ -262,31 +322,37 @@ export function ActivityComposer({
   const submit = async () => {
     setError(null);
     if (draft.title.trim().length === 0) {
-      setError("Give the activity a title.");
+      setError({ target: "title", message: "Give the activity a title." });
+      return;
+    }
+    if (draft.parts.length === 0) {
+      setError({ target: "parts", message: "Add at least one Activity Part." });
+      return;
+    }
+    const incompletePart = findIncompletePart(draft.parts);
+    if (incompletePart) {
+      setError({
+        target: "part",
+        partIndex: incompletePart.partIndex,
+        message: incompletePart.message,
+      });
       return;
     }
     if (draft.audienceKind === "subset" && draft.selectedUserIds.size === 0) {
       // Mirror of the server-side `audience_user_not_enrolled` check —
       // catching the empty-subset case at submit avoids a round trip
       // for a state the user can fix from the picker right above.
-      setError("Pick at least one participant or switch back to Everyone enrolled.");
-      return;
-    }
-    if (draft.parts.length === 0) {
-      setError("Add at least one Activity Part.");
-      return;
-    }
-    const incompletePart = findIncompletePart(draft.parts);
-    if (incompletePart) {
-      // TODO(m19): scroll the offending Part into view + outline the
-      // failing field instead of surfacing the error at the dialog top.
-      // Surfaced by /design-review 2026-04-30; deferred until real-user
-      // friction confirms the cost beats the polish.
-      setError(incompletePart);
+      setError({
+        target: "audience",
+        message: "Pick at least one participant or switch back to Everyone enrolled.",
+      });
       return;
     }
     if (draft.closesAt.length > 0 && draft.postClose === null) {
-      setError("Pick what happens at close — visible/locked/hidden.");
+      setError({
+        target: "post-close",
+        message: "Pick what happens at close — visible, locked, or hidden.",
+      });
       return;
     }
     const payload: ActivityComposerPayload = serializeDraft(draft, trackId);
@@ -296,7 +362,10 @@ export function ActivityComposer({
       toast.success(activity ? "Activity updated." : "Activity created.");
       onClose();
     } catch (err) {
-      setError(asUserMessage(err, "Couldn't save the activity."));
+      // A server-side rejection isn't bound to a single field, so it
+      // surfaces on the Parts section anchor (where most validation
+      // failures originate) as a danger Callout.
+      setError({ target: "parts", message: asUserMessage(err, "Couldn't save the activity.") });
     } finally {
       setSubmitting(false);
     }
@@ -353,29 +422,23 @@ export function ActivityComposer({
         }
       >
         <div className="space-y-5">
-          {/*
-           * TODO(m19): bump required-asterisk visual weight (bold +
-           * a "Required" pill) at M19 polish. The asterisk today
-           * matches the calm density of the rest of the dialog —
-           * borderline visible at default zoom. The inline submit
-           * error names the gating field on save, so the missed-
-           * field recovery path works either way; this is purely
-           * about pre-click discoverability of the requirement.
-           */}
-          <Field label="Title" required>
-            {({ id, describedBy, required }) => (
-              <Input
-                id={id}
-                aria-describedby={describedBy}
-                required={required}
-                maxLength={MAX_TITLE_LENGTH}
-                placeholder="e.g., Greetings & introductions"
-                value={draft.title}
-                onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
-                disabled={submitting}
-              />
-            )}
-          </Field>
+          <div ref={registerAnchor("title")}>
+            <Field label={<RequiredLabel>Title</RequiredLabel>} error={errorFor(error, "title")}>
+              {({ id, describedBy }) => (
+                <Input
+                  id={id}
+                  aria-describedby={describedBy}
+                  invalid={error?.target === "title"}
+                  required
+                  maxLength={MAX_TITLE_LENGTH}
+                  placeholder="e.g., Greetings & introductions"
+                  value={draft.title}
+                  onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
+                  disabled={submitting}
+                />
+              )}
+            </Field>
+          </div>
 
           <Field label="Description" hint="Optional — a sentence on what the activity is about.">
             {({ id, describedBy }) => (
@@ -400,6 +463,8 @@ export function ActivityComposer({
             onMove={movePart}
             onUpdate={updatePart}
             disabled={submitting}
+            error={error}
+            registerAnchor={registerAnchor}
           />
 
           <AudienceFields
@@ -419,6 +484,8 @@ export function ActivityComposer({
               })
             }
             disabled={submitting}
+            error={errorFor(error, "audience")}
+            registerAnchor={registerAnchor("audience")}
           />
 
           <WindowFields
@@ -428,6 +495,8 @@ export function ActivityComposer({
             postClose={draft.postClose}
             onChange={(w) => setDraft((d) => ({ ...d, ...w }))}
             disabled={submitting}
+            error={errorFor(error, "post-close")}
+            registerAnchor={registerAnchor("post-close")}
           />
 
           <Field
@@ -469,16 +538,6 @@ export function ActivityComposer({
             }
             disabled={submitting}
           />
-
-          {error ? (
-            <div
-              ref={errorRef}
-              role="alert"
-              className="rounded-[var(--radius-sm)] border border-[var(--color-danger-border)] bg-[var(--color-danger-soft)] px-3 py-2 text-[12px] text-[var(--color-danger)]"
-            >
-              {error}
-            </div>
-          ) : null}
         </div>
       </Modal>
       <Modal
@@ -513,6 +572,8 @@ function PartsEditor({
   onMove,
   onUpdate,
   disabled,
+  error,
+  registerAnchor,
 }: {
   readonly groupId: string;
   readonly parts: readonly ActivityPart[];
@@ -521,56 +582,71 @@ function PartsEditor({
   readonly onMove: (idx: number, dir: -1 | 1) => void;
   readonly onUpdate: (idx: number, patch: Partial<ActivityPart>) => void;
   readonly disabled: boolean;
+  readonly error: SubmitError | null;
+  readonly registerAnchor: (key: SubmitErrorAnchor) => (el: HTMLElement | null) => void;
 }) {
+  // "parts" carries both the empty-Parts gate and a server-side save
+  // rejection (which isn't tied to a single field); both surface as a
+  // danger Callout at the section head.
+  const sectionError = error?.target === "parts" ? error.message : undefined;
   return (
-    <Field
-      label="Activity Parts"
-      hint="Reorder is safe — completed Part Progress is preserved across edits."
-    >
-      {() => (
-        <>
-          <div className="overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-rule)]">
-            {parts.length === 0 ? (
-              <div className="px-3 py-4 text-[12px] text-[var(--color-ink-3)]">
-                No Parts yet. Add one from the palette below.
-              </div>
-            ) : (
-              parts.map((part, i) => (
-                <PartRow
-                  key={part.id}
-                  groupId={groupId}
-                  part={part}
-                  index={i}
-                  isFirst={i === 0}
-                  isLast={i === parts.length - 1}
-                  onRemove={() => onRemove(i)}
-                  onMoveUp={() => onMove(i, -1)}
-                  onMoveDown={() => onMove(i, 1)}
-                  onUpdate={(patch) => onUpdate(i, patch)}
+    <div ref={registerAnchor("parts")}>
+      <Field
+        label="Activity Parts"
+        hint="Reorder is safe — completed Part Progress is preserved across edits."
+      >
+        {() => (
+          <>
+            {sectionError ? (
+              <Callout tone="danger" className="mb-2">
+                {sectionError}
+              </Callout>
+            ) : null}
+            <div className="overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-rule)]">
+              {parts.length === 0 ? (
+                <div className="px-3 py-4 text-[12px] text-[var(--color-ink-3)]">
+                  No Parts yet. Add one from the palette below.
+                </div>
+              ) : (
+                parts.map((part, i) => (
+                  <PartRow
+                    key={part.id}
+                    groupId={groupId}
+                    part={part}
+                    index={i}
+                    isFirst={i === 0}
+                    isLast={i === parts.length - 1}
+                    onRemove={() => onRemove(i)}
+                    onMoveUp={() => onMove(i, -1)}
+                    onMoveDown={() => onMove(i, 1)}
+                    onUpdate={(patch) => onUpdate(i, patch)}
+                    disabled={disabled}
+                    error={error?.target === "part" && error.partIndex === i ? error.message : null}
+                    anchorRef={registerAnchor(`part-${i}`)}
+                  />
+                ))
+              )}
+            </div>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {AUTHORABLE_PART_KINDS.map((kind) => (
+                <Button
+                  key={kind}
+                  type="button"
+                  size="sm"
+                  variant="secondary"
                   disabled={disabled}
-                />
-              ))
-            )}
-          </div>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {AUTHORABLE_PART_KINDS.map((kind) => (
-              <Button
-                key={kind}
-                type="button"
-                size="sm"
-                variant="secondary"
-                disabled={disabled}
-                onClick={() => onAdd(kind)}
-              >
-                <Plus size={11} strokeWidth={1.75} aria-hidden="true" />
-                <PartIcon kind={kind} size={11} />
-                {partKindLabel(kind)}
-              </Button>
-            ))}
-          </div>
-        </>
-      )}
-    </Field>
+                  onClick={() => onAdd(kind)}
+                >
+                  <Plus size={11} strokeWidth={1.75} aria-hidden="true" />
+                  <PartIcon kind={kind} size={11} />
+                  {partKindLabel(kind)}
+                </Button>
+              ))}
+            </div>
+          </>
+        )}
+      </Field>
+    </div>
   );
 }
 
@@ -585,6 +661,8 @@ function PartRow({
   onMoveDown,
   onUpdate,
   disabled,
+  error,
+  anchorRef,
 }: {
   readonly groupId: string;
   readonly part: ActivityPart;
@@ -596,9 +674,18 @@ function PartRow({
   readonly onMoveDown: () => void;
   readonly onUpdate: (patch: Partial<ActivityPart>) => void;
   readonly disabled: boolean;
+  readonly error: string | null;
+  readonly anchorRef: (el: HTMLElement | null) => void;
 }) {
+  const errorId = error ? `part-${part.id}-error` : undefined;
   return (
-    <div className="flex items-start gap-3 border-[var(--color-rule)] border-b px-3 py-3 last:border-b-0">
+    <div
+      ref={anchorRef}
+      className={cn(
+        "flex items-start gap-3 border-[var(--color-rule)] border-b px-3 py-3 last:border-b-0",
+        error && "bg-[var(--color-danger-soft)] outline outline-[var(--color-danger-border)]",
+      )}
+    >
       <span className="mt-0.5 w-5 shrink-0 font-mono text-[11px] text-[var(--color-ink-3)]">
         {index + 1}
       </span>
@@ -608,6 +695,11 @@ function PartRow({
           <Badge>{partKindLabel(part.kind)}</Badge>
         </div>
         <PartBody groupId={groupId} part={part} onUpdate={onUpdate} disabled={disabled} />
+        {error ? (
+          <p id={errorId} role="alert" className="text-[11px] text-[var(--color-danger)]">
+            {error}
+          </p>
+        ) : null}
       </div>
       <div className="flex shrink-0 items-center gap-1">
         {/*
@@ -625,7 +717,12 @@ function PartRow({
         <IconButton label="Move down" onClick={onMoveDown} disabled={disabled || isLast}>
           <ArrowDown size={11} strokeWidth={1.75} aria-hidden="true" />
         </IconButton>
-        <IconButton label={`Remove Part ${index + 1}`} onClick={onRemove} disabled={disabled}>
+        <IconButton
+          label={`Remove Part ${index + 1}`}
+          tone="danger"
+          onClick={onRemove}
+          disabled={disabled}
+        >
           <X size={11} strokeWidth={1.75} aria-hidden="true" />
         </IconButton>
       </div>
@@ -812,12 +909,16 @@ function QuizQuestionEditor({
   // Switching shape swaps the variant payload to a blank of the target
   // kind so no stale answer key rides along on the wire — an MC's
   // options + answerKeyIndex would be meaningless under short_answer
-  // and vice versa.
+  // and vice versa. The short_answer seed leaves `correctAnswer`
+  // undefined (ungraded by default).
   const setShape = (kind: "multiple_choice" | "short_answer") => {
     if (kind === question.shape.kind) return;
     onChange({
       ...question,
-      shape: kind === "multiple_choice" ? { kind, options: ["", ""] } : { kind },
+      shape:
+        kind === "multiple_choice"
+          ? { kind, options: ["", ""] }
+          : { kind, alsoAccept: [], exactMatch: false },
     });
   };
 
@@ -839,6 +940,7 @@ function QuizQuestionEditor({
         </div>
         <IconButton
           label={`Remove question ${index + 1}`}
+          tone="danger"
           onClick={onRemove}
           disabled={disabled || total <= 1}
         >
@@ -872,32 +974,12 @@ function QuizQuestionEditor({
           disabled={disabled}
         />
       ) : (
-        <Field
-          label="Answer key (regex)"
-          hint="Answer keys use RE2 syntax (e.g. ^(yes|sí)$). Left blank, the question is ungraded."
-        >
-          {({ id, describedBy }) => (
-            <Input
-              id={id}
-              aria-describedby={describedBy}
-              placeholder="^(yes|sí)$"
-              maxLength={MAX_QUIZ_OPTION_TEXT}
-              value={
-                question.shape.kind === "short_answer" ? (question.shape.answerKeyRegex ?? "") : ""
-              }
-              onChange={(e) =>
-                onChange({
-                  ...question,
-                  shape: {
-                    kind: "short_answer",
-                    answerKeyRegex: e.target.value.length > 0 ? e.target.value : undefined,
-                  },
-                })
-              }
-              disabled={disabled}
-            />
-          )}
-        </Field>
+        <ShortAnswerKeyEditor
+          questionId={question.id}
+          shape={question.shape}
+          onChange={(shape) => onChange({ ...question, shape })}
+          disabled={disabled}
+        />
       )}
 
       <Field label="Explanation" hint="Optional — shown after the learner answers.">
@@ -996,6 +1078,7 @@ function QuizOptionsEditor({
             />
             <IconButton
               label={`Remove option ${i + 1}`}
+              tone="danger"
               onClick={() => removeOption(i)}
               disabled={disabled || options.length <= 2}
             >
@@ -1020,13 +1103,12 @@ function QuizOptionsEditor({
 
 /**
  * Stable React keys for a positional list whose items carry no unique
- * value of their own (option text isn't unique; the array index is the
- * answer-key pointer). Seeds one key per current item, then mutates the
- * key list in lockstep with the caller's add/remove so a row keeps its
- * identity across a sibling removal — focus and the input's internal
- * state survive instead of the list shifting up under the cursor. The
- * component only mounts for the multiple-choice shape, so the seed count
- * always matches the options it renders.
+ * value of their own (option / accepted-answer text isn't unique). Seeds
+ * one key per current item, then mutates the key list in lockstep with the
+ * caller's add/remove so a row keeps its identity across a sibling removal
+ * — focus and the input's internal state survive instead of the list
+ * shifting up under the cursor. The seed count must match the rows the
+ * caller renders on first mount.
  */
 function useStableRowKeys(prefix: string, count: number) {
   const next = useRef(0);
@@ -1037,6 +1119,120 @@ function useStableRowKeys(prefix: string, count: number) {
     grow: () => setIds((prev) => [...prev, mint()]),
     removeAt: (idx: number) => setIds((prev) => prev.filter((_, i) => i !== idx)),
   };
+}
+
+type ShortAnswerShape = Extract<QuizQuestion["shape"], { kind: "short_answer" }>;
+
+/**
+ * Short-answer answer-key authoring. A facilitator types one "Correct
+ * answer" plus an optional list of accepted alternates (same row vocabulary
+ * as the multiple-choice options editor), and one "Match exactly" toggle.
+ * Grading is normalized set-membership equality — no pattern, no engine —
+ * so the in-context note states in plain language what will count as
+ * correct. Leaving the correct answer blank leaves the question ungraded.
+ */
+function ShortAnswerKeyEditor({
+  questionId,
+  shape,
+  onChange,
+  disabled,
+}: {
+  readonly questionId: string;
+  readonly shape: ShortAnswerShape;
+  readonly onChange: (shape: ShortAnswerShape) => void;
+  readonly disabled: boolean;
+}) {
+  const accepted = shape.alsoAccept;
+  const keys = useStableRowKeys(`${questionId}-accept`, accepted.length);
+
+  const setCorrect = (value: string) =>
+    onChange({ ...shape, correctAnswer: value.length > 0 ? value : undefined });
+  const setAccepted = (idx: number, value: string) =>
+    onChange({ ...shape, alsoAccept: accepted.map((a, i) => (i === idx ? value : a)) });
+  const addAccepted = () => {
+    keys.grow();
+    onChange({ ...shape, alsoAccept: [...accepted, ""] });
+  };
+  const removeAccepted = (idx: number) => {
+    keys.removeAt(idx);
+    onChange({ ...shape, alsoAccept: accepted.filter((_, i) => i !== idx) });
+  };
+
+  return (
+    <div className="space-y-2.5">
+      <Field
+        label="Correct answer"
+        hint="What a learner should type. Leave blank to leave this question ungraded."
+      >
+        {({ id, describedBy }) => (
+          <Input
+            id={id}
+            aria-describedby={describedBy}
+            placeholder="e.g., sí"
+            maxLength={MAX_QUIZ_OPTION_TEXT}
+            value={shape.correctAnswer ?? ""}
+            onChange={(e) => setCorrect(e.target.value)}
+            disabled={disabled}
+          />
+        )}
+      </Field>
+
+      <div className="space-y-1.5">
+        <span className="block font-medium text-[11px] text-[var(--color-ink-2)] uppercase tracking-wide">
+          Also accept
+        </span>
+        {accepted.map((value, i) => (
+          <div key={keys.at(i)} className="flex items-center gap-2">
+            <Input
+              aria-label={`Accepted answer ${i + 1}`}
+              placeholder={`Accepted answer ${i + 1}`}
+              maxLength={MAX_QUIZ_OPTION_TEXT}
+              value={value}
+              onChange={(e) => setAccepted(i, e.target.value)}
+              disabled={disabled}
+            />
+            <IconButton
+              label={`Remove accepted answer ${i + 1}`}
+              tone="danger"
+              onClick={() => removeAccepted(i)}
+              disabled={disabled}
+            >
+              <X size={11} strokeWidth={1.75} aria-hidden="true" />
+            </IconButton>
+          </div>
+        ))}
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          disabled={disabled || accepted.length >= MAX_QUIZ_OPTIONS_PER_QUESTION}
+          onClick={addAccepted}
+        >
+          <Plus size={11} strokeWidth={1.75} aria-hidden="true" />
+          Add accepted answer
+        </Button>
+      </div>
+
+      <div className="space-y-1">
+        <label className="flex items-center gap-2 text-[12px] text-[var(--color-ink)]">
+          <input
+            type="checkbox"
+            checked={shape.exactMatch}
+            disabled={disabled}
+            onChange={(e) => onChange({ ...shape, exactMatch: e.target.checked })}
+            aria-describedby={`${questionId}-match-note`}
+            className="h-3.5 w-3.5 shrink-0 accent-[var(--color-accent)]"
+          />
+          Match exactly (capitalization &amp; accents)
+        </label>
+        <p id={`${questionId}-match-note`} className="text-[11px] text-[var(--color-ink-2)]">
+          {shape.exactMatch
+            ? "Answers must match exactly, including capitalization and accents."
+            : "Answers match regardless of capitalization, surrounding spaces, or accents (sí = si)."}
+        </p>
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -1071,12 +1267,14 @@ function LibraryItemPickerBody({
   }
   if (library.isError) {
     return (
-      <div className="flex items-center justify-between gap-2 text-[11px] text-[var(--color-warn)]">
-        <span>{asUserMessage(library.error, "Couldn't load the library — try again.")}</span>
-        <Button size="sm" variant="secondary" onClick={() => library.refetch()}>
-          Try again
-        </Button>
-      </div>
+      <Callout tone="danger">
+        <div className="flex items-center justify-between gap-2">
+          <span>{asUserMessage(library.error, "Couldn't load the library — try again.")}</span>
+          <Button size="sm" variant="secondary" onClick={() => library.refetch()}>
+            Try again
+          </Button>
+        </div>
+      </Callout>
     );
   }
   if (!allowed || allowed.length === 0) {
@@ -1124,6 +1322,8 @@ function WindowFields({
   postClose,
   onChange,
   disabled,
+  error,
+  registerAnchor,
 }: {
   readonly opensAt: string;
   readonly dueAt: string;
@@ -1138,6 +1338,8 @@ function WindowFields({
     }>,
   ) => void;
   readonly disabled: boolean;
+  readonly error?: string;
+  readonly registerAnchor: (el: HTMLElement | null) => void;
 }) {
   // `<input type="datetime-local">` returns a wall-clock string in the
   // browser's local zone with no offset; the saved ms-since-epoch
@@ -1197,19 +1399,23 @@ function WindowFields({
         <span className="font-mono">{localZone}</span>.
       </p>
       {closesAt.length > 0 ? (
-        <Field
-          label="Post-close policy"
-          hint="What happens after the close time. Required when a close time is set."
-        >
-          {({ describedBy }) => (
-            <PostCloseRadios
-              value={postClose}
-              describedBy={describedBy}
-              disabled={disabled}
-              onChange={(next) => onChange({ postClose: next })}
-            />
-          )}
-        </Field>
+        <div ref={registerAnchor}>
+          <Field
+            label="Post-close policy"
+            hint="What happens after the close time. Required when a close time is set."
+            error={error}
+          >
+            {({ describedBy }) => (
+              <PostCloseRadios
+                value={postClose}
+                describedBy={describedBy}
+                invalid={error !== undefined}
+                disabled={disabled}
+                onChange={(next) => onChange({ postClose: next })}
+              />
+            )}
+          </Field>
+        </div>
       ) : null}
     </div>
   );
@@ -1246,11 +1452,13 @@ const POST_CLOSE_OPTIONS: ReadonlyArray<{
 function PostCloseRadios({
   value,
   describedBy,
+  invalid,
   disabled,
   onChange,
 }: {
   readonly value: PostClosePolicy["kind"] | null;
   readonly describedBy?: string;
+  readonly invalid?: boolean;
   readonly disabled: boolean;
   readonly onChange: (next: PostClosePolicy["kind"]) => void;
 }) {
@@ -1258,8 +1466,12 @@ function PostCloseRadios({
     <div
       role="radiogroup"
       aria-describedby={describedBy}
+      aria-invalid={invalid || undefined}
       aria-label="Post-close policy"
-      className="space-y-1.5"
+      className={cn(
+        "space-y-1.5 rounded-[var(--radius-sm)]",
+        invalid && "outline outline-[var(--color-danger-border)]",
+      )}
     >
       {POST_CLOSE_OPTIONS.map((opt) => (
         <label
@@ -1395,6 +1607,8 @@ function AudienceFields({
   onAudienceKindChange,
   onToggleUser,
   disabled,
+  error,
+  registerAnchor,
 }: {
   readonly trackId: string;
   readonly audienceKind: ActivityAudience["kind"];
@@ -1402,6 +1616,8 @@ function AudienceFields({
   readonly onAudienceKindChange: (kind: ActivityAudience["kind"]) => void;
   readonly onToggleUser: (userId: string) => void;
   readonly disabled: boolean;
+  readonly error?: string;
+  readonly registerAnchor: (el: HTMLElement | null) => void;
 }) {
   const people = useTrackPeople(trackId, true);
   // Only current enrollees are addressable — left enrollments stay
@@ -1411,84 +1627,89 @@ function AudienceFields({
   const isSubset = audienceKind === "subset";
 
   return (
-    <Field
-      label="Audience"
-      hint="Default reaches everyone enrolled. Narrow to a subset for one-off pairings; departed enrollees fall out automatically."
-    >
-      {({ id, describedBy }) => (
-        <div className="space-y-3">
-          <select
-            id={id}
-            aria-describedby={describedBy}
-            className="h-9 w-full rounded-[var(--radius-sm)] border border-[var(--color-rule)] bg-[var(--color-bg)] px-3 text-[13px]"
-            value={audienceKind}
-            disabled={disabled}
-            onChange={(e) => onAudienceKindChange(e.target.value as ActivityAudience["kind"])}
-          >
-            <option value="everyone_enrolled">Everyone enrolled (default)</option>
-            <option value="subset">Selected participants</option>
-          </select>
+    <div ref={registerAnchor}>
+      <Field
+        label="Audience"
+        hint="Default reaches everyone enrolled. Narrow to a subset for one-off pairings; departed enrollees fall out automatically."
+        error={error}
+      >
+        {({ id, describedBy }) => (
+          <div className="space-y-3">
+            <select
+              id={id}
+              aria-describedby={describedBy}
+              className="h-9 w-full rounded-[var(--radius-sm)] border border-[var(--color-rule)] bg-[var(--color-bg)] px-3 text-[13px]"
+              value={audienceKind}
+              disabled={disabled}
+              onChange={(e) => onAudienceKindChange(e.target.value as ActivityAudience["kind"])}
+            >
+              <option value="everyone_enrolled">Everyone enrolled (default)</option>
+              <option value="subset">Selected participants</option>
+            </select>
 
-          {isSubset ? (
-            <div className="overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-rule)]">
-              {people.isLoading ? (
-                <div className="px-3 py-3 text-[12px] text-[var(--color-ink-3)]">
-                  Loading roster…
+            {isSubset ? (
+              <div className="overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-rule)]">
+                {people.isLoading ? (
+                  <div className="px-3 py-3 text-[12px] text-[var(--color-ink-3)]">
+                    Loading roster…
+                  </div>
+                ) : people.isError ? (
+                  <Callout tone="danger" className="m-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span>
+                        {asUserMessage(
+                          people.error,
+                          "Couldn't load the roster. Switch back to Everyone enrolled or retry.",
+                        )}
+                      </span>
+                      <Button size="sm" variant="secondary" onClick={() => people.refetch()}>
+                        Try again
+                      </Button>
+                    </div>
+                  </Callout>
+                ) : enrollees.length === 0 ? (
+                  <div className="px-3 py-3 text-[12px] text-[var(--color-ink-3)]">
+                    No current enrollees yet — invite participants first, then narrow audience.
+                  </div>
+                ) : (
+                  <ul className="divide-y divide-[var(--color-rule)]">
+                    {enrollees.map((row) => {
+                      const userId = row.enrollment.userId;
+                      const checked = selectedUserIds.has(userId);
+                      return (
+                        <li key={userId}>
+                          <label className="flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-[var(--color-surface-2)]">
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4"
+                              checked={checked}
+                              disabled={disabled}
+                              onChange={() => onToggleUser(userId)}
+                            />
+                            <Avatar name={row.displayName} size={24} src={row.avatarUrl} />
+                            <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--color-ink)]">
+                              {row.displayName}
+                            </span>
+                            {row.enrollment.role === "facilitator" ? (
+                              <Badge>facilitator</Badge>
+                            ) : null}
+                          </label>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+                <div className="border-[var(--color-rule)] border-t bg-[var(--color-surface)] px-3 py-2 text-[11px] text-[var(--color-ink-3)]">
+                  {selectedUserIds.size === 0
+                    ? "Pick at least one participant before saving."
+                    : `${selectedUserIds.size} selected`}
                 </div>
-              ) : people.isError ? (
-                <div className="flex items-center justify-between gap-2 px-3 py-3 text-[12px] text-[var(--color-warn)]">
-                  <span>
-                    {asUserMessage(
-                      people.error,
-                      "Couldn't load the roster. Switch back to Everyone enrolled or retry.",
-                    )}
-                  </span>
-                  <Button size="sm" variant="secondary" onClick={() => people.refetch()}>
-                    Try again
-                  </Button>
-                </div>
-              ) : enrollees.length === 0 ? (
-                <div className="px-3 py-3 text-[12px] text-[var(--color-ink-3)]">
-                  No current enrollees yet — invite participants first, then narrow audience.
-                </div>
-              ) : (
-                <ul className="divide-y divide-[var(--color-rule)]">
-                  {enrollees.map((row) => {
-                    const userId = row.enrollment.userId;
-                    const checked = selectedUserIds.has(userId);
-                    return (
-                      <li key={userId}>
-                        <label className="flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-[var(--color-surface-2)]">
-                          <input
-                            type="checkbox"
-                            className="h-4 w-4"
-                            checked={checked}
-                            disabled={disabled}
-                            onChange={() => onToggleUser(userId)}
-                          />
-                          <Avatar name={row.displayName} size={24} src={row.avatarUrl} />
-                          <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--color-ink)]">
-                            {row.displayName}
-                          </span>
-                          {row.enrollment.role === "facilitator" ? (
-                            <Badge>facilitator</Badge>
-                          ) : null}
-                        </label>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-              <div className="border-[var(--color-rule)] border-t bg-[var(--color-surface)] px-3 py-2 text-[11px] text-[var(--color-ink-3)]">
-                {selectedUserIds.size === 0
-                  ? "Pick at least one participant before saving."
-                  : `${selectedUserIds.size} selected`}
               </div>
-            </div>
-          ) : null}
-        </div>
-      )}
-    </Field>
+            ) : null}
+          </div>
+        )}
+      </Field>
+    </div>
   );
 }
 
@@ -1653,56 +1874,68 @@ function serializeDraft(draft: Draft, trackId: string): ActivityComposerPayload 
 }
 
 /**
- * Walks the draft's Parts and returns a user-facing message describing
- * the first unfilled required field, or `null` if everything is
+ * Walks the draft's Parts and returns the index + a user-facing message
+ * for the first unfilled required field, or `null` if everything is
  * authorable. Lets the composer refuse a save before the API round-trip
  * — server-side Zod still re-validates as defense in depth. Each branch
- * mirrors a `min(1)` constraint in the corresponding Part schema.
+ * mirrors a `min(1)` / `.refine` constraint in the corresponding Part schema.
  */
-function findIncompletePart(parts: readonly ActivityPart[]): string | null {
+function findIncompletePart(
+  parts: readonly ActivityPart[],
+): { readonly partIndex: number; readonly message: string } | null {
   for (let i = 0; i < parts.length; i++) {
     const p = parts[i];
     if (!p) continue;
     const where = `Part ${i + 1} (${p.kind.replace(/_/g, " ")})`;
+    const fail = (message: string) => ({ partIndex: i, message });
     if (
       (p.kind === "read_library_item" || p.kind === "listen_audio" || p.kind === "watch_video") &&
       p.libraryItemId.length === 0
     ) {
-      return `${where}: pick a Library Item.`;
+      return fail(`${where}: pick a Library Item.`);
     }
     if (p.kind === "write_reflection" && p.prompt.trim().length === 0) {
-      return `${where}: write a reflection prompt.`;
+      return fail(`${where}: write a reflection prompt.`);
     }
     if (p.kind === "embed") {
       try {
         const u = new URL(p.url);
-        if (u.protocol !== "https:") return `${where}: embed URL must use https.`;
+        if (u.protocol !== "https:") return fail(`${where}: embed URL must use https.`);
       } catch {
-        return `${where}: embed URL must be a valid https URL.`;
+        return fail(`${where}: embed URL must be a valid https URL.`);
       }
     }
     if (p.kind === "quiz") {
-      // answerKeyRegex is left to the server — it must compile under the
-      // RE2 engine, and a client-side check would diverge from the
-      // authoritative validation. Everything else mirrors a min(1)
-      // constraint in the quiz schema.
       if (p.questions.length === 0) {
-        return `${where}: add at least one question.`;
+        return fail(`${where}: add at least one question.`);
       }
       for (let q = 0; q < p.questions.length; q++) {
         const question = p.questions[q];
         if (!question) continue;
         const at = `${where}, question ${q + 1}`;
         if (question.prompt.trim().length === 0) {
-          return `${at}: write a prompt.`;
+          return fail(`${at}: write a prompt.`);
         }
         if (question.shape.kind === "multiple_choice") {
           if (question.shape.options.length < 2) {
-            return `${at}: add at least two options.`;
+            return fail(`${at}: add at least two options.`);
           }
           if (question.shape.options.some((o) => o.trim().length === 0)) {
-            return `${at}: fill in every option or remove the empty ones.`;
+            return fail(`${at}: fill in every option or remove the empty ones.`);
           }
+        }
+        // Mirror of the short-answer coherence refine: an accept-list
+        // with no primary answer can never grade. Whitespace-only entries
+        // are trimmed to empty by the schema, so they need no separate
+        // message here.
+        if (
+          question.shape.kind === "short_answer" &&
+          question.shape.correctAnswer === undefined &&
+          question.shape.alsoAccept.some((a) => a.trim().length > 0)
+        ) {
+          return fail(
+            `${at}: add a correct answer, or clear the accepted list to leave it ungraded.`,
+          );
         }
       }
     }

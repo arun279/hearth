@@ -35,8 +35,8 @@ export type GetActivityDeps = {
  *
  * Quiz answer keys are authoring data: only a caller with edit authority
  * (who composes the keys) receives the unredacted body. Every other viewer
- * gets the same body with `answerKeyIndex` / `answerKeyRegex` stripped, the
- * same redaction the `/player` projection applies — otherwise an enrolled
+ * gets the same body with the grading keys stripped (`redactQuizAnswerKeys`),
+ * the same redaction the `/player` projection applies — otherwise an enrolled
  * learner could read the keys off this route and bypass server-side grading.
  */
 export async function getActivity(

@@ -78,7 +78,6 @@ const INVARIANT_AND_VALIDATION_CODES = [
   "activity_closed",
   "part_kind_mismatch",
   "quiz_answers_mismatch",
-  "quiz_answer_key_regex_invalid",
 ] as const;
 
 type KnownProblemCode = PolicyDenialCode | (typeof INVARIANT_AND_VALIDATION_CODES)[number];
@@ -287,8 +286,6 @@ const policyDenialMessages: Record<KnownProblemCode, string> = {
   part_kind_mismatch: "That response doesn't match this part. Refresh and try again.",
   quiz_answers_mismatch:
     "Your answers didn't line up with this quiz's questions. Refresh the activity and try again.",
-  quiz_answer_key_regex_invalid:
-    "A short-answer key isn't a valid pattern. Fix it in the quiz before saving.",
 };
 
 function problemMessage(problem: ApiProblem): string {

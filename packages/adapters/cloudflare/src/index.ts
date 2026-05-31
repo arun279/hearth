@@ -21,7 +21,6 @@ export { createLearningTrackRepository } from "./learning-track-repository.ts";
 export { createLibraryItemRepository } from "./library-item-repository.ts";
 export { createObjectStorage, type ObjectStorageConfig } from "./object-storage.ts";
 export { createPendingUploadsSweep } from "./pending-uploads-sweep.ts";
-export { createRegexMatcher } from "./regex-matcher.ts";
 export { createScheduler } from "./scheduler.ts";
 export { createStudyGroupRepository } from "./study-group-repository.ts";
 export { createStudySessionRepository } from "./study-session-repository.ts";

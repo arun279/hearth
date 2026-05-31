@@ -34,4 +34,3 @@ catalog:
   "@paralleldrive/cuid2": ^3.3.0
   aws4fetch: 1.0.20
   fast-check: ^3.23.2
-  re2js: 2.8.3

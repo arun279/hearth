@@ -57,10 +57,6 @@ function buildPorts(overrides: Partial<Ports>): Ports {
     flags: throwingProxy<Ports["flags"]>("flags"),
     clock: { now: () => new Date("2026-05-18T00:00:00.000Z") },
     ids: { generate: () => "id_test" } as IdGenerator,
-    regexMatcher: {
-      isValid: () => true,
-      matches: (pattern: string, input: string) => new RegExp(pattern).test(input),
-    },
     ...overrides,
   };
 }

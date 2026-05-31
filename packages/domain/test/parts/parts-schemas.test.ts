@@ -53,7 +53,7 @@ const QUIZ: unknown = {
     {
       id: "q2",
       prompt: "Type one",
-      shape: { kind: "short_answer", answerKeyRegex: "yes" },
+      shape: { kind: "short_answer", correctAnswer: "yes", alsoAccept: ["yep"], exactMatch: false },
     },
   ],
 };
@@ -131,6 +131,42 @@ describe("activityPartSchema (discriminated union)", () => {
           },
         ],
       }),
+    ).toThrow();
+  });
+
+  const shortAnswerQuiz = (shape: unknown): unknown => ({
+    kind: "quiz",
+    id: "p1",
+    questions: [{ id: "q", prompt: "p", shape }],
+  });
+
+  it("defaults short_answer alsoAccept to [] and exactMatch to false", () => {
+    const parsed = quizPartSchema.parse(shortAnswerQuiz({ kind: "short_answer" }));
+    expect(parsed.questions[0]?.shape).toEqual({
+      kind: "short_answer",
+      alsoAccept: [],
+      exactMatch: false,
+    });
+  });
+
+  it("rejects short_answer with a non-empty alsoAccept but no correctAnswer", () => {
+    expect(() =>
+      activityPartSchema.parse(shortAnswerQuiz({ kind: "short_answer", alsoAccept: ["yes"] })),
+    ).toThrow();
+  });
+
+  it("rejects a whitespace-only correctAnswer", () => {
+    expect(() =>
+      activityPartSchema.parse(shortAnswerQuiz({ kind: "short_answer", correctAnswer: "   " })),
+    ).toThrow();
+  });
+
+  it("rejects an alsoAccept list past the per-question cap", () => {
+    const overflow = Array.from({ length: 11 }, (_, i) => `alt${i}`);
+    expect(() =>
+      activityPartSchema.parse(
+        shortAnswerQuiz({ kind: "short_answer", correctAnswer: "yes", alsoAccept: overflow }),
+      ),
     ).toThrow();
   });
 

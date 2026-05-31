@@ -124,7 +124,12 @@ const reflectQuiz = await call(
         {
           id: "q2",
           prompt: "Type “yes” or “sí” to confirm you practiced aloud.",
-          shape: { kind: "short_answer", answerKeyRegex: "^(yes|sí|si)$" },
+          shape: {
+            kind: "short_answer",
+            correctAnswer: "sí",
+            alsoAccept: ["si", "yes"],
+            exactMatch: false,
+          },
           explainAfterAnswer: "Either spelling counts.",
         },
       ],

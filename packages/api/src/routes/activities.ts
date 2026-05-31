@@ -143,7 +143,6 @@ function depsFor(c: Context<AppBindings>) {
     records: c.var.ports.records,
     storage: c.var.ports.storage,
     clock: c.var.ports.clock,
-    regexMatcher: c.var.ports.regexMatcher,
   };
 }
 

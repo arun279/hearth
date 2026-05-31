@@ -246,7 +246,7 @@ function EditActivityDialog({
         deleteSlot={
           <Button
             type="button"
-            variant="secondary"
+            variant="danger"
             onClick={() => setConfirmOpen(true)}
             disabled={remove.isPending}
           >

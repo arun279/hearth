@@ -19,9 +19,18 @@ const multipleChoiceShape = z.object({
   answerKeyIndex: z.number().int().nonnegative().optional(),
 });
 
+const acceptedAnswer = z.string().trim().min(1).max(MAX_QUIZ_OPTION_TEXT);
+
 const shortAnswerShape = z.object({
   kind: z.literal("short_answer"),
-  answerKeyRegex: z.string().max(MAX_QUIZ_OPTION_TEXT).optional(),
+  /** Absent => ungraded (fail-soft, mirrors `answerKeyIndex === undefined`). */
+  correctAnswer: acceptedAnswer.optional(),
+  /** Additional literal spellings that also grade correct (e.g. accent or
+   * case variants the normalizer doesn't already fold). */
+  alsoAccept: z.array(acceptedAnswer).max(MAX_QUIZ_OPTIONS_PER_QUESTION).default([]),
+  /** When true, grading is case- + accent-sensitive (still trims +
+   * collapses whitespace + canonicalizes encoding). Default forgiving. */
+  exactMatch: z.boolean().default(false),
 });
 
 export const quizQuestionSchema = z
@@ -37,6 +46,16 @@ export const quizQuestionSchema = z
       q.shape.answerKeyIndex === undefined ||
       q.shape.answerKeyIndex < q.shape.options.length,
     { message: "answerKeyIndex must point at a real option.", path: ["shape", "answerKeyIndex"] },
+  )
+  .refine(
+    (q) =>
+      q.shape.kind !== "short_answer" ||
+      q.shape.correctAnswer !== undefined ||
+      q.shape.alsoAccept.length === 0,
+    {
+      message: "Add a correct answer, or clear the accepted list to leave this question ungraded.",
+      path: ["shape", "alsoAccept"],
+    },
   );
 
 export type QuizQuestion = z.infer<typeof quizQuestionSchema>;
@@ -72,8 +91,9 @@ export const quizAnswerSchema = z.discriminatedUnion("kind", [
 export type QuizAnswer = z.infer<typeof quizAnswerSchema>;
 
 /**
- * Strip the grading keys (`answerKeyIndex`, `answerKeyRegex`) from a quiz
- * Part before it crosses the wire to a learner. The Activity Player needs
+ * Strip the grading keys (`answerKeyIndex` for multiple-choice;
+ * `correctAnswer` / `alsoAccept` / `exactMatch` for short-answer) from a
+ * quiz Part before it crosses the wire to a learner. The Activity Player needs
  * the prompts + options + post-answer explanations to render, but never the
  * keys — those stay server-side so the auto-score can't be read off the
  * network tab. Grading happens in the use case (which reads the unredacted
@@ -88,7 +108,10 @@ export function redactQuizAnswerKeys(part: QuizPart): QuizPart {
       shape:
         q.shape.kind === "multiple_choice"
           ? { kind: "multiple_choice", options: q.shape.options }
-          : { kind: "short_answer" },
+          : // `correctAnswer` (the secret) and the `alsoAccept` contents are
+            // dropped; the empty defaults keep the shape schema-valid without
+            // revealing the key.
+            { kind: "short_answer", alsoAccept: [], exactMatch: false },
     })),
   };
 }

@@ -27,7 +27,6 @@ import {
   makeLibrary,
   makePolicy,
   makeRecords,
-  makeRegexMatcher,
   makeTracks,
   makeUsers,
   membership,
@@ -78,8 +77,21 @@ function makeActivity(overrides: Partial<LearningActivity> = {}): LearningActivi
             prompt: "Pick",
             shape: { kind: "multiple_choice", options: ["a", "b", "c"], answerKeyIndex: 1 },
           },
-          { id: "q_sa", prompt: "Type", shape: { kind: "short_answer", answerKeyRegex: "^yes$" } },
-          { id: "q_nokey", prompt: "Open", shape: { kind: "short_answer" } },
+          {
+            id: "q_sa",
+            prompt: "Type",
+            shape: {
+              kind: "short_answer",
+              correctAnswer: "yes",
+              alsoAccept: [],
+              exactMatch: false,
+            },
+          },
+          {
+            id: "q_nokey",
+            prompt: "Open",
+            shape: { kind: "short_answer", alsoAccept: [], exactMatch: false },
+          },
         ],
       },
     ],
@@ -118,7 +130,6 @@ type DepsOpts = {
   enrollment?: TrackEnrollment | null;
   membershipRole?: "participant" | "admin";
   records?: ReturnType<typeof makeRecords>;
-  regexMatcher?: ReturnType<typeof makeRegexMatcher>;
 };
 
 function depsOk(opts: DepsOpts = {}) {
@@ -139,7 +150,6 @@ function depsOk(opts: DepsOpts = {}) {
     activities: makeActivities({ byId: vi.fn(async () => activity) }),
     library: makeLibrary(),
     records: opts.records ?? makeRecords({ upsert: markWrite(vi.fn(async () => record())) }),
-    regexMatcher: opts.regexMatcher ?? makeRegexMatcher(),
     clock: { now: () => now },
   };
 }
@@ -361,6 +371,69 @@ describe("submitQuizAnswers", () => {
       deps,
     );
     expect(result.autoScore).toEqual({ correct: 0, gradeable: 2 });
+  });
+
+  it("grades a short-answer correct via an alsoAccept alternate and an accent fold", async () => {
+    const activity = makeActivity({
+      parts: [
+        {
+          kind: "quiz",
+          id: "p_quiz",
+          questions: [
+            {
+              id: "q_sa",
+              prompt: "Type",
+              shape: {
+                kind: "short_answer",
+                correctAnswer: "sí",
+                alsoAccept: ["yes"],
+                exactMatch: false,
+              },
+            },
+          ],
+        },
+      ],
+    });
+    const acceptByAlternate = await submitQuizAnswers(
+      {
+        actor: ACTOR_ID,
+        activityId: ACTIVITY_ID,
+        partId: "p_quiz",
+        answers: [{ questionId: "q_sa", kind: "short_answer", text: "YES" }],
+      },
+      depsOk({ activity }),
+    );
+    expect(acceptByAlternate.perQuestion[0]?.verdict).toBe("correct");
+
+    const acceptByFold = await submitQuizAnswers(
+      {
+        actor: ACTOR_ID,
+        activityId: ACTIVITY_ID,
+        partId: "p_quiz",
+        answers: [{ questionId: "q_sa", kind: "short_answer", text: "si" }],
+      },
+      depsOk({ activity }),
+    );
+    expect(acceptByFold.perQuestion[0]?.verdict).toBe("correct");
+  });
+
+  it("rejects a multiple-choice selectedIndex past the question's option count", async () => {
+    const deps = depsOk();
+    await expect(
+      submitQuizAnswers(
+        {
+          actor: ACTOR_ID,
+          activityId: ACTIVITY_ID,
+          partId: "p_quiz",
+          answers: [
+            { questionId: "q_mc", kind: "multiple_choice", selectedIndex: 9 },
+            { questionId: "q_sa", kind: "short_answer", text: "yes" },
+            { questionId: "q_nokey", kind: "short_answer", text: "x" },
+          ],
+        },
+        deps,
+      ),
+    ).rejects.toMatchObject({ code: "INVARIANT_VIOLATION", reason: "quiz_answers_mismatch" });
   });
 
   it("rejects a submission whose answer count differs from the quiz", async () => {
@@ -611,8 +684,8 @@ describe("setRecordVisibilityOverride", () => {
   });
 });
 
-describe("createActivity — quiz answer-key compile validation", () => {
-  function quizDraft(answerKeyRegex: string): LearningActivityDraft {
+describe("createActivity — short-answer quiz", () => {
+  function quizDraft(): LearningActivityDraft {
     return {
       trackId: TRACK_ID,
       title: "Quiz Activity",
@@ -621,7 +694,18 @@ describe("createActivity — quiz answer-key compile validation", () => {
         {
           kind: "quiz",
           id: "p_q",
-          questions: [{ id: "q1", prompt: "?", shape: { kind: "short_answer", answerKeyRegex } }],
+          questions: [
+            {
+              id: "q1",
+              prompt: "?",
+              shape: {
+                kind: "short_answer",
+                correctAnswer: "sí",
+                alsoAccept: ["si"],
+                exactMatch: false,
+              },
+            },
+          ],
         },
       ],
       flow: { prereqs: [] },
@@ -635,26 +719,12 @@ describe("createActivity — quiz answer-key compile validation", () => {
     };
   }
 
-  it("rejects an answer key that does not compile under the engine", async () => {
-    const deps = depsOk({
-      membershipRole: "admin",
-      regexMatcher: makeRegexMatcher({ isValid: vi.fn(() => false) }),
-    });
-    await expect(
-      createActivity({ actor: ACTOR_ID, draft: quizDraft("(") }, deps),
-    ).rejects.toMatchObject({
-      code: "INVARIANT_VIOLATION",
-      reason: "quiz_answer_key_regex_invalid",
-    });
-    expect(deps.activities.create).not.toHaveBeenCalled();
-  });
-
-  it("accepts a compilable answer key", async () => {
+  it("creates an activity with a short-answer key (no matcher dependency)", async () => {
     const created = makeActivity();
     const deps = depsOk({ membershipRole: "admin" });
     deps.activities.create = markWrite(vi.fn(async () => created));
-    await expect(
-      createActivity({ actor: ACTOR_ID, draft: quizDraft("^yes$") }, deps),
-    ).resolves.toBe(created);
+    await expect(createActivity({ actor: ACTOR_ID, draft: quizDraft() }, deps)).resolves.toBe(
+      created,
+    );
   });
 });

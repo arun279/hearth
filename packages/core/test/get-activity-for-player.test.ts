@@ -288,7 +288,16 @@ describe("getActivityForPlayer", () => {
               prompt: "MC",
               shape: { kind: "multiple_choice", options: ["a", "b"], answerKeyIndex: 1 },
             },
-            { id: "q2", prompt: "SA", shape: { kind: "short_answer", answerKeyRegex: "^yes$" } },
+            {
+              id: "q2",
+              prompt: "SA",
+              shape: {
+                kind: "short_answer",
+                correctAnswer: "yes",
+                alsoAccept: [],
+                exactMatch: false,
+              },
+            },
           ],
         },
       ],
@@ -304,7 +313,7 @@ describe("getActivityForPlayer", () => {
         (quiz.questions[0]?.shape as { answerKeyIndex?: number }).answerKeyIndex,
       ).toBeUndefined();
       expect(
-        (quiz.questions[1]?.shape as { answerKeyRegex?: string }).answerKeyRegex,
+        (quiz.questions[1]?.shape as { correctAnswer?: string }).correctAnswer,
       ).toBeUndefined();
       expect(quiz.questions[0]?.shape.kind).toBe("multiple_choice");
     }

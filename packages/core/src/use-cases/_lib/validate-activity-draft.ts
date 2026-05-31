@@ -16,7 +16,7 @@ import {
   type UserId,
 } from "@hearth/domain";
 import { canAttachLibraryItemToActivity } from "@hearth/domain/policy/can-attach-library-item-to-activity";
-import type { LearningTrackRepository, LibraryItemRepository, RegexMatcher } from "@hearth/ports";
+import type { LearningTrackRepository, LibraryItemRepository } from "@hearth/ports";
 
 /**
  * Run every pure invariant + every async lookup the create / update use
@@ -32,7 +32,6 @@ import type { LearningTrackRepository, LibraryItemRepository, RegexMatcher } fro
 export type ValidateActivityDraftDeps = {
   readonly library: LibraryItemRepository;
   readonly tracks: LearningTrackRepository;
-  readonly regexMatcher: RegexMatcher;
 };
 
 export async function validateActivityDraft(
@@ -51,26 +50,6 @@ export async function validateActivityDraft(
   for (const r of invariants) {
     if (!r.ok) {
       throw new DomainError("INVARIANT_VIOLATION", r.message, r.code);
-    }
-  }
-
-  // 1b. Quiz answer keys must compile under the grading engine (RE2). A key
-  // that can't compile would silently never grade — a learner's correct
-  // answer would come back "ungraded" — so reject it at compose time and let
-  // the facilitator fix it now. (Linear-time RE2 also makes the key
-  // ReDoS-safe; there is no separate complexity gate to apply.)
-  for (const part of draft.parts) {
-    if (part.kind !== "quiz") continue;
-    for (const question of part.questions) {
-      if (question.shape.kind !== "short_answer") continue;
-      const key = question.shape.answerKeyRegex;
-      if (key !== undefined && !deps.regexMatcher.isValid(key)) {
-        throw new DomainError(
-          "INVARIANT_VIOLATION",
-          `Quiz question ${question.id} has an answer key that is not a valid pattern.`,
-          "quiz_answer_key_regex_invalid",
-        );
-      }
     }
   }
 
