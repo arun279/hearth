@@ -78,8 +78,12 @@ export function ReflectPart({
     );
   }
 
-  // Keyed on the resolved record state at the call site, so this mounts with
-  // the correct initial text and `useState` initialization is sound.
+  // `ReflectEditor` seeds local state from `initialText` once at mount, so the
+  // seed must already be the persisted value on first render. Two mechanisms
+  // guarantee that: PartViewport gates mounting on `record.loaded` (the editor
+  // never renders before the record fetch resolves), and the player remounts
+  // it via `key={part.id}` on every Part switch (so switching Parts re-seeds
+  // from the new Part's state rather than carrying stale text).
   return (
     <ReflectEditor
       activityId={activityId}
@@ -115,6 +119,22 @@ function ReflectEditor({
   const textRef = useRef(text);
   textRef.current = text;
 
+  // Both the debounced autosave's onSuccess and the keepalive flush advance
+  // `lastSaved`. Folding them behind one writer keeps the advance monotonic:
+  // a late onSuccess for older text can't pull `lastSaved` back behind a flush
+  // that already persisted the newest text (which would strand the pill on
+  // "Saving…" with no request in flight). A value still matching the live text
+  // is current and always accepted; any other value is only accepted while
+  // `lastSaved` is still at its seed, never as a regression from a flush.
+  const markSaved = useCallback(
+    (value: string) => {
+      if (value === textRef.current || lastSaved.current === initialText) {
+        lastSaved.current = value;
+      }
+    },
+    [initialText],
+  );
+
   // Single source of truth for the save side-effects: both the debounced
   // autosave and the retry affordance route through here so a successful retry
   // advances `lastSaved` (settling the pill past "Saving…") and clears the
@@ -126,7 +146,7 @@ function ReflectEditor({
         { partId: part.id, text: pending },
         {
           onSuccess: () => {
-            lastSaved.current = pending;
+            markSaved(pending);
             toastedFailure.current = false;
           },
           onError: (err) => {
@@ -138,7 +158,7 @@ function ReflectEditor({
         },
       );
     },
-    [saveMutate, part.id],
+    [saveMutate, part.id, markSaved],
   );
 
   // Debounced autosave: persist only after typing pauses, and never re-save
@@ -159,17 +179,19 @@ function ReflectEditor({
     const flush = () => {
       if (textRef.current === lastSaved.current) return;
       const body = JSON.stringify({ text: textRef.current });
-      lastSaved.current = textRef.current;
+      markSaved(textRef.current);
       const url = api.activities[":activityId"]["my-record"].parts[":partId"].reflection.$url({
         param: { activityId, partId: part.id },
       });
+      // A failed last-ditch flush is intentionally non-fatal: the next mount
+      // re-reads persisted state, so there's nothing to recover here.
       void fetch(url, {
         method: "PUT",
         credentials: "include",
         keepalive: true,
         headers: { "content-type": "application/json" },
         body,
-      });
+      }).catch(() => {});
     };
     const onVisibility = () => {
       if (document.visibilityState === "hidden") flush();
@@ -179,7 +201,7 @@ function ReflectEditor({
       document.removeEventListener("visibilitychange", onVisibility);
       flush();
     };
-  }, [activityId, part.id]);
+  }, [activityId, part.id, markSaved]);
 
   const dirty = text !== lastSaved.current;
   const status = deriveSaveStatus({

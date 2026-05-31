@@ -19,10 +19,12 @@ type QueryShape = {
   readonly refetch: () => unknown;
 };
 
+type ChangeActivePartId = (partId: string | null, options?: { replace?: boolean }) => void;
+
 type Props = {
   readonly query: QueryShape;
   readonly requestedPartId: string | null;
-  readonly onChangeActivePartId: (partId: string | null) => void;
+  readonly onChangeActivePartId: ChangeActivePartId;
   /** For the last-Part "Back to track" closure link in the footer. */
   readonly groupId: string;
   readonly trackId: string;
@@ -76,7 +78,7 @@ function PlayerBody({
 }: {
   readonly projection: ActivityPlayerProjection;
   readonly requestedPartId: string | null;
-  readonly onChangeActivePartId: (partId: string | null) => void;
+  readonly onChangeActivePartId: ChangeActivePartId;
   readonly groupId: string;
   readonly trackId: string;
 }) {
@@ -115,13 +117,15 @@ function PlayerBody({
 
   // If the URL named a Part id that doesn't exist on this activity,
   // surface a tiny toast and snap to the canonical first Part. The
-  // toast is keyed so successive bad pings don't pile up.
+  // toast is keyed so successive bad pings don't pile up. The snap
+  // replaces history (it's error correction, not user intent) so Back
+  // doesn't return to the invalid `?part=` and re-fire this effect.
   useEffect(() => {
     if (requestedPartId !== null && !requestedExists && activePartId !== "") {
       toast.message("Couldn't find that part — showing the first one instead.", {
         id: FALLBACK_TOAST_KEY,
       });
-      onChangeActivePartId(activePartId);
+      onChangeActivePartId(activePartId, { replace: true });
     }
   }, [requestedExists, requestedPartId, activePartId, onChangeActivePartId]);
 

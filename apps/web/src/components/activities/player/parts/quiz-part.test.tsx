@@ -6,11 +6,17 @@ import { gradedMcOptions, initialAnswers, QuizPart } from "./quiz-part.tsx";
 
 /**
  * Pure coverage for `initialAnswers` (which `useState` seeds the answer map
- * from on mount) and `gradedMcOptions` (the post-grade option tinting), plus
- * an SSR smoke check that the un-submitted quiz shows the "Submit" CTA and no
- * grading feedback. Verdict-clears-on-edit (a DOM state transition) is covered
- * end-to-end by the Playwright e2e and is the seed case for the component-test
- * layer being added separately.
+ * from on mount) and `gradedMcOptions` (the post-grade option tinting, across
+ * the correct / incorrect / no-key verdicts), plus SSR checks for the
+ * participant and read-only render arms.
+ *
+ * TODO(test): the post-submit rendering paths — the "Not quite" incorrect
+ * badge, the `ScoreSummary` `gradeable === 0` ("no auto-graded questions")
+ * branch, the short-answer submit round-trip, and verdict-clears-on-edit —
+ * depend on a submit mutation firing and updating state, so they need a real
+ * DOM. They land with the deferred jsdom component-test layer (separate PR),
+ * alongside the reflection keepalive-flush / autosave-transition tests; the
+ * m10 e2e covers the single correct-MC path end-to-end in the meantime.
  */
 
 const PART: QuizPartT = {
@@ -25,7 +31,7 @@ const PART: QuizPartT = {
     {
       id: "q_sa",
       prompt: "Translate hello.",
-      shape: { kind: "short_answer" },
+      shape: { kind: "short_answer", alsoAccept: [], exactMatch: false },
     },
   ],
 };
@@ -120,5 +126,25 @@ describe("<QuizPart> initial render", () => {
     expect(html).toContain("Submit");
     expect(html).not.toContain("Correct");
     expect(html).not.toContain("Not quite");
+  });
+
+  it("renders a short-answer input alongside the multiple-choice question", () => {
+    const html = renderToString(
+      <QueryClientProvider client={new QueryClient()}>
+        <QuizPart activityId="a_test" part={PART} partState={null} canParticipate={true} />
+      </QueryClientProvider>,
+    );
+    expect(html).toContain('aria-label="Answer for question 2"');
+  });
+
+  it("renders read-only with disabled inputs, no Submit, and the enrolled-only notice", () => {
+    const html = renderToString(
+      <QueryClientProvider client={new QueryClient()}>
+        <QuizPart activityId="a_test" part={PART} partState={null} canParticipate={false} />
+      </QueryClientProvider>,
+    );
+    expect(html).toContain("Only enrolled participants can submit answers.");
+    expect(html).not.toContain(">Submit<");
+    expect(html).toContain("disabled");
   });
 });

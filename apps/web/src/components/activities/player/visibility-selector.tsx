@@ -1,10 +1,14 @@
-import { VISIBILITY_PREFERENCES, type VisibilityPreference } from "@hearth/domain";
+import type { VisibilityPreference } from "@hearth/domain";
 import { Popover, RadioGroup } from "@hearth/ui";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useSetRecordVisibility } from "../../../hooks/use-activity-record.ts";
 import { asUserMessage } from "../../../lib/problem.ts";
-import { VISIBILITY_LABELS } from "../../../lib/visibility-labels.ts";
+import {
+  SELECTABLE_VISIBILITY_OVERRIDES,
+  VISIBILITY_LABELS,
+  visibilityTriggerLabel,
+} from "../../../lib/visibility-labels.ts";
 
 type Props = {
   readonly activityId: string;
@@ -17,12 +21,22 @@ type Props = {
   readonly value: VisibilityPreference | null;
 };
 
+type SelectableVisibilityOverride = (typeof SELECTABLE_VISIBILITY_OVERRIDES)[number];
+
+const isSelectableOverride = (
+  value: VisibilityPreference | null,
+): value is SelectableVisibilityOverride =>
+  value !== null && SELECTABLE_VISIBILITY_OVERRIDES.includes(value as SelectableVisibilityOverride);
+
 export function VisibilitySelector({ activityId, value }: Props) {
   const setVisibility = useSetRecordVisibility(activityId);
-  const triggerLabel = value !== null ? VISIBILITY_LABELS[value].label : "Your default";
+  // A stored `default` (legacy explicit pin) selects no radio — it resolves to
+  // the same scope as clearing the override, surfaced as "Your default" below.
+  const radioValue = isSelectableOverride(value) ? value : null;
 
   const pick = (next: VisibilityPreference | null) => {
     setVisibility.mutate(next, {
+      onSuccess: () => toast.success("Visibility updated"),
       onError: (err) => toast.error(asUserMessage(err, "Couldn't update visibility.")),
     });
   };
@@ -33,18 +47,30 @@ export function VisibilitySelector({ activityId, value }: Props) {
       triggerClassName="inline-flex items-center gap-1 rounded-[var(--radius-sm)] px-1.5 py-0.5 text-[11px] text-[var(--color-ink-2)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
       label={
         <>
-          Visibility: <span className="font-medium text-[var(--color-ink)]">{triggerLabel}</span>
-          <ChevronDown size={11} strokeWidth={1.75} aria-hidden="true" />
+          Visibility:{" "}
+          <span className="font-medium text-[var(--color-ink)]">
+            {visibilityTriggerLabel(value)}
+          </span>
+          {setVisibility.isPending ? (
+            <Loader2
+              size={11}
+              strokeWidth={1.75}
+              className="animate-spin"
+              aria-label="Saving visibility"
+            />
+          ) : (
+            <ChevronDown size={11} strokeWidth={1.75} aria-hidden="true" />
+          )}
         </>
       }
     >
       <RadioGroup
         legend="Who can see this record"
         legendHidden
-        value={value}
+        value={radioValue}
         onValueChange={pick}
         disabled={setVisibility.isPending}
-        options={VISIBILITY_PREFERENCES.map((p) => ({
+        options={SELECTABLE_VISIBILITY_OVERRIDES.map((p) => ({
           value: p,
           label: VISIBILITY_LABELS[p].label,
           description: VISIBILITY_LABELS[p].description,
@@ -58,9 +84,9 @@ export function VisibilitySelector({ activityId, value }: Props) {
           type="button"
           onClick={() => pick(null)}
           disabled={setVisibility.isPending}
-          className="mt-1.5 text-[11px] text-[var(--color-accent)] underline hover:no-underline disabled:opacity-60"
+          className="mt-1.5 rounded-[var(--radius-sm)] text-[11px] text-[var(--color-accent)] underline hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] disabled:opacity-60"
         >
-          Use my default
+          Use my default ({VISIBILITY_LABELS.default.label})
         </button>
       ) : null}
     </Popover>

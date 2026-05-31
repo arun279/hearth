@@ -34,19 +34,13 @@ export function useActivityRecord(activityId: string, enabled = true) {
   });
 }
 
-type SaveReflectionResult = {
-  readonly saved: true;
-  readonly wordCount: number;
-  readonly meetsMinWords: boolean;
-};
-
 export function useSaveReflection(activityId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: {
       readonly partId: string;
       readonly text: string;
-    }): Promise<SaveReflectionResult> => {
+    }): Promise<void> => {
       const res = await api.activities[":activityId"]["my-record"].parts[":partId"].reflection.$put(
         {
           param: { activityId, partId: input.partId },
@@ -54,7 +48,6 @@ export function useSaveReflection(activityId: string) {
         },
       );
       await assertOk(res);
-      return (await res.json()) as SaveReflectionResult;
     },
     // The mounted editor holds the live text in local state, so a background
     // refetch here can't clobber it; remounting (Part switch + back) reads

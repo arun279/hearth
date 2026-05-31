@@ -39,7 +39,11 @@ export function SaveIndicator({ status, onRetry, className }: SaveIndicatorProps
     <span className={cn(base, "text-[var(--color-danger)]", className)} role="status">
       Couldn't save
       {onRetry ? (
-        <button type="button" onClick={onRetry} className="underline hover:no-underline">
+        <button
+          type="button"
+          onClick={onRetry}
+          className="rounded-[var(--radius-sm)] underline hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
+        >
           retry
         </button>
       ) : null}

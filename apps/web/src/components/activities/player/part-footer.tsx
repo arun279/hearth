@@ -94,7 +94,6 @@ export function PartFooter({
             params={{ groupId, trackId }}
             className={buttonClasses(finishIsPrimary ? "primary" : "secondary", "sm")}
           >
-            <ChevronLeft size={14} strokeWidth={1.5} aria-hidden="true" />
             Back to track
           </Link>
         ) : (

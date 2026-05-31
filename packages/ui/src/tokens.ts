@@ -43,6 +43,7 @@ export const SURFACES: readonly ColorToken[] = [
 export const FOREGROUNDS: readonly ForegroundToken[] = [
   { name: "--color-ink", light: "#0f1115", dark: "#ebedf0", role: "body" },
   { name: "--color-ink-2", light: "#51555e", dark: "#a6abb5", role: "body" },
+  { name: "--color-ink-3", light: "#6b6f78", dark: "#868b95", role: "body" },
   { name: "--color-accent", light: "#3358d4", dark: "#7e9bff", role: "body" },
   { name: "--color-good", light: "#1f7a54", dark: "#5cc092", role: "body" },
   { name: "--color-warn", light: "#a85a00", dark: "#e3a764", role: "body" },

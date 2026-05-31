@@ -7,10 +7,14 @@ import { deriveSaveStatus, ReflectPart } from "./reflect-part.tsx";
 /**
  * `deriveSaveStatus` is the precedence rule the autosave pill reads; pinning
  * it here keeps a future branch (e.g. a "conflict" state) conspicuously the
- * odd one out. The retry-calls-persist wiring and the autosave-debounce
- * transitions are behavioural DOM state transitions: they are covered
- * end-to-end by the Playwright e2e and are seed cases for the component-test
- * layer being added separately.
+ * odd one out.
+ *
+ * TODO(test): the behavioural DOM transitions — retry-calls-persist, the
+ * autosave-debounce pill transitions, the monotonic `lastSaved` advance, and
+ * the visibilitychange/unmount keepalive flush (including the no-pending-change
+ * skip) — need a real DOM and a fetch spy, so they land with the deferred
+ * jsdom component-test layer (separate PR). The m10 e2e covers debounced
+ * autosave and retry end-to-end in the meantime.
  */
 
 const PART: WriteReflectionPart = { kind: "write_reflection", id: "p_reflect", prompt: "Why?" };

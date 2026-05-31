@@ -91,6 +91,26 @@ export function QuizPart({ activityId, part, partState, canParticipate }: Props)
           <Button type="button" onClick={onSubmit} disabled={submit.isPending} size="sm">
             {submit.isPending ? "Submitting…" : feedback ? "Re-submit" : "Submit"}
           </Button>
+          {/* A failed submit latches a persistent inline failure + retry,
+              mirroring the reflection autosave's SaveIndicator: the one-shot
+              toast above announces the moment of failure, this is the durable
+              signal that survives the toast's auto-dismiss. React Query clears
+              `isError` on the next attempt. */}
+          {submit.isError && !submit.isPending ? (
+            <span
+              role="alert"
+              className="inline-flex items-center gap-1 text-[11px] text-[var(--color-danger)]"
+            >
+              Couldn't submit
+              <button
+                type="button"
+                onClick={onSubmit}
+                className="rounded-[var(--radius-sm)] underline hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
+              >
+                retry
+              </button>
+            </span>
+          ) : null}
           {score ? <ScoreSummary score={score} /> : null}
         </div>
       ) : (

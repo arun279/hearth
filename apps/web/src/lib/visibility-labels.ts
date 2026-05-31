@@ -28,3 +28,25 @@ export const VISIBILITY_LABELS: Record<
     description: "Hidden from the group; others in your track see only that you took part.",
   },
 };
+
+/**
+ * The concrete scopes a participant can pin as a record-level override. The
+ * chooser deliberately omits `default`: selecting it would store the explicit
+ * `"default"` value while *clearing* the override (`null`) resolves to the
+ * same scope, so two affordances would mean the same end state. `null` is the
+ * single "inherit my account default" path, surfaced as a separate clear
+ * action rather than a radio.
+ */
+export const SELECTABLE_VISIBILITY_OVERRIDES = ["track_only", "private"] as const;
+
+/**
+ * Trigger label for the record's effective visibility. `null` resolves to the
+ * account default, whose scope is `default` ("Track") until per-user defaults
+ * exist — so the label names that concrete scope rather than leaving "Your
+ * default" an opaque pointer (recognition over recall).
+ */
+export function visibilityTriggerLabel(value: VisibilityPreference | null): string {
+  return value !== null
+    ? VISIBILITY_LABELS[value].label
+    : `Your default (${VISIBILITY_LABELS.default.label})`;
+}
