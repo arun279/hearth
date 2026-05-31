@@ -1,27 +1,37 @@
 import type { ActivityPart } from "@hearth/domain";
 import { cn, PartIcon } from "@hearth/ui";
+import { Check } from "lucide-react";
 import { partTitle } from "./_lib/part-title.ts";
 
 type Props = {
   readonly parts: readonly ActivityPart[];
   readonly orderedPartIds: readonly string[];
   readonly activePartId: string;
+  readonly completedPartIds: ReadonlySet<string>;
   readonly onSelectPart: (partId: string) => void;
 };
 
 /**
  * Desktop-only 240px column of Part-buttons. Each row shows a status
- * dot, the Part's icon, and its label. The active Part gets a left
+ * indicator, the Part's icon, and its label. The active Part gets a left
  * accent border + bolder ink — a single, restrained signal that
  * doesn't compete with the title strip above.
  *
- * Label format mirrors the mobile PartTabBar via the shared
- * `partTitle` helper, so the accessible name and visual ordering match
- * across the two surfaces. Status dot renders neutral; coloured states
- * land with per-Part progress in a later milestone, but the shape and
- * position are final so that change is a pure className flip.
+ * Label format mirrors the mobile PartTabBar via the shared `partTitle`
+ * helper, so the accessible name and visual ordering match across the two
+ * surfaces. The completed-Part signal is a check glyph plus a "(completed)"
+ * suffix on the accessible name — conveyed by icon + text, never colour
+ * alone (WCAG 1.4.1). A completed inactive row also drops to muted ink so it
+ * reads as done at a glance for sighted users, pairing the redundant cue with
+ * the check rather than relying on it alone.
  */
-export function FlowSidebar({ parts, orderedPartIds, activePartId, onSelectPart }: Props) {
+export function FlowSidebar({
+  parts,
+  orderedPartIds,
+  activePartId,
+  completedPartIds,
+  onSelectPart,
+}: Props) {
   const partById = new Map(parts.map((p) => [p.id, p]));
   return (
     <nav
@@ -33,6 +43,7 @@ export function FlowSidebar({ parts, orderedPartIds, activePartId, onSelectPart 
           const part = partById.get(partId);
           if (!part) return null;
           const isActive = partId === activePartId;
+          const isComplete = completedPartIds.has(partId);
           return (
             <li key={partId}>
               <button
@@ -43,13 +54,18 @@ export function FlowSidebar({ parts, orderedPartIds, activePartId, onSelectPart 
                   "hover:bg-[var(--color-surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]",
                   isActive
                     ? "border-[var(--color-accent)] border-l-2 bg-[var(--color-accent-soft)] pl-[6px] text-[var(--color-ink)]"
-                    : "border-transparent border-l-2 text-[var(--color-ink-2)]",
+                    : isComplete
+                      ? "border-transparent border-l-2 bg-[var(--color-surface-2)] text-[var(--color-ink-2)]"
+                      : "border-transparent border-l-2 text-[var(--color-ink-2)]",
                 )}
                 aria-current={isActive ? "step" : undefined}
               >
-                <PartStatusDot />
+                <PartStatusDot complete={isComplete} />
                 <PartIcon kind={part.kind} size={13} />
-                <div className="min-w-0 flex-1 truncate text-[12px]">{partTitle(part, index)}</div>
+                <div className="min-w-0 flex-1 truncate text-[12px]">
+                  {partTitle(part, index)}
+                  {isComplete ? <span className="sr-only"> (completed)</span> : null}
+                </div>
               </button>
             </li>
           );
@@ -60,15 +76,22 @@ export function FlowSidebar({ parts, orderedPartIds, activePartId, onSelectPart 
 }
 
 /**
- * Per-Part status indicator. v1 renders neutral; coloured states
- * (`in_progress`, `complete`) land with per-Part progress later. The
- * dot always reserves space so a status flip doesn't shift the row.
+ * Per-Part status indicator. A completed Part shows a check glyph in the
+ * accent tone; an incomplete one shows a neutral dot. Both reserve the same
+ * box so a status flip doesn't shift the row. The accessible "(completed)"
+ * label lives on the row text, so this glyph stays `aria-hidden`.
  */
-function PartStatusDot() {
+function PartStatusDot({ complete }: { readonly complete: boolean }) {
+  if (complete) {
+    return (
+      <span className="inline-flex size-3.5 shrink-0 items-center justify-center text-[var(--color-accent)]">
+        <Check size={12} strokeWidth={2.25} aria-hidden="true" />
+      </span>
+    );
+  }
   return (
-    <span
-      aria-hidden="true"
-      className="inline-block size-1.5 shrink-0 rounded-full bg-[var(--color-rule)]"
-    />
+    <span className="inline-flex size-3.5 shrink-0 items-center justify-center" aria-hidden="true">
+      <span className="inline-block size-1.5 rounded-full bg-[var(--color-rule)]" />
+    </span>
   );
 }

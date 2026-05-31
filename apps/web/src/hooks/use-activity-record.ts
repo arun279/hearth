@@ -90,6 +90,26 @@ export function useSubmitQuiz(activityId: string) {
   });
 }
 
+export function useSetPartCompleted(activityId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      readonly partId: string;
+      readonly completed: boolean;
+    }): Promise<{ readonly partId: string; readonly completed: boolean }> => {
+      const res = await api.activities[":activityId"]["my-record"].parts[":partId"].completion.$put(
+        {
+          param: { activityId, partId: input.partId },
+          json: { completed: input.completed },
+        },
+      );
+      await assertOk(res);
+      return (await res.json()) as { readonly partId: string; readonly completed: boolean };
+    },
+    onSuccess: () => invalidateRecord(qc, activityId),
+  });
+}
+
 export function useSetRecordVisibility(activityId: string) {
   const qc = useQueryClient();
   return useMutation({

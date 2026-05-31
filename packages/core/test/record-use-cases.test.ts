@@ -14,6 +14,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createActivity } from "../src/use-cases/create-activity.ts";
 import { getMyActivityRecord } from "../src/use-cases/get-my-activity-record.ts";
 import { saveReflectionDraft } from "../src/use-cases/save-reflection-draft.ts";
+import { setPartCompleted } from "../src/use-cases/set-part-completed.ts";
 import { setRecordVisibilityOverride } from "../src/use-cases/set-record-visibility-override.ts";
 import { submitQuizAnswers } from "../src/use-cases/submit-quiz-answers.ts";
 import {
@@ -450,6 +451,111 @@ describe("submitQuizAnswers", () => {
       partId: "p_quiz",
       state: { kind: "quiz", completed: true, answers },
     });
+  });
+});
+
+describe("setPartCompleted", () => {
+  it("marks a reflection Part complete, preserving its text", async () => {
+    const records = makeRecords({
+      upsert: markWrite(vi.fn(async () => record())),
+      getPartProgress: vi.fn(async () => ({
+        id: "pp",
+        activityRecordId: RECORD_ID,
+        partId: "p_reflect" as ActivityPartId,
+        state: { kind: "write_reflection" as const, completed: false, text: "my draft" },
+        updatedAt: TEST_NOW,
+      })),
+    });
+    const deps = depsOk({ records });
+    const result = await setPartCompleted(
+      { actor: ACTOR_ID, activityId: ACTIVITY_ID, partId: "p_reflect", completed: true },
+      deps,
+    );
+    expect(result).toEqual({ partId: "p_reflect", completed: true });
+    expect(records.savePartProgress).toHaveBeenCalledWith({
+      activityRecordId: RECORD_ID,
+      partId: "p_reflect",
+      state: { kind: "write_reflection", completed: true, text: "my draft" },
+    });
+  });
+
+  it("un-marks a quiz Part complete, preserving its answers", async () => {
+    const answers = [{ questionId: "q_mc", kind: "multiple_choice" as const, selectedIndex: 1 }];
+    const records = makeRecords({
+      upsert: markWrite(vi.fn(async () => record())),
+      getPartProgress: vi.fn(async () => ({
+        id: "pp",
+        activityRecordId: RECORD_ID,
+        partId: "p_quiz" as ActivityPartId,
+        state: { kind: "quiz" as const, completed: true, answers },
+        updatedAt: TEST_NOW,
+      })),
+    });
+    const deps = depsOk({ records });
+    const result = await setPartCompleted(
+      { actor: ACTOR_ID, activityId: ACTIVITY_ID, partId: "p_quiz", completed: false },
+      deps,
+    );
+    expect(result).toEqual({ partId: "p_quiz", completed: false });
+    expect(records.savePartProgress).toHaveBeenCalledWith({
+      activityRecordId: RECORD_ID,
+      partId: "p_quiz",
+      state: { kind: "quiz", completed: false, answers },
+    });
+  });
+
+  it("marks a freshly-touched Part complete from its initial state", async () => {
+    const records = makeRecords({
+      upsert: markWrite(vi.fn(async () => record())),
+      getPartProgress: vi.fn(async () => null),
+    });
+    const deps = depsOk({ records });
+    await setPartCompleted(
+      { actor: ACTOR_ID, activityId: ACTIVITY_ID, partId: "p_reflect", completed: true },
+      deps,
+    );
+    expect(records.savePartProgress).toHaveBeenCalledWith({
+      activityRecordId: RECORD_ID,
+      partId: "p_reflect",
+      state: { kind: "write_reflection", completed: true, text: "" },
+    });
+  });
+
+  it("rejects a non-enrollee with 403 not_track_enrollee", async () => {
+    const deps = depsOk({ enrollment: null });
+    await expect(
+      setPartCompleted(
+        { actor: ACTOR_ID, activityId: ACTIVITY_ID, partId: "p_reflect", completed: true },
+        deps,
+      ),
+    ).rejects.toMatchObject({ code: "FORBIDDEN", reason: "not_track_enrollee" });
+  });
+
+  it("404s an unknown part id", async () => {
+    const deps = depsOk();
+    await expect(
+      setPartCompleted(
+        { actor: ACTOR_ID, activityId: ACTIVITY_ID, partId: "p_nope", completed: true },
+        deps,
+      ),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("409s when the activity window is closed (visible_locked)", async () => {
+    const closedAt = new Date("2026-05-01T00:00:00.000Z").getTime();
+    const deps = depsOk({
+      activity: makeActivity({
+        window: { opensAt: null, dueAt: null, closesAt: closedAt },
+        postClosePolicy: { kind: "visible_locked" },
+      }),
+      now: new Date("2026-05-02T00:00:00.000Z"),
+    });
+    await expect(
+      setPartCompleted(
+        { actor: ACTOR_ID, activityId: ACTIVITY_ID, partId: "p_reflect", completed: true },
+        deps,
+      ),
+    ).rejects.toMatchObject({ code: "CONFLICT", reason: "activity_closed" });
   });
 });
 

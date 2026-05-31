@@ -402,6 +402,61 @@ describe("PUT /api/v1/activities/:id/my-record/parts/:partId/quiz", () => {
   });
 });
 
+describe("PUT /api/v1/activities/:id/my-record/parts/:partId/completion", () => {
+  it("marks a Part complete and echoes the new state", async () => {
+    const ports = viewablePorts({});
+    const app = harness({ userId: actorId, ports });
+    const res = await app.request(
+      `/api/v1/activities/${aid}/my-record/parts/p_reflect/completion`,
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ completed: true }),
+      },
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { partId: string; completed: boolean };
+    expect(body).toEqual({ partId: "p_reflect", completed: true });
+    expect(ports.records?.savePartProgress).toHaveBeenCalled();
+  });
+
+  it("400 validation_failed on a non-boolean completed", async () => {
+    const app = harness({ userId: actorId, ports: viewablePorts({}) });
+    const res = await app.request(
+      `/api/v1/activities/${aid}/my-record/parts/p_reflect/completion`,
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ completed: "yes" }),
+      },
+    );
+    expect(res.status).toBe(400);
+  });
+
+  it("404 for an unknown part id", async () => {
+    const app = harness({ userId: actorId, ports: viewablePorts({}) });
+    const res = await app.request(`/api/v1/activities/${aid}/my-record/parts/p_nope/completion`, {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ completed: true }),
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it("503 read_only when the killswitch blocks writes", async () => {
+    const app = harness({ userId: actorId, ports: viewablePorts({}), killswitchMode: "read_only" });
+    const res = await app.request(
+      `/api/v1/activities/${aid}/my-record/parts/p_reflect/completion`,
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ completed: true }),
+      },
+    );
+    expect(res.status).toBe(503);
+  });
+});
+
 describe("PATCH /api/v1/activities/:id/my-record/visibility-override", () => {
   it("sets the override", async () => {
     const ports = viewablePorts({});

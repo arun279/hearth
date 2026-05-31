@@ -4,12 +4,10 @@ import { describe, expect, it } from "vitest";
 import { ActivityHeader } from "./activity-header.tsx";
 
 /**
- * The completion track holds at 0% until per-Part completion state is
- * persisted. Showing cursor position as completion would lie to the
- * participant — the regression test guards the no-lie shape by
- * asserting `aria-valuenow="0"` no matter which Part is active. When a
- * real `partStatuses` projection lands, this test should evolve into
- * "0% when no part is complete; n% when n/total are complete."
+ * The completion track is driven by honor-system per-Part completion: it
+ * fills to the share of completed Parts and never tracks cursor position
+ * (which would lie). `aria-valuetext` carries the same "N of M Parts
+ * complete" count a sighted user reads.
  */
 const activity: LearningActivity = {
   id: "a_test" as LearningActivityId,
@@ -35,36 +33,99 @@ const activity: LearningActivity = {
 };
 
 describe("ActivityHeader completion track", () => {
-  const cases = [
-    { label: "first part", index: 0, total: 3 },
-    { label: "middle part", index: 1, total: 3 },
-    { label: "last part", index: 2, total: 3 },
-    { label: "zero-part edge", index: 0, total: 0 },
-  ];
-  for (const { label, index, total } of cases) {
-    it(`holds at zero completion on the ${label}`, () => {
+  it("holds at zero completion when no Part is complete, regardless of cursor", () => {
+    for (const index of [0, 1, 2]) {
       const html = renderToString(
         <ActivityHeader
           activity={activity}
           accessState="open"
           currentPartIndex={index}
-          totalParts={total}
+          totalParts={3}
+          completedCount={0}
         />,
       );
-      // Track itself is present (layout is reserved).
       expect(html).toContain('role="progressbar"');
       expect(html).toContain('aria-label="Activity completion"');
-      // The completion value never advances with Part navigation —
-      // until real completion data ships, the only honest value is 0.
       expect(html).toContain('aria-valuenow="0"');
       expect(html).toContain("width:0%");
-      // Counter still advances (that IS position, not completion).
-      // Strip React's inserted comment markers around text-node boundaries
-      // so the assertion reads the rendered string, not the SSR wire shape.
-      if (total > 0) {
-        const stripped = html.replace(/<!--\s*-->/g, "");
-        expect(stripped).toContain(`Part ${index + 1} of ${total}`);
-      }
-    });
-  }
+      expect(html).toContain('aria-valuetext="0 of 3 Parts complete"');
+    }
+  });
+
+  it("fills proportionally and reports the count when some Parts are complete", () => {
+    const html = renderToString(
+      <ActivityHeader
+        activity={activity}
+        accessState="open"
+        currentPartIndex={0}
+        totalParts={3}
+        completedCount={2}
+      />,
+    );
+    expect(html).toContain('aria-valuenow="67"');
+    expect(html).toContain("width:67%");
+    expect(html).toContain('aria-valuetext="2 of 3 Parts complete"');
+    const stripped = html.replace(/<!--\s*-->/g, "");
+    expect(stripped).toContain("2 of 3 Parts complete");
+  });
+
+  it("shows full completion when every Part is complete", () => {
+    const html = renderToString(
+      <ActivityHeader
+        activity={activity}
+        accessState="open"
+        currentPartIndex={2}
+        totalParts={3}
+        completedCount={3}
+      />,
+    );
+    expect(html).toContain('aria-valuenow="100"');
+    expect(html).toContain("width:100%");
+    expect(html).toContain('aria-valuetext="3 of 3 Parts complete"');
+  });
+
+  it("does not divide by zero on a zero-Part activity", () => {
+    const html = renderToString(
+      <ActivityHeader
+        activity={activity}
+        accessState="open"
+        currentPartIndex={0}
+        totalParts={0}
+        completedCount={0}
+      />,
+    );
+    expect(html).toContain('aria-valuenow="0"');
+    expect(html).toContain('aria-valuetext="0 of 0 Parts complete"');
+  });
+
+  it("renders the progress track at a readable height, not a hairline", () => {
+    const html = renderToString(
+      <ActivityHeader
+        activity={activity}
+        accessState="open"
+        currentPartIndex={0}
+        totalParts={3}
+        completedCount={1}
+      />,
+    );
+    // A 2px hairline doesn't read as a progress element; the track holds a
+    // ~5px height. Pin the class so a future restyle can't silently shrink it
+    // back below readability.
+    expect(html).toContain("h-[5px]");
+    expect(html).not.toContain("h-[2px]");
+  });
+
+  it("advances the position counter independently of completion", () => {
+    const html = renderToString(
+      <ActivityHeader
+        activity={activity}
+        accessState="open"
+        currentPartIndex={1}
+        totalParts={3}
+        completedCount={0}
+      />,
+    );
+    const stripped = html.replace(/<!--\s*-->/g, "");
+    expect(stripped).toContain("Part 2 of 3");
+  });
 });

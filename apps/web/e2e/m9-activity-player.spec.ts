@@ -78,22 +78,22 @@ test.describe("M9 — Activity player (passive Parts)", () => {
     await page.reload();
     await expect(page.getByText(/Part 2 of 2/i)).toBeVisible();
 
-    // On the LAST Part the footer collapses the (disabled) Next + the
-    // deferred "Mark complete" placeholder into one live "Back to track"
-    // closure link — completion itself lands in a later milestone, so the
-    // link only navigates, it doesn't claim completion. There are now two
-    // "Back to track" links on this Part: the persistent header one and the
-    // footer closure one; on a non-final Part only the header one exists.
+    // On the LAST Part the footer shows a live "Back to track" closure link
+    // alongside a live "Mark complete" toggle — the link navigates without
+    // claiming completion; the toggle is the honest completion action. There
+    // are now two "Back to track" links on this Part: the persistent header
+    // one and the footer closure one; on a non-final Part only the header
+    // one exists.
     await expect(page.getByRole("link", { name: /Back to track/i })).toHaveCount(2);
-    await expect(page.getByRole("button", { name: /Mark complete/i })).toHaveCount(0);
 
-    // The placeholder still signposts the deferred completion model mid-flow:
-    // step back to Part 1 and assert it renders disabled there.
+    // The track creator is auto-enrolled as a facilitator (a current
+    // enrollment), so they may author honor-system completion. The
+    // mark-complete toggle is enabled on every Part regardless of `minWords`.
+    await expect(page.getByRole("button", { name: /^Mark complete$/i })).toBeEnabled();
     await page.getByRole("button", { name: /^Previous/i }).click();
     await expect(page.getByText(/Part 1 of 2/i)).toBeVisible();
     await expect(page.getByRole("link", { name: /Back to track/i })).toHaveCount(1);
-    const markComplete = page.getByRole("button", { name: /Mark complete/i });
-    await expect(markComplete).toHaveAttribute("aria-disabled", "true");
+    await expect(page.getByRole("button", { name: /^Mark complete$/i })).toBeEnabled();
   });
 
   test("player route returns 404 (not 403) for a non-existent activity id", async ({ browser }) => {

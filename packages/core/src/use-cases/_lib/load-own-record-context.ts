@@ -83,11 +83,13 @@ export type LoadWritableOwnPartDeps = LoadOwnRecordDeps & { readonly clock: Cloc
 
 /**
  * Shared prologue for the own-record *write* use cases (reflection autosave,
- * quiz submit): authorize the actor as a participant, gate on the activity's
- * write window, then locate the addressed Part and assert its kind. Returns
- * the Part narrowed to the requested kind so the caller works with a typed
- * variant. Visibility-override writes deliberately do NOT route through here —
- * privacy stays adjustable after close, so they skip `assertActivityWritable`.
+ * quiz submit, mark-complete): authorize the actor as a participant, gate on
+ * the activity's write window, then locate the addressed Part. When a `kind`
+ * is given, the Part is asserted to be that kind and returned narrowed so the
+ * caller works with a typed variant; when `kind` is omitted, the Part is
+ * returned unnarrowed (mark-complete is kind-agnostic). Visibility-override
+ * writes deliberately do NOT route through here — privacy stays adjustable
+ * after close, so they skip `assertActivityWritable`.
  */
 export async function loadWritableOwnPart<K extends ActivityPart["kind"]>(
   input: {
@@ -97,7 +99,25 @@ export async function loadWritableOwnPart<K extends ActivityPart["kind"]>(
   },
   kind: K,
   deps: LoadWritableOwnPartDeps,
-): Promise<Extract<ActivityPart, { readonly kind: K }>> {
+): Promise<Extract<ActivityPart, { readonly kind: K }>>;
+export async function loadWritableOwnPart(
+  input: {
+    readonly actor: UserId;
+    readonly activityId: LearningActivityId;
+    readonly partId: string;
+  },
+  kind: undefined,
+  deps: LoadWritableOwnPartDeps,
+): Promise<ActivityPart>;
+export async function loadWritableOwnPart(
+  input: {
+    readonly actor: UserId;
+    readonly activityId: LearningActivityId;
+    readonly partId: string;
+  },
+  kind: ActivityPart["kind"] | undefined,
+  deps: LoadWritableOwnPartDeps,
+): Promise<ActivityPart> {
   const ctx = await loadOwnRecordContext(input.actor, input.activityId, deps);
   assertParticipant(ctx);
   assertActivityWritable(ctx.activity, deps.clock.now());
@@ -106,14 +126,12 @@ export async function loadWritableOwnPart<K extends ActivityPart["kind"]>(
   if (!part) {
     throw new DomainError("NOT_FOUND", "Part not found.", "not_found");
   }
-  if (part.kind !== kind) {
+  if (kind !== undefined && part.kind !== kind) {
     throw new DomainError(
       "INVARIANT_VIOLATION",
       `Part is not a ${kind} Part.`,
       "part_kind_mismatch",
     );
   }
-  // The runtime guard above proves the discriminant; TS can't narrow on a
-  // generic `K`, so this localized cast carries that proof to the type level.
-  return part as Extract<ActivityPart, { readonly kind: K }>;
+  return part;
 }

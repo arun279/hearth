@@ -53,6 +53,7 @@ export * from "./use-cases/set-activity-library-refs.ts";
 export * from "./use-cases/set-activity-prerequisites.ts";
 export * from "./use-cases/set-activity-suggested-sequences.ts";
 export * from "./use-cases/set-group-admin.ts";
+export * from "./use-cases/set-part-completed.ts";
 export * from "./use-cases/set-record-visibility-override.ts";
 export * from "./use-cases/submit-quiz-answers.ts";
 export * from "./use-cases/unarchive-group.ts";

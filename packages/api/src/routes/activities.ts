@@ -10,6 +10,7 @@ import {
   setActivityLibraryRefs,
   setActivityPrerequisites,
   setActivitySuggestedSequences,
+  setPartCompleted,
   setRecordVisibilityOverride,
   submitQuizAnswers,
   unpinLibraryRevision,
@@ -60,6 +61,7 @@ const reflectionBody = z.object({ text: z.string().max(MAX_REFLECTION_LENGTH) })
 const quizSubmitBody = z.object({
   answers: z.array(quizAnswerSchema).max(MAX_QUIZ_QUESTIONS),
 });
+const completionBody = z.object({ completed: z.boolean() });
 const visibilityOverrideBody = z.object({ preference: visibilityPreferenceSchema.nullable() });
 
 const titleField = z.string().trim().min(1).max(MAX_TITLE_LENGTH);
@@ -570,6 +572,29 @@ export const activitiesRoutes = new Hono<AppBindings>()
       try {
         const result = await submitQuizAnswers(
           { actor: getUserId(c), activityId: activityId as LearningActivityId, partId, answers },
+          depsFor(c),
+        );
+        return c.json(result);
+      } catch (err) {
+        return problemResponse(c, mapUnknown(err));
+      }
+    },
+  )
+
+  .put(
+    "/activities/:activityId/my-record/parts/:partId/completion",
+    zValidator("param", activityPartParam, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    zValidator("json", completionBody, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    async (c) => {
+      const { activityId, partId } = c.req.valid("param");
+      const { completed } = c.req.valid("json");
+      try {
+        const result = await setPartCompleted(
+          { actor: getUserId(c), activityId: activityId as LearningActivityId, partId, completed },
           depsFor(c),
         );
         return c.json(result);

@@ -6,6 +6,7 @@ type Props = {
   readonly accessState: ActivityPlayerProjection["accessState"];
   readonly currentPartIndex: number;
   readonly totalParts: number;
+  readonly completedCount: number;
 };
 
 /**
@@ -15,16 +16,24 @@ type Props = {
  *   - Big serif title (the activity name).
  *   - Optional description in muted body text.
  *   - Status row: an access-state badge (only when non-`open`), the
- *     monospace "Part X of N" counter, and an empty completion track.
+ *     monospace "Part X of N" counter, a completion track, and a
+ *     visible "N of M Parts complete" count.
  *
- * The completion track holds at 0% until per-Part completion state is
- * persisted; reserving the visual now keeps the layout final so the
- * data wire-up later is the only thing that needs to change. Showing
- * cursor position as if it were completion would be dishonest — the
- * track is intentionally empty until there's real progress to report.
+ * The completion track fills to the share of honor-system-completed Parts,
+ * driven by the participant's own record. `aria-valuetext` carries the same
+ * "N of M" count a sighted user reads so the bar is not a bare percentage to
+ * assistive tech.
  */
-export function ActivityHeader({ activity, accessState, currentPartIndex, totalParts }: Props) {
-  const COMPLETION_PROGRESS = 0;
+export function ActivityHeader({
+  activity,
+  accessState,
+  currentPartIndex,
+  totalParts,
+  completedCount,
+}: Props) {
+  const denominator = Math.max(totalParts, 1);
+  const completionPercent = Math.round((completedCount / denominator) * 100);
+  const completionText = `${completedCount} of ${totalParts} Parts complete`;
   const stateBadge = ACCESS_STATE_BADGES[accessState];
 
   return (
@@ -42,22 +51,23 @@ export function ActivityHeader({ activity, accessState, currentPartIndex, totalP
       ) : null}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <span className="font-mono text-[11px] text-[var(--color-ink-2)] tabular-nums">
-          Part {Math.min(currentPartIndex + 1, Math.max(totalParts, 1))} of{" "}
-          {Math.max(totalParts, 1)}
+          Part {Math.min(currentPartIndex + 1, denominator)} of {denominator}
         </span>
         <div
-          className="h-[2px] min-w-[80px] max-w-[280px] flex-1 overflow-hidden rounded-full bg-[var(--color-surface-2)]"
+          className="h-[5px] min-w-[80px] max-w-[280px] flex-1 overflow-hidden rounded-full bg-[var(--color-rule-strong)]"
           role="progressbar"
           aria-label="Activity completion"
-          aria-valuenow={COMPLETION_PROGRESS}
+          aria-valuenow={completionPercent}
           aria-valuemin={0}
           aria-valuemax={100}
+          aria-valuetext={completionText}
         >
           <div
             className="h-full rounded-full bg-[var(--color-accent)] transition-[width] duration-200"
-            style={{ width: `${COMPLETION_PROGRESS}%` }}
+            style={{ width: `${completionPercent}%` }}
           />
         </div>
+        <span className="text-[11px] text-[var(--color-ink-2)] tabular-nums">{completionText}</span>
       </div>
     </header>
   );
