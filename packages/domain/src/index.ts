@@ -15,4 +15,4 @@ export * from "./track-structure.ts";
 export * from "./track-transitions.ts";
 export * from "./upload-keys.ts";
 export * from "./user.ts";
-export * from "./visibility/preference.ts";
+export * from "./visibility/index.ts";

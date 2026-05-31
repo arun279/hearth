@@ -5,6 +5,7 @@
   // `.mjs`. Knip's "unused files" sweep doesn't auto-pair them, so
   // exclude the pattern globally rather than per-file.
   "ignore": ["**/*.d.mts"],
+  "treatConfigHintsAsErrors": true,
   "workspaces": {
     ".": {
       "entry": ["turbo.json", "scripts/*.mjs", "scripts/*.ts", "scripts/lib/*.mjs"]
