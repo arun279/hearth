@@ -619,50 +619,17 @@ function PartRow({
          * tolerable at the 3-4-Part case but rough at the schema's
          * MAX_PARTS_PER_ACTIVITY (50).
          */}
-        <IconBtn
-          label="Move up"
-          onClick={onMoveUp}
-          disabled={disabled || isFirst}
-          icon={<ArrowUp size={11} strokeWidth={1.75} aria-hidden="true" />}
-        />
-        <IconBtn
-          label="Move down"
-          onClick={onMoveDown}
-          disabled={disabled || isLast}
-          icon={<ArrowDown size={11} strokeWidth={1.75} aria-hidden="true" />}
-        />
-        <IconBtn
-          label={`Remove Part ${index + 1}`}
-          onClick={onRemove}
-          disabled={disabled}
-          icon={<X size={11} strokeWidth={1.75} aria-hidden="true" />}
-        />
+        <IconButton label="Move up" onClick={onMoveUp} disabled={disabled || isFirst}>
+          <ArrowUp size={11} strokeWidth={1.75} aria-hidden="true" />
+        </IconButton>
+        <IconButton label="Move down" onClick={onMoveDown} disabled={disabled || isLast}>
+          <ArrowDown size={11} strokeWidth={1.75} aria-hidden="true" />
+        </IconButton>
+        <IconButton label={`Remove Part ${index + 1}`} onClick={onRemove} disabled={disabled}>
+          <X size={11} strokeWidth={1.75} aria-hidden="true" />
+        </IconButton>
       </div>
     </div>
-  );
-}
-
-function IconBtn({
-  label,
-  onClick,
-  disabled,
-  icon,
-}: {
-  readonly label: string;
-  readonly onClick: () => void;
-  readonly disabled: boolean;
-  readonly icon: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      onClick={onClick}
-      disabled={disabled}
-      className="inline-flex h-7 w-7 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-ink-3)] transition-colors hover:bg-[var(--color-surface-2)] hover:text-[var(--color-ink-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
-    >
-      {icon}
-    </button>
   );
 }
 

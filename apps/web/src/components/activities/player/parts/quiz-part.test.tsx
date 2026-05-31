@@ -2,15 +2,15 @@ import type { PartProgressState, QuizPart as QuizPartT } from "@hearth/domain";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { initialAnswers, QuizPart } from "./quiz-part.tsx";
+import { gradedMcOptions, initialAnswers, QuizPart } from "./quiz-part.tsx";
 
 /**
- * Pure hydration coverage for `initialAnswers` (which `useState` seeds the
- * answer map from on mount) plus an SSR smoke check that the un-submitted
- * quiz shows the "Submit" CTA and no grading feedback. Verdict-clears-on-edit
- * and the submitted-feedback transition are behavioural and belong to the M11
- * 3-Part E2E (see docs/tripwires.md § Frontend test coverage); they need a
- * DOM the workspace deliberately doesn't ship.
+ * Pure coverage for `initialAnswers` (which `useState` seeds the answer map
+ * from on mount) and `gradedMcOptions` (the post-grade option tinting), plus
+ * an SSR smoke check that the un-submitted quiz shows the "Submit" CTA and no
+ * grading feedback. Verdict-clears-on-edit (a DOM state transition) is covered
+ * end-to-end by the Playwright e2e and is the seed case for the component-test
+ * layer being added separately.
  */
 
 const PART: QuizPartT = {
@@ -68,6 +68,45 @@ describe("initialAnswers", () => {
       selectedIndex: null,
     });
     expect(out["q_sa"]).toEqual({ questionId: "q_sa", kind: "short_answer", text: "" });
+  });
+});
+
+describe("gradedMcOptions", () => {
+  const opts = ["Buenos días", "Qué onda", "Hola"];
+
+  it("returns plain options (no tint) before grading", () => {
+    const out = gradedMcOptions(opts, 2, null);
+    expect(out.map((o) => o.tone)).toEqual([undefined, undefined, undefined]);
+    expect(out.every((o) => o.adornment === undefined)).toBe(true);
+  });
+
+  it("returns plain options for an ungraded question (no answer key)", () => {
+    const out = gradedMcOptions(opts, 2, {
+      questionId: "q",
+      verdict: "no_key",
+      correctIndex: null,
+    });
+    expect(out.map((o) => o.tone)).toEqual([undefined, undefined, undefined]);
+  });
+
+  it("tints only the correct option when the learner was right", () => {
+    const out = gradedMcOptions(opts, 0, { questionId: "q", verdict: "correct", correctIndex: 0 });
+    expect(out[0]?.tone).toBe("good");
+    expect(out[0]?.adornment).toBeTruthy();
+    expect(out[1]?.tone).toBeUndefined();
+    expect(out[2]?.tone).toBeUndefined();
+  });
+
+  it("tints the keyed-correct option good and the wrong pick danger", () => {
+    const out = gradedMcOptions(opts, 2, {
+      questionId: "q",
+      verdict: "incorrect",
+      correctIndex: 0,
+    });
+    expect(out[0]?.tone).toBe("good");
+    expect(out[1]?.tone).toBeUndefined();
+    expect(out[2]?.tone).toBe("danger");
+    expect(out[2]?.adornment).toBeTruthy();
   });
 });
 

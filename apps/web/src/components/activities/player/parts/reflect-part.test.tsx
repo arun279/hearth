@@ -8,9 +8,9 @@ import { deriveSaveStatus, ReflectPart } from "./reflect-part.tsx";
  * `deriveSaveStatus` is the precedence rule the autosave pill reads; pinning
  * it here keeps a future branch (e.g. a "conflict" state) conspicuously the
  * odd one out. The retry-calls-persist wiring and the autosave-debounce
- * transitions are behavioural — they need a DOM the workspace deliberately
- * doesn't ship and are covered by the M11 3-Part E2E (see docs/tripwires.md
- * § Frontend test coverage).
+ * transitions are behavioural DOM state transitions: they are covered
+ * end-to-end by the Playwright e2e and are seed cases for the component-test
+ * layer being added separately.
  */
 
 const PART: WriteReflectionPart = { kind: "write_reflection", id: "p_reflect", prompt: "Why?" };

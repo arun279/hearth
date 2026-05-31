@@ -119,5 +119,8 @@ export async function submitQuizAnswers(
     state: { kind: "quiz", completed, answers: [...input.answers] },
   });
 
+  // TODO(m11): enqueue `answers_submitted` + `last_answered_at` + `auto_score`
+  // Evidence Signals here (same M11-declares-port / M17-batcher deferral rationale
+  // as saveReflectionDraft). Values (`correct`, `gradeable`) are already computed.
   return { perQuestion, autoScore: { correct, gradeable } };
 }

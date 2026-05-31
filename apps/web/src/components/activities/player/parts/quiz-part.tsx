@@ -4,7 +4,8 @@ import type {
   QuizPart as QuizPartT,
   QuizQuestion,
 } from "@hearth/domain";
-import { Badge, Button, Input, RadioGroup } from "@hearth/ui";
+import { Badge, Button, Input, RadioGroup, type RadioOption } from "@hearth/ui";
+import { Check, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { type QuizSubmitResult, useSubmitQuiz } from "../../../../hooks/use-activity-record.ts";
@@ -121,6 +122,48 @@ function ScoreSummary({ score }: { readonly score: QuizSubmitResult["autoScore"]
   );
 }
 
+// Once a quiz is graded, tint each multiple-choice option on the option itself:
+// the keyed-correct option reads "good", the learner's wrong pick reads "danger".
+// Tone is paired with a check/cross icon + sr-only text so the outcome is never
+// colour alone (WCAG 1.4.1). Ungraded (no answer key) → no tint. Editing an answer
+// clears the verdict upstream, so the tint clears on re-answer.
+export function gradedMcOptions(
+  options: readonly string[],
+  chosenIndex: number | null,
+  verdict: Verdict | null,
+): ReadonlyArray<RadioOption<string>> {
+  return options.map((label, i): RadioOption<string> => {
+    if (!verdict || verdict.correctIndex === null) return { value: String(i), label };
+    if (i === verdict.correctIndex) {
+      return {
+        value: String(i),
+        label,
+        tone: "good",
+        adornment: (
+          <span className="flex items-center gap-1 text-[var(--color-good)]">
+            <Check size={14} strokeWidth={2} aria-hidden="true" />
+            <span className="sr-only">Correct answer</span>
+          </span>
+        ),
+      };
+    }
+    if (i === chosenIndex) {
+      return {
+        value: String(i),
+        label,
+        tone: "danger",
+        adornment: (
+          <span className="flex items-center gap-1 text-[var(--color-danger)]">
+            <X size={14} strokeWidth={2} aria-hidden="true" />
+            <span className="sr-only">Your answer, incorrect</span>
+          </span>
+        ),
+      };
+    }
+    return { value: String(i), label };
+  });
+}
+
 function QuestionCard({
   index,
   question,
@@ -154,7 +197,11 @@ function QuestionCard({
             onChange({ questionId: question.id, kind: "multiple_choice", selectedIndex: Number(v) })
           }
           disabled={disabled}
-          options={question.shape.options.map((opt, i) => ({ value: String(i), label: opt }))}
+          options={gradedMcOptions(
+            question.shape.options,
+            answer.kind === "multiple_choice" ? answer.selectedIndex : null,
+            verdict,
+          )}
         />
       ) : (
         <Input
@@ -179,16 +226,12 @@ function Feedback({
   readonly verdict: Verdict;
   readonly question: QuizQuestion;
 }) {
-  const correctOption =
-    verdict.correctIndex !== null && question.shape.kind === "multiple_choice"
-      ? question.shape.options[verdict.correctIndex]
-      : null;
   return (
     <div className="mt-2.5 flex flex-col gap-1.5">
-      {/* Keep every verdict on one row so the badge hugs its label (a bare
-          Badge in the flex-col would stretch full width) — the three outcomes
-          read as the same kind of element, and the "Correct answer" hint sits
-          inline beside the "Not quite" badge. */}
+      {/* Wrap the badge in a row so it hugs its label (a bare Badge in the
+          flex-col would stretch full width). For multiple choice, the keyed
+          correct answer is shown inline on the option itself (good tint +
+          check), so it isn't repeated here. */}
       <div className="flex flex-wrap items-center gap-2">
         {verdict.verdict === "correct" ? (
           <Badge tone="good">Correct</Badge>
@@ -197,12 +240,6 @@ function Feedback({
         ) : (
           <Badge tone="neutral">Submitted</Badge>
         )}
-        {verdict.verdict === "incorrect" && correctOption ? (
-          <span className="text-[12px] text-[var(--color-ink-2)]">
-            Correct answer:{" "}
-            <span className="font-medium text-[var(--color-ink)]">{correctOption}</span>
-          </span>
-        ) : null}
       </div>
       {question.explainAfterAnswer ? (
         <p className="text-[12px] text-[var(--color-ink-2)] leading-relaxed">

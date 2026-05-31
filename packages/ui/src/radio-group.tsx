@@ -5,6 +5,13 @@ export type RadioOption<T extends string> = {
   readonly value: T;
   readonly label: ReactNode;
   readonly description?: ReactNode;
+  /** Result tint for an option (e.g. quiz grading). Overrides the selected/
+   * default surface so the outcome reads at the option, not just a summary
+   * elsewhere. Always pair with `adornment` so the cue is not colour alone
+   * (WCAG 1.4.1). */
+  readonly tone?: "good" | "danger";
+  /** Trailing content for the row (e.g. a check / cross icon beside `tone`). */
+  readonly adornment?: ReactNode;
 };
 
 export type RadioGroupProps<T extends string> = {
@@ -53,14 +60,23 @@ export function RadioGroup<T extends string>({
       </legend>
       {options.map((opt) => {
         const selected = value === opt.value;
+        const toneClass =
+          opt.tone === "good"
+            ? "border-[var(--color-good-border)] bg-[var(--color-good-soft)]"
+            : opt.tone === "danger"
+              ? "border-[var(--color-danger-border)] bg-[var(--color-danger-soft)]"
+              : null;
         return (
           <label
             key={opt.value}
             className={cn(
               "flex cursor-pointer items-start gap-2.5 rounded-[var(--radius-md)] border px-3 py-2 text-[13px]",
-              selected
-                ? "border-[var(--color-accent)] bg-[var(--color-accent-soft)]"
-                : "border-[var(--color-rule)] bg-[var(--color-bg)] hover:bg-[var(--color-surface-2)]",
+              // A result tone wins over selected/default so the graded outcome
+              // is unambiguous on the option itself.
+              toneClass ??
+                (selected
+                  ? "border-[var(--color-accent)] bg-[var(--color-accent-soft)]"
+                  : "border-[var(--color-rule)] bg-[var(--color-bg)] hover:bg-[var(--color-surface-2)]"),
               disabled && "cursor-not-allowed opacity-60",
             )}
           >
@@ -79,6 +95,9 @@ export function RadioGroup<T extends string>({
                 <span className="text-[11px] text-[var(--color-ink-2)]">{opt.description}</span>
               ) : null}
             </span>
+            {opt.adornment ? (
+              <span className="ml-auto shrink-0 self-center">{opt.adornment}</span>
+            ) : null}
           </label>
         );
       })}

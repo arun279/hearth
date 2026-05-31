@@ -144,41 +144,14 @@ Each entry names the **pinned tool**, the **condition** that triggers a reassess
 
 ## Activity records
 
-### Evidence Signals are computed but not emitted
+### Evidence Signals are deferred to M11 (port + enqueue) and M17 (batcher + budget)
 
-- **Trigger**: M11 lands the `flushEvidenceSignals` port surface on `ActivityRecordRepository` (M11 PRD § Ports). Until then there is no sink for these signals.
-- **Action**: the five signal types — `word_count` + `draft_saved_at` (computable in `save-reflection-draft.ts`) and `answers_submitted` + `last_answered_at` + `auto_score` (computable in `submit-quiz-answers.ts`) — are not enqueued anywhere because no port method accepts them. When M11 wires the port, emit both sets from the two use cases. M17 owns the throttled batcher and the ≤ 50-write/user/day budget CI test that consume them (M10 PRD § Definition of done, the Evidence-Signals row).
-- **Location**: `packages/core/src/use-cases/save-reflection-draft.ts`, `packages/core/src/use-cases/submit-quiz-answers.ts`.
+- **Trigger**: M11 implements the `ActivityRecordRepository` / `EvidenceSignalRepository` surface (M11 PRD § Ports). This is M11/M17 work by design, not an M10 gap — see the dedicated note in the M11 and M17 PRDs.
+- **Why deferred (not done in M10)**: the five signals (`word_count` + `draft_saved_at` for reflection; `answers_submitted` + `last_answered_at` + `auto_score` for quiz) cannot be emitted safely until M17's throttled batcher + the ≤ 50-write/user/day write-limiter exist — persisting a signal per autosave/submit without batching would breach the write budget that backs the $0 guarantee. Emitting them is therefore coupled to M17, so M10 ships the values but not the writes.
+- **Action**: M11 declares the port + wires the enqueue at the two marked call sites; M17 adds the batcher + budget CI test. The values are already computed in both use cases, and each enqueue point carries a `TODO(m11)` marker, so M11 only adds the port dependency + one call per use case — no restructuring.
+- **Location**: `packages/core/src/use-cases/save-reflection-draft.ts`, `packages/core/src/use-cases/submit-quiz-answers.ts` (see the `TODO(m11)` markers).
 
-## Frontend test coverage
-
-### M10 interactive Part components have no behavioral state-transition coverage
-
-- **Trigger**: M11 wires the SPA's record state and ships the interactive 3-Part E2E (M11 PRD § SPA + § Tests, the 3-Part Playwright row).
-- **Action**: the M10 interactive Parts (ReflectEditor, QuizPart, VisibilitySelector) have pure-logic + handler-wiring unit tests but no behavioral rendering tests — the workspace ships no jsdom / `@testing-library` by design. Confirm M11's E2E covers the ReflectEditor autosave-debounce, QuizPart verdict-clears-on-edit, and VisibilitySelector use-my-default transitions; if a unit-level gap remains after that, propose maintainer-approved jsdom + `@testing-library` (a new dependency needs approval per AGENTS.md § Convention carve-outs).
-- **Location**: `apps/web/src/components/activities/player/parts/*.tsx`.
-
-## Composer UX
-
-### "Answer key (regex)" exposes RE2 jargon
-
-- **Trigger**: facilitator research or support reports authoring friction with the quiz answer-key field.
-- **Action**: soften to progressive disclosure ("Accepted answers — advanced" with the RE2 pattern behind a toggle) while keeping the worked example. Today the field is mitigated by a worked-example placeholder and a plain-language "left blank = ungraded" fallback, and the M10 design review rated it defensible as-is — so this is a watch entry, not a fix-now.
-- **Location**: `apps/web/src/components/activities/activity-composer.tsx` (the answer-key label).
-
-## Deferred consolidations
-
-### Composer `IconBtn` helper duplicates the `@hearth/ui` `IconButton` primitive
-
-- **Trigger**: a focused UI pass over the composer (or the M19 polish milestone), where a small visual shift on existing controls is in-scope and reviewable.
-- **Action**: the composer's local `IconBtn` helper renders the same affordance as the shared `IconButton` primitive but with one ink shade lighter and a slightly smaller corner radius. Consolidate onto the primitive (children, not an `icon` prop). Deferred here because converting introduces a minor visual shift on pre-existing controls that should land in a pass where /design-review is the gate, not bundled into an unrelated change.
-- **Location**: `apps/web/src/components/activities/activity-composer.tsx` (the local `IconBtn` helper + its call sites).
-
-### Graded quiz options are not tinted at the option level
-
-- **Trigger**: facilitator/participant feedback that the per-question verdict is hard to bind to a specific option, or an M19 grading-surface polish pass.
-- **Action**: tint each graded option (good/danger) with a non-color cue (check/cross icon) so the correct + selected-wrong options read at a glance. Deferred because the per-question verdict badge already sits directly under each question's options, so the verdict→question binding is clear today; option-level tinting is an enhancement, not a correctness fix.
-- **Location**: `apps/web/src/components/activities/player/parts/quiz-part.tsx`, `packages/ui/src/radio-group.tsx`.
+## Deferred tooling
 
 ### `typos` text gate and TODO-staleness check are CI-only / unwired
 
