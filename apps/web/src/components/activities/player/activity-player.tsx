@@ -1,7 +1,8 @@
-import type { ActivityPart, ActivityPlayerProjection } from "@hearth/domain";
+import type { ActivityPart, ActivityPlayerProjection, PartProgressState } from "@hearth/domain";
 import { Button, Callout } from "@hearth/ui";
 import { useEffect, useMemo } from "react";
 import { toast } from "sonner";
+import { useActivityRecord } from "../../../hooks/use-activity-record.ts";
 import { formatRelative, formatShortDate } from "../../../lib/format.ts";
 import { asUserMessage, errorStatus } from "../../../lib/problem.ts";
 import { ActivityHeader } from "./activity-header.tsx";
@@ -22,6 +23,9 @@ type Props = {
   readonly query: QueryShape;
   readonly requestedPartId: string | null;
   readonly onChangeActivePartId: (partId: string | null) => void;
+  /** For the last-Part "Back to track" closure link in the footer. */
+  readonly groupId: string;
+  readonly trackId: string;
 };
 
 const FALLBACK_TOAST_KEY = "activity-player-bad-part";
@@ -41,7 +45,13 @@ const FALLBACK_TOAST_KEY = "activity-player-bad-part";
  * first Part with a one-line toast so the user understands their URL
  * was stale — silently rewriting would hide the drift.
  */
-export function ActivityPlayer({ query, requestedPartId, onChangeActivePartId }: Props) {
+export function ActivityPlayer({
+  query,
+  requestedPartId,
+  onChangeActivePartId,
+  groupId,
+  trackId,
+}: Props) {
   if (query.isLoading) return <LoadingState />;
   if (query.isError || !query.data) {
     return <ErrorState error={query.error} onRetry={() => void query.refetch()} />;
@@ -51,6 +61,8 @@ export function ActivityPlayer({ query, requestedPartId, onChangeActivePartId }:
       projection={query.data}
       requestedPartId={requestedPartId}
       onChangeActivePartId={onChangeActivePartId}
+      groupId={groupId}
+      trackId={trackId}
     />
   );
 }
@@ -59,10 +71,14 @@ function PlayerBody({
   projection,
   requestedPartId,
   onChangeActivePartId,
+  groupId,
+  trackId,
 }: {
   readonly projection: ActivityPlayerProjection;
   readonly requestedPartId: string | null;
   readonly onChangeActivePartId: (partId: string | null) => void;
+  readonly groupId: string;
+  readonly trackId: string;
 }) {
   const { activity, resolvedRefs, accessState } = projection;
   const orderedPartIds = useMemo(
@@ -73,6 +89,19 @@ function PlayerBody({
   const refByPartId = useMemo(
     () => new Map(resolvedRefs.map((r) => [r.partId, r])),
     [resolvedRefs],
+  );
+
+  // The participant's own per-Part state for the interactive Parts. Fetched
+  // only for windows where work is viewable; pre-open renders chrome alone.
+  // Reads never create a row — the record is created lazily on first write.
+  const recordQuery = useActivityRecord(
+    activity.id,
+    accessState === "open" || accessState === "locked",
+  );
+  const record = recordQuery.data;
+  const partStateById = useMemo(
+    () => new Map<string, PartProgressState>((record?.parts ?? []).map((p) => [p.partId, p.state])),
+    [record],
   );
 
   const requestedExists = requestedPartId !== null && orderedPartIds.includes(requestedPartId);
@@ -157,6 +186,12 @@ function PlayerBody({
                   activityId={activity.id}
                   part={activePart}
                   resolvedRef={refByPartId.get(activePart.id) ?? null}
+                  record={{
+                    loaded: !recordQuery.isLoading,
+                    canParticipate: (record?.canParticipate ?? false) && accessState === "open",
+                    visibilityOverride: record?.visibilityOverride ?? null,
+                    partState: partStateById.get(activePart.id) ?? null,
+                  }}
                 />
               </div>
             ) : (
@@ -169,6 +204,8 @@ function PlayerBody({
             previousPartId={orderedPartIds[activeIndex - 1] ?? null}
             nextPartId={orderedPartIds[activeIndex + 1] ?? null}
             onNavigate={onChangeActivePartId}
+            groupId={groupId}
+            trackId={trackId}
           />
         </div>
       </div>

@@ -24,7 +24,7 @@ catalog:
   hono: ^4.12.18
   drizzle-orm: 0.45.2
   drizzle-kit: 0.31.10
-  better-auth: ^1.6.4
+  better-auth: ^1.6.11
   vitest: 4.1.0
   "@vitest/coverage-v8": 4.1.0
   "@cloudflare/vitest-pool-workers": ^0.14.7
@@ -34,3 +34,4 @@ catalog:
   "@paralleldrive/cuid2": ^3.3.0
   aws4fetch: 1.0.20
   fast-check: ^3.23.2
+  re2js: 2.8.3

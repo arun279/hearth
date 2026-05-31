@@ -73,6 +73,12 @@ const INVARIANT_AND_VALIDATION_CODES = [
   "track_status_transition_invalid",
   "track_status_changed",
   "self_remove_via_leave",
+  // Activity records + quiz
+  "activity_not_open",
+  "activity_closed",
+  "part_kind_mismatch",
+  "quiz_answers_mismatch",
+  "quiz_answer_key_regex_invalid",
 ] as const;
 
 type KnownProblemCode = PolicyDenialCode | (typeof INVARIANT_AND_VALIDATION_CODES)[number];
@@ -275,6 +281,14 @@ const policyDenialMessages: Record<KnownProblemCode, string> = {
   track_status_changed:
     "Someone else changed this track's status while you were here. Refresh and try again.",
   self_remove_via_leave: "Use Leave Track to remove yourself instead.",
+  // Activity records + quiz
+  activity_not_open: "This activity isn't open yet — you can take part once it opens.",
+  activity_closed: "This activity is closed, so it can't be changed anymore.",
+  part_kind_mismatch: "That response doesn't match this part. Refresh and try again.",
+  quiz_answers_mismatch:
+    "Your answers didn't line up with this quiz's questions. Refresh the activity and try again.",
+  quiz_answer_key_regex_invalid:
+    "A short-answer key isn't a valid pattern. Fix it in the quiz before saving.",
 };
 
 function problemMessage(problem: ApiProblem): string {

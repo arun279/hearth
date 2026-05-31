@@ -17,6 +17,7 @@ import type {
   LearningActivityRepository,
   LearningTrackRepository,
   LibraryItemRepository,
+  RegexMatcher,
   StudyGroupRepository,
   UserRepository,
 } from "@hearth/ports";
@@ -48,6 +49,7 @@ export type UpdateActivityDeps = {
   readonly policy: InstanceAccessPolicyRepository;
   readonly library: LibraryItemRepository;
   readonly activities: LearningActivityRepository;
+  readonly regexMatcher: RegexMatcher;
 };
 
 /**

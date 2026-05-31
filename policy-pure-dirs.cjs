@@ -23,7 +23,7 @@
  * To add a new SPA-pure directory: append to `DIRS` and run the test —
  * both checks update in lockstep with no further edits.
  */
-const DIRS = ["policy", "visibility", "library"];
+const DIRS = ["policy", "visibility", "library", "parts", "record"];
 
 module.exports = {
   DIRS,

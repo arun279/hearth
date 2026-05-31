@@ -18,7 +18,17 @@ import { buildEmbedSrc } from "./parts/embed-part.tsx";
  */
 
 function render(part: ActivityPart, resolvedRef: ResolvedLibraryRef | null = null): string {
-  return renderToString(<PartViewport activityId="a_test" part={part} resolvedRef={resolvedRef} />);
+  // `loaded: false` keeps the interactive Parts on their loading placeholder,
+  // so this SSR switch-coverage test stays free of the React Query context
+  // those components need (their behaviour is covered by the E2E suite).
+  return renderToString(
+    <PartViewport
+      activityId="a_test"
+      part={part}
+      resolvedRef={resolvedRef}
+      record={{ loaded: false, canParticipate: false, visibilityOverride: null, partState: null }}
+    />,
+  );
 }
 
 const RESOLVED_PDF: ResolvedLibraryRef = {
@@ -127,7 +137,7 @@ describe("PartViewport", () => {
     expect(html).toContain('sandbox="allow-scripts allow-same-origin allow-popups allow-forms"');
   });
 
-  it("write_reflection / quiz / attend_session: render the NotYetImplemented placeholder", () => {
+  it("write_reflection / quiz: route to the interactive Part (loading until the record resolves)", () => {
     for (const part of [
       { kind: "write_reflection", id: "p1", prompt: "Why?" },
       {
@@ -141,11 +151,15 @@ describe("PartViewport", () => {
           },
         ],
       },
-      { kind: "attend_session", id: "p3", studySessionId: "ss_1" },
     ] satisfies ActivityPart[]) {
       const html = render(part);
-      expect(html).toContain("coming in a later milestone");
+      expect(html).toContain("Loading your work");
     }
+  });
+
+  it("attend_session: still renders the NotYetImplemented placeholder", () => {
+    const html = render({ kind: "attend_session", id: "p3", studySessionId: "ss_1" });
+    expect(html).toContain("coming in a later milestone");
   });
 
   it("read_library_item with no resolved ref: shows the missing-resource notice", () => {

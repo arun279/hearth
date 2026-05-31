@@ -1,4 +1,6 @@
 import type {
+  ActivityPartId,
+  ActivityRecordId,
   AttributionPreference,
   ContributionPolicyEnvelope,
   InvitationId,
@@ -12,6 +14,7 @@ import type {
   UserId,
 } from "@hearth/domain";
 import type {
+  ActivityRecordRepository,
   LearningActivityRepository,
   LibraryItemRepository,
   SystemFlagRepository,
@@ -20,6 +23,7 @@ import type {
 import { describe, expect, it } from "vitest";
 import type { CloudflareAdapterDeps } from "../src/deps.ts";
 import {
+  createActivityRecordRepository,
   createInstanceAccessPolicyRepository,
   createInstanceSettingsRepository,
   createKillswitchGate,
@@ -96,6 +100,7 @@ describe("killswitch coverage (resilience invariant 2 + 3)", () => {
   const tracks = createLearningTrackRepository({ db, gate });
   const library = createLibraryItemRepository({ db, gate });
   const activities = createLearningActivityRepository({ db, gate });
+  const records = createActivityRecordRepository({ db, gate });
   const uploads = createUploadCoordinationRepository({ db, gate });
   const sweep = createPendingUploadsSweep({ db, storage, gate });
   const object = createObjectStorage(storage, gate, {
@@ -386,6 +391,24 @@ describe("killswitch coverage (resilience invariant 2 + 3)", () => {
         }),
     ],
 
+    [
+      "ActivityRecordRepository.upsert",
+      () => records.upsert({ activityId: "a_test" as LearningActivityId, participantId: uid }),
+    ],
+    [
+      "ActivityRecordRepository.savePartProgress",
+      () =>
+        records.savePartProgress({
+          activityRecordId: "ar_test" as ActivityRecordId,
+          partId: "p_test" as ActivityPartId,
+          state: { kind: "write_reflection", completed: false, text: "" },
+        }),
+    ],
+    [
+      "ActivityRecordRepository.setVisibilityOverride",
+      () => records.setVisibilityOverride("ar_test" as ActivityRecordId, "private"),
+    ],
+
     // The hourly cron-driven sweep is not a *port* method, but it
     // calls `gate.assertWritable()` on entry and is the only path
     // through which the killswitch can stop the cron from mutating
@@ -422,6 +445,14 @@ describe("killswitch coverage (resilience invariant 2 + 3)", () => {
 
   it("LearningActivityRepository: every branded write method is in CASES", () => {
     type Expected = `LearningActivityRepository.${WriteMethods<LearningActivityRepository>}`;
+    type Missing = Exclude<Expected, CaseLabels>;
+    type ExhaustiveCheck = [Missing] extends [never] ? "ok" : `MISSING from CASES: ${Missing}`;
+    const check: ExhaustiveCheck = "ok";
+    expect(check).toBe("ok");
+  });
+
+  it("ActivityRecordRepository: every branded write method is in CASES", () => {
+    type Expected = `ActivityRecordRepository.${WriteMethods<ActivityRecordRepository>}`;
     type Missing = Exclude<Expected, CaseLabels>;
     type ExhaustiveCheck = [Missing] extends [never] ? "ok" : `MISSING from CASES: ${Missing}`;
     const check: ExhaustiveCheck = "ok";

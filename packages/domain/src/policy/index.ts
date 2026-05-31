@@ -27,6 +27,7 @@ export { canManageGroupMembership } from "./can-manage-group-membership.ts";
 export { canNarrowAudience } from "./can-narrow-audience.ts";
 export { canPauseTrack } from "./can-pause-track.ts";
 export { canPinLibraryRevision } from "./can-pin-library-revision.ts";
+export { canRecordOwnActivityProgress } from "./can-record-own-activity-progress.ts";
 export { canRemoveApprovedEmail } from "./can-remove-approved-email.ts";
 export { canRemoveGroupMember } from "./can-remove-group-member.ts";
 export { canRemoveTrackEnrollment } from "./can-remove-track-enrollment.ts";

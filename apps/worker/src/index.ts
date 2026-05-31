@@ -11,6 +11,7 @@ import {
   createLibraryItemRepository,
   createObjectStorage,
   createPendingUploadsSweep,
+  createRegexMatcher,
   createScheduler,
   createStudyGroupRepository,
   createStudySessionRepository,
@@ -143,6 +144,7 @@ app.use("*", async (c, next) => {
     flags,
     clock: createClock(),
     ids: createIdGenerator(),
+    regexMatcher: createRegexMatcher(),
   });
 
   await next();

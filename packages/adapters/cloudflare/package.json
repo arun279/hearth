@@ -21,7 +21,8 @@
     "@paralleldrive/cuid2": "catalog:",
     "aws4fetch": "catalog:",
     "better-auth": "catalog:",
-    "drizzle-orm": "catalog:"
+    "drizzle-orm": "catalog:",
+    "re2js": "catalog:"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "catalog:",

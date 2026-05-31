@@ -142,12 +142,6 @@ Each entry names the **pinned tool**, the **condition** that triggers a reassess
 - **Action**: extract or reuse the existing shared helper (`packages/core/src/use-cases/_lib/load-visible-activities-for-track.ts` is the canonical M9 example) so the list and the detail surface run the SAME predicate. The list MUST omit rows whose detail route would 404 — otherwise the title leaks via the list and the click 404s, creating an enumeration oracle on whichever axis the list skipped (subset audience, prerequisite lock, etc.). M11 prerequisite-driven `locked` state and M12 visibility evolution will introduce new axes; the per-use-case half-fix pattern does not scale.
 - **Location**: `packages/core/src/use-cases/_lib/load-visible-activities-for-track.ts` (the existing shared helper); any new `list*` use case + its repository projection.
 
-### Quiz `answerKeyRegex` accepts user-supplied regex without a ReDoS guard
-
-- **Trigger**: M9–M10 ships the quiz authoring UI (currently `quiz` is gated out of the M8 composer palette so no facilitator can author one). At that point the field becomes user-reachable.
-- **Action**: when wiring the quiz authoring surface, validate `answerKeyRegex` through a ReDoS-safe checker (`safe-regex2` is the standard option) at the wire boundary in `packages/domain/src/parts/quiz.ts`. Reject regexes whose worst-case backtracking is super-linear; surface as `INVARIANT_VIOLATION` with a precise `quiz_answer_key_regex_unsafe` deny code. The schema currently caps the string length at `MAX_QUIZ_OPTION_TEXT` (500) but length is not the same gate as complexity; a 50-char regex can still ReDoS.
-- **Location**: `packages/domain/src/parts/quiz.ts`.
-
 ## How to remove an entry
 
 An entry leaves this list only when one of the following is true:

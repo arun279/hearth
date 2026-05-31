@@ -134,6 +134,10 @@ const ALLOWED_INTERNAL_CODES = new Set<string>([
   // when an adapter-side insert/read race fails an assertion. The
   // detail string is internal diagnosis; the API maps it to 500.
   "steward_insert_failed",
+  // Defensive guard in the activity-record adapter's upsert (the
+  // get-or-create re-read returning no row). Should never fire; the API
+  // maps it to a generic 500, so it never needs user-facing copy.
+  "record_upsert_failed",
 ]);
 
 describe("shouldRetry", () => {

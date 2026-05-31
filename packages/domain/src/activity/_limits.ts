@@ -38,6 +38,13 @@ export const MAX_URL_LENGTH = 2_000;
 export const MAX_PROMPT_LENGTH = 2_000;
 
 /**
+ * A participant's reflection answer. ~3,500 words — multiple pages, far
+ * above any honest reflection — while still bounding the autosaved payload
+ * so a single Part's progress row stays predictable.
+ */
+export const MAX_REFLECTION_LENGTH = 20_000;
+
+/**
  * One day in seconds — caps `startSeconds` / `endSeconds` on the
  * audio/video Part bodies. Real media beyond a day is implausible v1.
  */

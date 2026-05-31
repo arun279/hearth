@@ -8,12 +8,14 @@ import type {
   UserId,
 } from "@hearth/domain";
 import type {
+  ActivityRecordRepository,
   IdGenerator,
   InstanceAccessPolicyRepository,
   LearningActivityRepository,
   LearningTrackRepository,
   LibraryItemRepository,
   ObjectStorage,
+  RegexMatcher,
   StudyGroupRepository,
   UploadCoordinationRepository,
   UserRepository,
@@ -250,6 +252,41 @@ export function makeActivities(
     countByTrack: vi.fn(async () => 0),
     ...overrides,
   } as LearningActivityRepository;
+}
+
+export function makeRecords(
+  overrides: Partial<ActivityRecordRepository> = {},
+): ActivityRecordRepository {
+  return {
+    upsert: vi.fn(),
+    byParticipantAndActivity: vi.fn(async () => null),
+    setVisibilityOverride: vi.fn(),
+    getPartProgress: vi.fn(async () => null),
+    listPartProgress: vi.fn(async () => []),
+    savePartProgress: vi.fn(),
+    ...overrides,
+  } as ActivityRecordRepository;
+}
+
+/**
+ * Fake regex engine. Defaults grade via native `RegExp` (realistic enough
+ * for use-case truth tables); `isValid` mirrors compilability. Override
+ * `matches`/`isValid` to model the linear-time engine's RE2 semantics or a
+ * throw-on-uncompilable boundary.
+ */
+export function makeRegexMatcher(overrides: Partial<RegexMatcher> = {}): RegexMatcher {
+  return {
+    isValid: vi.fn((pattern: string) => {
+      try {
+        new RegExp(pattern);
+        return true;
+      } catch {
+        return false;
+      }
+    }),
+    matches: vi.fn((pattern: string, input: string) => new RegExp(pattern).test(input)),
+    ...overrides,
+  };
 }
 
 export function makeLibrary(overrides: Partial<LibraryItemRepository> = {}): LibraryItemRepository {

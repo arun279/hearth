@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { attachSession, resetInstanceState, seedOperator } from "./auth.ts";
+import { attachSession, resetInstanceState, seedGroupWithTrack, seedOperator } from "./auth.ts";
 
 const BOOTSTRAP_USER = {
   userId: "u_e2e_op_m9",
@@ -22,19 +22,11 @@ test.describe("M9 — Activity player (passive Parts)", () => {
 
     // Seed a group + track via API so the test stays focused on the
     // player surface rather than upstream creation flows.
-    const groupRes = await context.request.post("/api/v1/g", {
-      data: { name: "Tuesday Night Learners" },
-      headers: { "content-type": "application/json" },
+    const { groupId, trackId } = await seedGroupWithTrack(context, {
+      groupName: "Tuesday Night Learners",
+      trackName: "Beginner Spanish",
+      description: "Tuesday practice.",
     });
-    expect(groupRes.status()).toBe(201);
-    const { id: groupId } = (await groupRes.json()) as { id: string };
-
-    const trackRes = await context.request.post(`/api/v1/g/${groupId}/tracks`, {
-      data: { name: "Beginner Spanish", description: "Tuesday practice." },
-      headers: { "content-type": "application/json" },
-    });
-    expect(trackRes.status()).toBe(201);
-    const { id: trackId } = (await trackRes.json()) as { id: string };
 
     // Compose an activity with two passive Parts via the composer —
     // an Embed (YouTube) and a Reflection (to exercise the deferred-kind
@@ -86,12 +78,22 @@ test.describe("M9 — Activity player (passive Parts)", () => {
     await page.reload();
     await expect(page.getByText(/Part 2 of 2/i)).toBeVisible();
 
-    // Mark Complete renders as a disabled placeholder — clicking it
-    // performs no action. The Previous / Next chevrons DO navigate.
-    const markComplete = page.getByRole("button", { name: /Mark complete/i });
-    await expect(markComplete).toHaveAttribute("aria-disabled", "true");
+    // On the LAST Part the footer collapses the (disabled) Next + the
+    // deferred "Mark complete" placeholder into one live "Back to track"
+    // closure link — completion itself lands in a later milestone, so the
+    // link only navigates, it doesn't claim completion. There are now two
+    // "Back to track" links on this Part: the persistent header one and the
+    // footer closure one; on a non-final Part only the header one exists.
+    await expect(page.getByRole("link", { name: /Back to track/i })).toHaveCount(2);
+    await expect(page.getByRole("button", { name: /Mark complete/i })).toHaveCount(0);
+
+    // The placeholder still signposts the deferred completion model mid-flow:
+    // step back to Part 1 and assert it renders disabled there.
     await page.getByRole("button", { name: /^Previous/i }).click();
     await expect(page.getByText(/Part 1 of 2/i)).toBeVisible();
+    await expect(page.getByRole("link", { name: /Back to track/i })).toHaveCount(1);
+    const markComplete = page.getByRole("button", { name: /Mark complete/i });
+    await expect(markComplete).toHaveAttribute("aria-disabled", "true");
   });
 
   test("player route returns 404 (not 403) for a non-existent activity id", async ({ browser }) => {
@@ -100,16 +102,10 @@ test.describe("M9 — Activity player (passive Parts)", () => {
     await attachSession(context, op.cookie);
     const page = await context.newPage();
 
-    const groupRes = await context.request.post("/api/v1/g", {
-      data: { name: "Probing Group" },
-      headers: { "content-type": "application/json" },
+    const { groupId, trackId } = await seedGroupWithTrack(context, {
+      groupName: "Probing Group",
+      trackName: "Probing Track",
     });
-    const { id: groupId } = (await groupRes.json()) as { id: string };
-    const trackRes = await context.request.post(`/api/v1/g/${groupId}/tracks`, {
-      data: { name: "Probing Track" },
-      headers: { "content-type": "application/json" },
-    });
-    const { id: trackId } = (await trackRes.json()) as { id: string };
 
     // The route itself loads and the React Query fetch fails on the
     // bad id. On a 404 specifically (permanent — activity missing /

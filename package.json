@@ -36,6 +36,7 @@
     "approve-email": "node scripts/approve-email.mjs",
     "bootstrap-operator": "node scripts/bootstrap-operator.mjs",
     "local-session": "node scripts/local-session.mjs",
+    "seed-local": "node scripts/seed-local.mjs",
     "restore:fts": "node scripts/restore-fts.mjs",
     "prepare": "lefthook install"
   },
@@ -54,7 +55,7 @@
     "dprint": "^0.54.0",
     "jscpd": "^4.0.9",
     "knip": "^6.0.0",
-    "lefthook": "^2.1.6",
+    "lefthook": "^2.1.8",
     "turbo": "^2.9.5",
     "typescript": "catalog:"
   }

@@ -8,8 +8,14 @@ import {
   type LearningActivity,
   type LibraryDisplayKind,
   MAX_LONG_TEXT_LENGTH,
+  MAX_PROMPT_LENGTH,
+  MAX_QUIZ_OPTION_TEXT,
+  MAX_QUIZ_OPTIONS_PER_QUESTION,
+  MAX_QUIZ_QUESTIONS,
   MAX_TITLE_LENGTH,
   type PostClosePolicy,
+  type QuizPart,
+  type QuizQuestion,
   type UserId,
 } from "@hearth/domain";
 import {
@@ -17,10 +23,13 @@ import {
   Badge,
   Button,
   Field,
+  IconButton,
   Input,
   Modal,
   PartIcon,
   partKindLabel,
+  RadioGroup,
+  type RadioOption,
   Textarea,
 } from "@hearth/ui";
 import { ArrowDown, ArrowUp, Plus, X } from "lucide-react";
@@ -87,24 +96,19 @@ type Draft = {
 };
 
 /**
- * TODO(m10): re-add `quiz` (Player surface in M10) and
- * `attend_session` (Sessions surface in M13) palette entries when
- * their authoring surfaces land. Part kinds the composer offers in
- * M8. The full domain catalog (in `ACTIVITY_PART_KINDS`) lists 7
- * kinds, but `quiz` and `attend_session` cannot land in production
- * until those player surfaces ship: a quiz needs the multi-question
- * authoring UI + Player surface, and `attend_session` needs the
- * Sessions surface to pick a `studySessionId` from. Until then we
- * hide them from the palette so no facilitator can author an
- * unsavable Part. The discriminated-union schema keeps the other
- * variants intact — when the player surfaces land we re-add the
- * palette entries here.
+ * Part kinds the composer offers. The full domain catalog (in
+ * `ACTIVITY_PART_KINDS`) lists 7 kinds; `attend_session` is held back
+ * because it needs the Sessions surface to pick a `studySessionId`
+ * from — until then we hide it from the palette so no facilitator can
+ * author an unsavable Part. The discriminated-union schema keeps that
+ * variant intact for when the Sessions surface lands.
  */
 const AUTHORABLE_PART_KINDS = [
   "read_library_item",
   "listen_audio",
   "watch_video",
   "write_reflection",
+  "quiz",
   "embed",
 ] as const satisfies readonly ActivityPartKind[];
 
@@ -112,11 +116,11 @@ type AuthorablePartKind = (typeof AUTHORABLE_PART_KINDS)[number];
 
 /**
  * TODO(m10): restructure as five-tab dialog (`Parts | Flow | Audience
- * | Window | Completion`) when M10's player surface re-introduces
- * `quiz` + `attend_session` palette entries — the long-scroll shape
- * works today with the Modal primitive's sticky footer, but the
- * per-section density that justifies tabs arrives with M10's content
- * additions.
+ * | Window | Completion`) — the long-scroll shape works today with the
+ * Modal primitive's sticky footer, but quiz authoring's per-question
+ * density pushes the Parts section toward the point where tabs earn
+ * their keep. Hold until the Flow editor lands so the tab set is sized
+ * once against the full section roster.
  *
  * TODO(m10): the Draft state carries `hardEdges` (the intra-Part
  * `flow.prereqs[]` projection) and the serializer round-trips them,
@@ -718,12 +722,7 @@ function PartBody({
         </p>
       );
     case "quiz":
-      return (
-        <p className="text-[11px] text-[var(--color-ink-3)]">
-          A placeholder question is seeded so the activity saves. Multi-question authoring ships
-          alongside the Player surface.
-        </p>
-      );
+      return <QuizPartBody part={part} onUpdate={onUpdate} disabled={disabled} />;
   }
 }
 
@@ -769,6 +768,308 @@ function EmbedPartBody({
       />
     </div>
   );
+}
+
+/**
+ * Quiz Part body. Authors an ordered list of questions, each either
+ * multiple-choice or short-answer. Every mutation rebuilds the
+ * `questions` array immutably and pushes it through the Part's
+ * `onUpdate` so quiz edits flow through the same draft state the
+ * dirty-check and serializer read.
+ */
+function QuizPartBody({
+  part,
+  onUpdate,
+  disabled,
+}: {
+  readonly part: Extract<ActivityPart, { kind: "quiz" }>;
+  readonly onUpdate: (patch: Partial<ActivityPart>) => void;
+  readonly disabled: boolean;
+}) {
+  const setQuestions = (questions: QuizPart["questions"]) =>
+    onUpdate({ questions } as Partial<ActivityPart>);
+  const patchQuestion = (idx: number, next: QuizQuestion) =>
+    setQuestions(part.questions.map((q, i) => (i === idx ? next : q)));
+  const addQuestion = () => setQuestions([...part.questions, blankQuestion()]);
+  const removeQuestion = (idx: number) => setQuestions(part.questions.filter((_, i) => i !== idx));
+
+  return (
+    <div className="space-y-3">
+      {part.questions.map((question, i) => (
+        <QuizQuestionEditor
+          key={question.id}
+          question={question}
+          index={i}
+          total={part.questions.length}
+          onChange={(next) => patchQuestion(i, next)}
+          onRemove={() => removeQuestion(i)}
+          disabled={disabled}
+        />
+      ))}
+      <Button
+        type="button"
+        size="sm"
+        variant="secondary"
+        disabled={disabled || part.questions.length >= MAX_QUIZ_QUESTIONS}
+        onClick={addQuestion}
+      >
+        <Plus size={11} strokeWidth={1.75} aria-hidden="true" />
+        Add question
+      </Button>
+    </div>
+  );
+}
+
+const QUIZ_SHAPE_OPTIONS: ReadonlyArray<RadioOption<"multiple_choice" | "short_answer">> = [
+  { value: "multiple_choice", label: "Multiple choice" },
+  { value: "short_answer", label: "Short answer" },
+];
+
+function QuizQuestionEditor({
+  question,
+  index,
+  total,
+  onChange,
+  onRemove,
+  disabled,
+}: {
+  readonly question: QuizQuestion;
+  readonly index: number;
+  readonly total: number;
+  readonly onChange: (next: QuizQuestion) => void;
+  readonly onRemove: () => void;
+  readonly disabled: boolean;
+}) {
+  // Switching shape swaps the variant payload to a blank of the target
+  // kind so no stale answer key rides along on the wire — an MC's
+  // options + answerKeyIndex would be meaningless under short_answer
+  // and vice versa.
+  const setShape = (kind: "multiple_choice" | "short_answer") => {
+    if (kind === question.shape.kind) return;
+    onChange({
+      ...question,
+      shape: kind === "multiple_choice" ? { kind, options: ["", ""] } : { kind },
+    });
+  };
+
+  return (
+    <div className="space-y-2.5 rounded-[var(--radius-sm)] border border-[var(--color-rule)] p-3">
+      <div className="flex items-start gap-2">
+        <span className="mt-1.5 shrink-0 font-mono text-[11px] text-[var(--color-ink-3)]">
+          Q{index + 1}
+        </span>
+        <div className="min-w-0 flex-1">
+          <Input
+            aria-label={`Question ${index + 1} prompt`}
+            placeholder="e.g., Which greeting is most formal?"
+            maxLength={MAX_PROMPT_LENGTH}
+            value={question.prompt}
+            onChange={(e) => onChange({ ...question, prompt: e.target.value })}
+            disabled={disabled}
+          />
+        </div>
+        <IconButton
+          label={`Remove question ${index + 1}`}
+          onClick={onRemove}
+          disabled={disabled || total <= 1}
+          className="disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <X size={11} strokeWidth={1.75} aria-hidden="true" />
+        </IconButton>
+      </div>
+
+      <RadioGroup
+        legend={`Question ${index + 1} type`}
+        legendHidden
+        name={`quiz-shape-${question.id}`}
+        value={question.shape.kind}
+        onValueChange={setShape}
+        options={QUIZ_SHAPE_OPTIONS}
+        disabled={disabled}
+        className="sm:flex-row sm:gap-2"
+      />
+
+      {question.shape.kind === "multiple_choice" ? (
+        <QuizOptionsEditor
+          questionId={question.id}
+          questionIndex={index}
+          options={question.shape.options}
+          answerKeyIndex={question.shape.answerKeyIndex}
+          onChange={(options, answerKeyIndex) =>
+            onChange({
+              ...question,
+              shape: { kind: "multiple_choice", options, answerKeyIndex },
+            })
+          }
+          disabled={disabled}
+        />
+      ) : (
+        <Field
+          label="Answer key (regex)"
+          hint="Answer keys use RE2 syntax (e.g. ^(yes|sí)$). Left blank, the question is ungraded."
+        >
+          {({ id, describedBy }) => (
+            <Input
+              id={id}
+              aria-describedby={describedBy}
+              placeholder="^(yes|sí)$"
+              maxLength={MAX_QUIZ_OPTION_TEXT}
+              value={
+                question.shape.kind === "short_answer" ? (question.shape.answerKeyRegex ?? "") : ""
+              }
+              onChange={(e) =>
+                onChange({
+                  ...question,
+                  shape: {
+                    kind: "short_answer",
+                    answerKeyRegex: e.target.value.length > 0 ? e.target.value : undefined,
+                  },
+                })
+              }
+              disabled={disabled}
+            />
+          )}
+        </Field>
+      )}
+
+      <Field label="Explanation" hint="Optional — shown after the learner answers.">
+        {({ id, describedBy }) => (
+          <Textarea
+            id={id}
+            aria-describedby={describedBy}
+            rows={2}
+            maxLength={MAX_PROMPT_LENGTH}
+            placeholder="e.g., “Buenos días” is the formal daytime greeting."
+            value={question.explainAfterAnswer ?? ""}
+            onChange={(e) =>
+              onChange({
+                ...question,
+                explainAfterAnswer: e.target.value.length > 0 ? e.target.value : undefined,
+              })
+            }
+            disabled={disabled}
+          />
+        )}
+      </Field>
+    </div>
+  );
+}
+
+/**
+ * Multiple-choice options list. Each row pairs a "mark correct" radio
+ * (single-select `answerKeyIndex` across the question's options) with
+ * the option text. Removing an option below the marked index shifts the
+ * key so it keeps pointing at the same option; removing the marked
+ * option itself clears the key. Add stays enabled up to the schema cap;
+ * remove disables only at the two-option minimum.
+ */
+function QuizOptionsEditor({
+  questionId,
+  questionIndex,
+  options,
+  answerKeyIndex,
+  onChange,
+  disabled,
+}: {
+  readonly questionId: string;
+  readonly questionIndex: number;
+  readonly options: readonly string[];
+  readonly answerKeyIndex: number | undefined;
+  readonly onChange: (options: string[], answerKeyIndex: number | undefined) => void;
+  readonly disabled: boolean;
+}) {
+  const keys = useStableRowKeys(questionId, options.length);
+
+  const setOption = (idx: number, value: string) =>
+    onChange(
+      options.map((o, i) => (i === idx ? value : o)),
+      answerKeyIndex,
+    );
+  const addOption = () => {
+    keys.grow();
+    onChange([...options, ""], answerKeyIndex);
+  };
+  const removeOption = (idx: number) => {
+    keys.removeAt(idx);
+    const next = options.filter((_, i) => i !== idx);
+    const nextKey =
+      answerKeyIndex === undefined || answerKeyIndex === idx
+        ? undefined
+        : answerKeyIndex > idx
+          ? answerKeyIndex - 1
+          : answerKeyIndex;
+    onChange(next, nextKey);
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <fieldset className="space-y-1.5" disabled={disabled}>
+        <legend className="mb-1 block font-medium text-[11px] text-[var(--color-ink-2)] uppercase tracking-wide">
+          Options · select the correct answer
+        </legend>
+        {options.map((option, i) => (
+          <div key={keys.at(i)} className="flex items-center gap-2">
+            <input
+              type="radio"
+              name={`quiz-answer-${questionId}`}
+              aria-label={`Mark option ${i + 1} correct`}
+              checked={answerKeyIndex === i}
+              disabled={disabled}
+              onChange={() => onChange([...options], i)}
+              className="h-3.5 w-3.5 shrink-0 accent-[var(--color-accent)]"
+            />
+            <Input
+              aria-label={`Question ${questionIndex + 1} option ${i + 1}`}
+              placeholder={`Option ${i + 1}`}
+              maxLength={MAX_QUIZ_OPTION_TEXT}
+              value={option}
+              onChange={(e) => setOption(i, e.target.value)}
+              disabled={disabled}
+            />
+            <IconButton
+              label={`Remove option ${i + 1}`}
+              onClick={() => removeOption(i)}
+              disabled={disabled || options.length <= 2}
+              className="disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <X size={11} strokeWidth={1.75} aria-hidden="true" />
+            </IconButton>
+          </div>
+        ))}
+      </fieldset>
+      <Button
+        type="button"
+        size="sm"
+        variant="secondary"
+        disabled={disabled || options.length >= MAX_QUIZ_OPTIONS_PER_QUESTION}
+        onClick={addOption}
+      >
+        <Plus size={11} strokeWidth={1.75} aria-hidden="true" />
+        Add option
+      </Button>
+    </div>
+  );
+}
+
+/**
+ * Stable React keys for a positional list whose items carry no unique
+ * value of their own (option text isn't unique; the array index is the
+ * answer-key pointer). Seeds one key per current item, then mutates the
+ * key list in lockstep with the caller's add/remove so a row keeps its
+ * identity across a sibling removal — focus and the input's internal
+ * state survive instead of the list shifting up under the cursor. The
+ * component only mounts for the multiple-choice shape, so the seed count
+ * always matches the options it renders.
+ */
+function useStableRowKeys(prefix: string, count: number) {
+  const next = useRef(0);
+  const mint = () => `${prefix}-row-${next.current++}`;
+  const [ids, setIds] = useState<string[]>(() => Array.from({ length: count }, mint));
+  return {
+    at: (i: number) => ids[i],
+    grow: () => setIds((prev) => [...prev, mint()]),
+    removeAt: (idx: number) => setIds((prev) => prev.filter((_, i) => i !== idx)),
+  };
 }
 
 /**
@@ -1247,7 +1548,17 @@ function blankPart(kind: AuthorablePartKind): ActivityPart {
       return { kind: "watch_video", id, libraryItemId: "" };
     case "embed":
       return { kind: "embed", id, provider: "youtube", url: "https://" };
+    case "quiz":
+      return { kind: "quiz", id, questions: [blankQuestion()] };
   }
+}
+
+function blankQuestion(): QuizQuestion {
+  return {
+    id: newPartId(),
+    prompt: "",
+    shape: { kind: "multiple_choice", options: ["", ""] },
+  };
 }
 
 function buildDraft(activity: LearningActivity | null): Draft {
@@ -1401,6 +1712,31 @@ function findIncompletePart(parts: readonly ActivityPart[]): string | null {
         if (u.protocol !== "https:") return `${where}: embed URL must use https.`;
       } catch {
         return `${where}: embed URL must be a valid https URL.`;
+      }
+    }
+    if (p.kind === "quiz") {
+      // answerKeyRegex is left to the server — it must compile under the
+      // RE2 engine, and a client-side check would diverge from the
+      // authoritative validation. Everything else mirrors a min(1)
+      // constraint in the quiz schema.
+      if (p.questions.length === 0) {
+        return `${where}: add at least one question.`;
+      }
+      for (let q = 0; q < p.questions.length; q++) {
+        const question = p.questions[q];
+        if (!question) continue;
+        const at = `${where}, question ${q + 1}`;
+        if (question.prompt.trim().length === 0) {
+          return `${at}: write a prompt.`;
+        }
+        if (question.shape.kind === "multiple_choice") {
+          if (question.shape.options.length < 2) {
+            return `${at}: add at least two options.`;
+          }
+          if (question.shape.options.some((o) => o.trim().length === 0)) {
+            return `${at}: fill in every option or remove the empty ones.`;
+          }
+        }
       }
     }
   }

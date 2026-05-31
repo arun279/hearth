@@ -9,6 +9,7 @@ import {
   type LibraryRevision,
   type LibraryRevisionId,
   type ResolvedLibraryRef,
+  redactQuizAnswerKeys,
   type UserId,
   type ViewerEnrollmentStatus,
 } from "@hearth/domain";
@@ -109,7 +110,13 @@ export async function getActivityForPlayer(
     accessState === "pre_open" ? [] : await resolveLibraryRefs(ctx.activity, deps, now);
 
   return {
-    activity: ctx.activity,
+    // Quiz answer keys never cross the wire to a learner — strip them from
+    // every quiz Part so the auto-score can't be read off the network tab.
+    // Grading runs server-side against the unredacted `partsJson`.
+    activity: {
+      ...ctx.activity,
+      parts: ctx.activity.parts.map((p) => (p.kind === "quiz" ? redactQuizAnswerKeys(p) : p)),
+    },
     resolvedRefs,
     accessState,
     viewer: { enrollmentStatus: enrollmentStatusOf(ctx.trackEnrollment) },

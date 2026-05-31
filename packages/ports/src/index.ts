@@ -43,6 +43,7 @@ export type {
   PresignedPut,
   PresignedPutInput,
 } from "./object-storage.ts";
+export type { RegexMatcher } from "./regex-matcher.ts";
 export type { CronHandler, Scheduler } from "./scheduler.ts";
 export type {
   ConsumeInvitationInput,

@@ -54,6 +54,8 @@ describe("<ActivityPlayer> ErrorState (5xx / network branch)", () => {
         }}
         requestedPartId={null}
         onChangeActivePartId={noop}
+        groupId="g_1"
+        trackId="t_1"
       />,
     );
     expect(html).toContain("Couldn&#x27;t open this activity");

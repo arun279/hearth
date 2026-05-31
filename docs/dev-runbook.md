@@ -243,8 +243,10 @@ To exercise it locally:
 2. From the Activities tab, click the row to open the player. The desktop layout renders a 240px FlowSidebar on the left with one row per Part; the mobile layout (≤md) renders a sticky pill bar at the top instead.
 3. Use the sidebar / pill bar to flip Parts; the active Part id rides in `?part=<partId>`, so a browser refresh preserves position. Pasting an unknown part id falls back to the first Part with a single-line toast.
 4. The PDF renderer is loaded behind `React.lazy(() => import("./parts/read-part"))` — the first time you open a PDF Part, the browser fetches a separate ~400 KB chunk; subsequent opens are instant from cache. `pnpm --filter @hearth/web test:bundle` is the gate that keeps that chunk dynamic.
-5. `Mark complete` renders as a placeholder with `aria-disabled="true"` and a "coming soon" tooltip — per-Part completion state lands in a later milestone alongside Activity Records.
-6. `Previous` / `Next` chevrons navigate through `flow.displayOrder`. The bottom edge always shows where the participant is and where they can go.
+5. **Reflection** Parts autosave as you type (debounced ~0.8 s); the indicator beside the word-count meter cycles "Saving…" / "Saved", the draft survives a refresh, and it also flushes when the tab is hidden. The visibility selector beside it sets a record-level override — Track / Track only / Just me — and notes that facilitators always see full work.
+6. **Quiz** Parts collect per-question answers and grade them on submit (honor-system): each question shows correct / incorrect / ungraded feedback with any author explanation, plus an "N of M graded correct" summary; re-submitting is allowed. Short-answer answer keys use RE2 syntax (linear-time, so a pathological key cannot pin CPU); grading runs server-side and answer keys never reach the browser. An uncompilable key is rejected when the activity is saved, and otherwise fails soft to "ungraded."
+7. `Mark complete` renders as a placeholder with `aria-disabled="true"` and a "coming soon" tooltip — per-Part completion state lands in a later milestone alongside Activity Records.
+8. `Previous` / `Next` chevrons navigate through `flow.displayOrder`. The bottom edge always shows where the participant is and where they can go.
 
 ### R2 CORS for media + PDF playback
 

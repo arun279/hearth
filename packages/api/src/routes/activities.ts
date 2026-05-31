@@ -3,11 +3,15 @@ import {
   deleteActivity,
   getActivity,
   getActivityForPlayer,
+  getMyActivityRecord,
   listTrackActivities,
   pinLibraryRevision,
+  saveReflectionDraft,
   setActivityLibraryRefs,
   setActivityPrerequisites,
   setActivitySuggestedSequences,
+  setRecordVisibilityOverride,
+  submitQuizAnswers,
   unpinLibraryRevision,
   updateActivity,
 } from "@hearth/core";
@@ -24,9 +28,13 @@ import {
   MAX_LIBRARY_REFS_PER_ACTIVITY,
   MAX_LONG_TEXT_LENGTH,
   MAX_PARTS_PER_ACTIVITY,
+  MAX_QUIZ_QUESTIONS,
+  MAX_REFLECTION_LENGTH,
   MAX_TITLE_LENGTH,
   postClosePolicyEnvelopeSchema,
+  quizAnswerSchema,
   type UserId,
+  visibilityPreferenceSchema,
   windowEnvelopeSchema,
 } from "@hearth/domain";
 import { zValidator } from "@hono/zod-validator";
@@ -43,6 +51,16 @@ const activityItemParam = z.object({
   activityId: z.string().min(1).max(MAX_ID_LENGTH),
   itemId: z.string().min(1).max(MAX_ID_LENGTH),
 });
+const activityPartParam = z.object({
+  activityId: z.string().min(1).max(MAX_ID_LENGTH),
+  partId: z.string().min(1).max(MAX_ID_LENGTH),
+});
+
+const reflectionBody = z.object({ text: z.string().max(MAX_REFLECTION_LENGTH) });
+const quizSubmitBody = z.object({
+  answers: z.array(quizAnswerSchema).max(MAX_QUIZ_QUESTIONS),
+});
+const visibilityOverrideBody = z.object({ preference: visibilityPreferenceSchema.nullable() });
 
 const titleField = z.string().trim().min(1).max(MAX_TITLE_LENGTH);
 const descriptionField = z.union([z.string().trim().max(MAX_LONG_TEXT_LENGTH), z.null()]);
@@ -120,8 +138,10 @@ function depsFor(c: Context<AppBindings>) {
     policy: c.var.ports.policy,
     library: c.var.ports.libraryItems,
     activities: c.var.ports.activities,
+    records: c.var.ports.records,
     storage: c.var.ports.storage,
     clock: c.var.ports.clock,
+    regexMatcher: c.var.ports.regexMatcher,
   };
 }
 
@@ -484,6 +504,98 @@ export const activitiesRoutes = new Hono<AppBindings>()
           depsFor(c),
         );
         return c.json({ nextActivityIds: ids });
+      } catch (err) {
+        return problemResponse(c, mapUnknown(err));
+      }
+    },
+  )
+
+  // A participant's own Activity Record, mounted here (not a separate
+  // router) so it shares the single "/"-mounted session-auth setup. The
+  // GET never creates a row — the record is created lazily on first write,
+  // keeping reads safe under the killswitch's read-only mode.
+  .get(
+    "/activities/:activityId/my-record",
+    zValidator("param", activityIdParam, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    async (c) => {
+      const { activityId } = c.req.valid("param");
+      try {
+        const result = await getMyActivityRecord(
+          { actor: getUserId(c), activityId: activityId as LearningActivityId },
+          depsFor(c),
+        );
+        return c.json(result);
+      } catch (err) {
+        return problemResponse(c, mapUnknown(err));
+      }
+    },
+  )
+
+  .put(
+    "/activities/:activityId/my-record/parts/:partId/reflection",
+    zValidator("param", activityPartParam, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    zValidator("json", reflectionBody, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    async (c) => {
+      const { activityId, partId } = c.req.valid("param");
+      const { text } = c.req.valid("json");
+      try {
+        const result = await saveReflectionDraft(
+          { actor: getUserId(c), activityId: activityId as LearningActivityId, partId, text },
+          depsFor(c),
+        );
+        return c.json(result);
+      } catch (err) {
+        return problemResponse(c, mapUnknown(err));
+      }
+    },
+  )
+
+  .put(
+    "/activities/:activityId/my-record/parts/:partId/quiz",
+    zValidator("param", activityPartParam, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    zValidator("json", quizSubmitBody, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    async (c) => {
+      const { activityId, partId } = c.req.valid("param");
+      const { answers } = c.req.valid("json");
+      try {
+        const result = await submitQuizAnswers(
+          { actor: getUserId(c), activityId: activityId as LearningActivityId, partId, answers },
+          depsFor(c),
+        );
+        return c.json(result);
+      } catch (err) {
+        return problemResponse(c, mapUnknown(err));
+      }
+    },
+  )
+
+  .patch(
+    "/activities/:activityId/my-record/visibility-override",
+    zValidator("param", activityIdParam, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    zValidator("json", visibilityOverrideBody, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    async (c) => {
+      const { activityId } = c.req.valid("param");
+      const { preference } = c.req.valid("json");
+      try {
+        const result = await setRecordVisibilityOverride(
+          { actor: getUserId(c), activityId: activityId as LearningActivityId, preference },
+          depsFor(c),
+        );
+        return c.json(result);
       } catch (err) {
         return problemResponse(c, mapUnknown(err));
       }

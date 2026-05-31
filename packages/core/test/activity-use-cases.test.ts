@@ -873,6 +873,78 @@ describe("get-activity / list-track-activities", () => {
     expect(result.id).toBe(ACTIVITY_ID);
   });
 
+  const quizActivity: LearningActivity = {
+    ...baseActivity,
+    parts: [
+      {
+        kind: "quiz",
+        id: "p_quiz",
+        questions: [
+          {
+            id: "q1",
+            prompt: "MC",
+            shape: { kind: "multiple_choice", options: ["a", "b"], answerKeyIndex: 1 },
+          },
+          { id: "q2", prompt: "SA", shape: { kind: "short_answer", answerKeyRegex: "^yes$" } },
+        ],
+      },
+    ],
+  };
+
+  it("get returns unredacted quiz answer keys to an edit-authority caller", async () => {
+    const result = await getActivity(
+      { actor: ACTOR_ID, id: ACTIVITY_ID },
+      {
+        users: makeUsers(ACTOR),
+        groups: baseGroups(),
+        tracks: facilitatorTracks(),
+        policy: basePolicy(),
+        activities: makeActivities({ byId: vi.fn(async () => quizActivity) }),
+      },
+    );
+    const quiz = result.parts.find((p) => p.kind === "quiz");
+    expect(quiz?.kind).toBe("quiz");
+    if (quiz?.kind === "quiz") {
+      expect((quiz.questions[0]?.shape as { answerKeyIndex?: number }).answerKeyIndex).toBe(1);
+      expect((quiz.questions[1]?.shape as { answerKeyRegex?: string }).answerKeyRegex).toBe(
+        "^yes$",
+      );
+    }
+  });
+
+  it("get strips quiz answer keys for a non-editor viewer (no key leak via the detail route)", async () => {
+    const participantTracks = makeTracks({
+      byId: vi.fn(async () => ACTIVE_TRACK),
+      enrollment: vi.fn(async () => ({
+        trackId: TRACK_ID,
+        userId: ACTOR_ID,
+        role: "participant" as const,
+        enrolledAt: TEST_NOW,
+        leftAt: null,
+      })),
+    });
+    const result = await getActivity(
+      { actor: ACTOR_ID, id: ACTIVITY_ID },
+      {
+        users: makeUsers(ACTOR),
+        groups: baseGroups(),
+        tracks: participantTracks,
+        policy: basePolicy(),
+        activities: makeActivities({ byId: vi.fn(async () => quizActivity) }),
+      },
+    );
+    const quiz = result.parts.find((p) => p.kind === "quiz");
+    expect(quiz?.kind).toBe("quiz");
+    if (quiz?.kind === "quiz") {
+      expect(
+        (quiz.questions[0]?.shape as { answerKeyIndex?: number }).answerKeyIndex,
+      ).toBeUndefined();
+      expect(
+        (quiz.questions[1]?.shape as { answerKeyRegex?: string }).answerKeyRegex,
+      ).toBeUndefined();
+    }
+  });
+
   it("list returns the projection", async () => {
     const result = await listTrackActivities(
       { actor: ACTOR_ID, trackId: TRACK_ID },

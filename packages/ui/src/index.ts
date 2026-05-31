@@ -6,7 +6,13 @@ export {
   type AvatarStackProps,
 } from "./avatar-stack.tsx";
 export { Badge, type BadgeProps, type BadgeTone } from "./badge.tsx";
-export { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from "./button.tsx";
+export {
+  Button,
+  type ButtonProps,
+  type ButtonSize,
+  type ButtonVariant,
+  buttonClasses,
+} from "./button.tsx";
 export { Callout, type CalloutProps, type CalloutTone } from "./callout.tsx";
 export { cn } from "./cn.ts";
 export { useDialogPanel } from "./dialog-keyboard.ts";
@@ -17,6 +23,9 @@ export { IconButton, type IconButtonProps } from "./icon-button.tsx";
 export { Input, type InputProps } from "./input.tsx";
 export { Modal, type ModalProps } from "./modal.tsx";
 export { PartIcon, partKindLabel } from "./part-icon.tsx";
+export { Popover, type PopoverProps } from "./popover.tsx";
+export { RadioGroup, type RadioGroupProps, type RadioOption } from "./radio-group.tsx";
+export { SaveIndicator, type SaveIndicatorProps, type SaveStatus } from "./save-indicator.tsx";
 export { Skeleton, type SkeletonProps } from "./skeleton.tsx";
 export {
   panelIdFor,
