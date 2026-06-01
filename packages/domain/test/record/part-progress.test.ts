@@ -20,7 +20,13 @@ describe("initialPartProgressState", () => {
     const part: ActivityPart = {
       kind: "quiz",
       id: "p2",
-      questions: [{ id: "q1", prompt: "?", shape: { kind: "short_answer" } }],
+      questions: [
+        {
+          id: "q1",
+          prompt: "?",
+          shape: { kind: "short_answer", alsoAccept: [], exactMatch: false },
+        },
+      ],
     };
     expect(initialPartProgressState(part)).toEqual({ kind: "quiz", completed: false, answers: [] });
   });

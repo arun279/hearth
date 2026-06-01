@@ -77,7 +77,13 @@ describe("activity-record adapter (real D1)", () => {
         {
           kind: "quiz",
           id: "p2",
-          questions: [{ id: "q1", prompt: "?", shape: { kind: "short_answer" } }],
+          questions: [
+            {
+              id: "q1",
+              prompt: "?",
+              shape: { kind: "short_answer", alsoAccept: [], exactMatch: false },
+            },
+          ],
         },
       ],
       flow: { prereqs: [] },
