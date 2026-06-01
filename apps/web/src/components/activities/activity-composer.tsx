@@ -68,22 +68,46 @@ type Props = {
 };
 
 /**
+ * Identifies a Part-internal field that can gate a save, so the composer can
+ * bind the error to that specific input rather than the whole Part. Today the
+ * only field-bound Part gate is a quiz short-answer question's correct-answer
+ * input (the alsoAccept-without-correctAnswer coherence refine).
+ */
+type PartFieldLocator = { readonly kind: "quiz-correct-answer"; readonly questionIndex: number };
+
+/**
  * A submit-time validation failure, bound to the field that gates it so the
  * composer can scroll the field into view, outline it, and link an inline
  * message via `aria-describedby` (WCAG 3.3.1 / 3.3.3). A Part-level failure
- * carries the offending Part's index so the per-Part anchor can be targeted.
+ * carries the offending Part's index; when an inner field gates it, the
+ * optional `field` locator narrows the binding to that input.
  */
 type SubmitError =
   | { readonly target: "title"; readonly message: string }
   | { readonly target: "audience"; readonly message: string }
   | { readonly target: "parts"; readonly message: string }
   | { readonly target: "post-close"; readonly message: string }
-  | { readonly target: "part"; readonly partIndex: number; readonly message: string };
+  | {
+      readonly target: "part";
+      readonly partIndex: number;
+      readonly field?: PartFieldLocator;
+      readonly message: string;
+    };
 
-type SubmitErrorAnchor = "title" | "audience" | "parts" | "post-close" | `part-${number}`;
+type SubmitErrorAnchor =
+  | "title"
+  | "audience"
+  | "parts"
+  | "post-close"
+  | `part-${number}`
+  | `part-${number}-quiz-correct-answer-${number}`;
 
 function anchorKeyFor(error: SubmitError): SubmitErrorAnchor {
-  return error.target === "part" ? `part-${error.partIndex}` : error.target;
+  if (error.target !== "part") return error.target;
+  if (error.field?.kind === "quiz-correct-answer") {
+    return `part-${error.partIndex}-quiz-correct-answer-${error.field.questionIndex}`;
+  }
+  return `part-${error.partIndex}`;
 }
 
 /** The inline message for a non-Part gate, or undefined when the active
@@ -334,6 +358,7 @@ export function ActivityComposer({
       setError({
         target: "part",
         partIndex: incompletePart.partIndex,
+        field: incompletePart.field,
         message: incompletePart.message,
       });
       return;
@@ -621,8 +646,9 @@ function PartsEditor({
                     onMoveDown={() => onMove(i, 1)}
                     onUpdate={(patch) => onUpdate(i, patch)}
                     disabled={disabled}
-                    error={error?.target === "part" && error.partIndex === i ? error.message : null}
+                    partError={error?.target === "part" && error.partIndex === i ? error : null}
                     anchorRef={registerAnchor(`part-${i}`)}
+                    registerAnchor={registerAnchor}
                   />
                 ))
               )}
@@ -661,8 +687,9 @@ function PartRow({
   onMoveDown,
   onUpdate,
   disabled,
-  error,
+  partError,
   anchorRef,
+  registerAnchor,
 }: {
   readonly groupId: string;
   readonly part: ActivityPart;
@@ -674,58 +701,84 @@ function PartRow({
   readonly onMoveDown: () => void;
   readonly onUpdate: (patch: Partial<ActivityPart>) => void;
   readonly disabled: boolean;
-  readonly error: string | null;
+  readonly partError: Extract<SubmitError, { target: "part" }> | null;
   readonly anchorRef: (el: HTMLElement | null) => void;
+  readonly registerAnchor: (key: SubmitErrorAnchor) => (el: HTMLElement | null) => void;
 }) {
-  const errorId = error ? `part-${part.id}-error` : undefined;
+  // A field-bound error renders inline at the gating input (and outlines it);
+  // a Part-scoped error with no field locator renders once at the row foot.
+  const error = partError !== null;
+  const fieldError = partError?.field ?? null;
+  const rowMessage = partError && !partError.field ? partError.message : null;
+  const errorId = rowMessage ? `part-${part.id}-error` : undefined;
   return (
     <div
       ref={anchorRef}
       className={cn(
-        "flex items-start gap-3 border-[var(--color-rule)] border-b px-3 py-3 last:border-b-0",
+        "space-y-2 border-[var(--color-rule)] border-b px-3 py-3 last:border-b-0",
         error && "bg-[var(--color-danger-soft)] outline outline-[var(--color-danger-border)]",
       )}
     >
-      <span className="mt-0.5 w-5 shrink-0 font-mono text-[11px] text-[var(--color-ink-3)]">
-        {index + 1}
-      </span>
-      <div className="min-w-0 flex-1 space-y-2">
-        <div className="flex items-center gap-2">
-          <PartIcon kind={part.kind} size={12} className="text-[var(--color-ink-2)]" />
-          <Badge>{partKindLabel(part.kind)}</Badge>
-        </div>
-        <PartBody groupId={groupId} part={part} onUpdate={onUpdate} disabled={disabled} />
-        {error ? (
-          <p id={errorId} role="alert" className="text-[11px] text-[var(--color-danger)]">
-            {error}
-          </p>
-        ) : null}
-      </div>
-      <div className="flex shrink-0 items-center gap-1">
-        {/*
-         * TODO(m19): add a drag handle via `@dnd-kit/sortable` at
-         * M19 polish. Keep the arrow buttons as the keyboard-
-         * accessible fallback — drag handles alone fail Tab-only
-         * users. Cost of arrow-only reorder scales as O(N) per move
-         * (up to N-1 clicks to move an item across an N-Part list),
-         * tolerable at the 3-4-Part case but rough at the schema's
-         * MAX_PARTS_PER_ACTIVITY (50).
-         */}
-        <IconButton label="Move up" onClick={onMoveUp} disabled={disabled || isFirst}>
-          <ArrowUp size={11} strokeWidth={1.75} aria-hidden="true" />
-        </IconButton>
-        <IconButton label="Move down" onClick={onMoveDown} disabled={disabled || isLast}>
-          <ArrowDown size={11} strokeWidth={1.75} aria-hidden="true" />
-        </IconButton>
-        <IconButton
-          label={`Remove Part ${index + 1}`}
-          tone="danger"
-          onClick={onRemove}
-          disabled={disabled}
+      {/* The Part number, kind, and reorder/remove controls share one
+       * header line. Folding them here (rather than fixed-width gutter +
+       * controls columns flanking the body) frees the full row width for
+       * the body, so quiz answer-key Inputs stay editable down to 320px.
+       * The controls cluster wraps under the label at the narrowest widths
+       * via `flex-wrap` rather than starving the body. */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span
+          className={cn(
+            "font-mono text-[11px]",
+            // ink-3 fails WCAG 1.4.3 on danger-soft; the error row uses
+            // ink-2 (which passes) so the index stays legible when tinted.
+            error ? "text-[var(--color-ink-2)]" : "text-[var(--color-ink-3)]",
+          )}
         >
-          <X size={11} strokeWidth={1.75} aria-hidden="true" />
-        </IconButton>
+          {index + 1}
+        </span>
+        <PartIcon kind={part.kind} size={12} className="text-[var(--color-ink-2)]" />
+        <Badge>{partKindLabel(part.kind)}</Badge>
+        <div className="ml-auto flex shrink-0 items-center gap-1">
+          {/*
+           * TODO(m19): add a drag handle via `@dnd-kit/sortable` at
+           * M19 polish. Keep the arrow buttons as the keyboard-
+           * accessible fallback — drag handles alone fail Tab-only
+           * users. Cost of arrow-only reorder scales as O(N) per move
+           * (up to N-1 clicks to move an item across an N-Part list),
+           * tolerable at the 3-4-Part case but rough at the schema's
+           * MAX_PARTS_PER_ACTIVITY (50).
+           */}
+          <IconButton label="Move up" onClick={onMoveUp} disabled={disabled || isFirst}>
+            <ArrowUp size={11} strokeWidth={1.75} aria-hidden="true" />
+          </IconButton>
+          <IconButton label="Move down" onClick={onMoveDown} disabled={disabled || isLast}>
+            <ArrowDown size={11} strokeWidth={1.75} aria-hidden="true" />
+          </IconButton>
+          <IconButton
+            label={`Remove Part ${index + 1}`}
+            tone="danger"
+            onClick={onRemove}
+            disabled={disabled}
+          >
+            <X size={11} strokeWidth={1.75} aria-hidden="true" />
+          </IconButton>
+        </div>
       </div>
+      <PartBody
+        groupId={groupId}
+        part={part}
+        onUpdate={onUpdate}
+        disabled={disabled}
+        partIndex={index}
+        fieldError={fieldError}
+        fieldErrorMessage={partError?.field ? partError.message : null}
+        registerAnchor={registerAnchor}
+      />
+      {rowMessage ? (
+        <p id={errorId} role="alert" className="text-[12px] text-[var(--color-danger)]">
+          {rowMessage}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -748,11 +801,19 @@ function PartBody({
   part,
   onUpdate,
   disabled,
+  partIndex,
+  fieldError,
+  fieldErrorMessage,
+  registerAnchor,
 }: {
   readonly groupId: string;
   readonly part: ActivityPart;
   readonly onUpdate: (patch: Partial<ActivityPart>) => void;
   readonly disabled: boolean;
+  readonly partIndex: number;
+  readonly fieldError: PartFieldLocator | null;
+  readonly fieldErrorMessage: string | null;
+  readonly registerAnchor: (key: SubmitErrorAnchor) => (el: HTMLElement | null) => void;
 }) {
   switch (part.kind) {
     case "write_reflection":
@@ -788,7 +849,17 @@ function PartBody({
         </p>
       );
     case "quiz":
-      return <QuizPartBody part={part} onUpdate={onUpdate} disabled={disabled} />;
+      return (
+        <QuizPartBody
+          part={part}
+          onUpdate={onUpdate}
+          disabled={disabled}
+          partIndex={partIndex}
+          fieldError={fieldError}
+          fieldErrorMessage={fieldErrorMessage}
+          registerAnchor={registerAnchor}
+        />
+      );
   }
 }
 
@@ -847,10 +918,18 @@ function QuizPartBody({
   part,
   onUpdate,
   disabled,
+  partIndex,
+  fieldError,
+  fieldErrorMessage,
+  registerAnchor,
 }: {
   readonly part: Extract<ActivityPart, { kind: "quiz" }>;
   readonly onUpdate: (patch: Partial<ActivityPart>) => void;
   readonly disabled: boolean;
+  readonly partIndex: number;
+  readonly fieldError: PartFieldLocator | null;
+  readonly fieldErrorMessage: string | null;
+  readonly registerAnchor: (key: SubmitErrorAnchor) => (el: HTMLElement | null) => void;
 }) {
   const setQuestions = (questions: QuizPart["questions"]) =>
     onUpdate({ questions } as Partial<ActivityPart>);
@@ -861,17 +940,25 @@ function QuizPartBody({
 
   return (
     <div className="space-y-3">
-      {part.questions.map((question, i) => (
-        <QuizQuestionEditor
-          key={question.id}
-          question={question}
-          index={i}
-          total={part.questions.length}
-          onChange={(next) => patchQuestion(i, next)}
-          onRemove={() => removeQuestion(i)}
-          disabled={disabled}
-        />
-      ))}
+      {part.questions.map((question, i) => {
+        const correctAnswerError =
+          fieldError?.kind === "quiz-correct-answer" && fieldError.questionIndex === i
+            ? fieldErrorMessage
+            : null;
+        return (
+          <QuizQuestionEditor
+            key={question.id}
+            question={question}
+            index={i}
+            total={part.questions.length}
+            onChange={(next) => patchQuestion(i, next)}
+            onRemove={() => removeQuestion(i)}
+            disabled={disabled}
+            correctAnswerError={correctAnswerError}
+            correctAnswerAnchor={registerAnchor(`part-${partIndex}-quiz-correct-answer-${i}`)}
+          />
+        );
+      })}
       <Button
         type="button"
         size="sm"
@@ -898,6 +985,8 @@ function QuizQuestionEditor({
   onChange,
   onRemove,
   disabled,
+  correctAnswerError,
+  correctAnswerAnchor,
 }: {
   readonly question: QuizQuestion;
   readonly index: number;
@@ -905,6 +994,8 @@ function QuizQuestionEditor({
   readonly onChange: (next: QuizQuestion) => void;
   readonly onRemove: () => void;
   readonly disabled: boolean;
+  readonly correctAnswerError: string | null;
+  readonly correctAnswerAnchor: (el: HTMLElement | null) => void;
 }) {
   // Switching shape swaps the variant payload to a blank of the target
   // kind so no stale answer key rides along on the wire — an MC's
@@ -979,6 +1070,8 @@ function QuizQuestionEditor({
           shape={question.shape}
           onChange={(shape) => onChange({ ...question, shape })}
           disabled={disabled}
+          correctAnswerError={correctAnswerError}
+          correctAnswerAnchor={correctAnswerAnchor}
         />
       )}
 
@@ -1136,11 +1229,15 @@ function ShortAnswerKeyEditor({
   shape,
   onChange,
   disabled,
+  correctAnswerError,
+  correctAnswerAnchor,
 }: {
   readonly questionId: string;
   readonly shape: ShortAnswerShape;
   readonly onChange: (shape: ShortAnswerShape) => void;
   readonly disabled: boolean;
+  readonly correctAnswerError: string | null;
+  readonly correctAnswerAnchor: (el: HTMLElement | null) => void;
 }) {
   const accepted = shape.alsoAccept;
   const keys = useStableRowKeys(`${questionId}-accept`, accepted.length);
@@ -1160,22 +1257,26 @@ function ShortAnswerKeyEditor({
 
   return (
     <div className="space-y-2.5">
-      <Field
-        label="Correct answer"
-        hint="What a learner should type. Leave blank to leave this question ungraded."
-      >
-        {({ id, describedBy }) => (
-          <Input
-            id={id}
-            aria-describedby={describedBy}
-            placeholder="e.g., sí"
-            maxLength={MAX_QUIZ_OPTION_TEXT}
-            value={shape.correctAnswer ?? ""}
-            onChange={(e) => setCorrect(e.target.value)}
-            disabled={disabled}
-          />
-        )}
-      </Field>
+      <div ref={correctAnswerAnchor}>
+        <Field
+          label="Correct answer"
+          hint="What a learner should type. Leave blank to leave this question ungraded."
+          error={correctAnswerError ?? undefined}
+        >
+          {({ id, describedBy }) => (
+            <Input
+              id={id}
+              aria-describedby={describedBy}
+              invalid={correctAnswerError !== null}
+              placeholder="e.g., sí"
+              maxLength={MAX_QUIZ_OPTION_TEXT}
+              value={shape.correctAnswer ?? ""}
+              onChange={(e) => setCorrect(e.target.value)}
+              disabled={disabled}
+            />
+          )}
+        </Field>
+      </div>
 
       <div className="space-y-1.5">
         <span className="block font-medium text-[11px] text-[var(--color-ink-2)] uppercase tracking-wide">
@@ -1227,7 +1328,7 @@ function ShortAnswerKeyEditor({
         </label>
         <p id={`${questionId}-match-note`} className="text-[11px] text-[var(--color-ink-2)]">
           {shape.exactMatch
-            ? "Answers must match exactly, including capitalization and accents."
+            ? "Answers must match exactly, including capitalization and accents (sí ≠ si, Sí ≠ sí)."
             : "Answers match regardless of capitalization, surrounding spaces, or accents (sí = si)."}
         </p>
       </div>
@@ -1857,19 +1958,50 @@ function serializeDraft(draft: Draft, trackId: string): ActivityComposerPayload 
           userIds: Array.from(draft.selectedUserIds, (id) => id as UserId),
         }
       : { kind: "everyone_enrolled" };
+  const parts = draft.parts.map(sanitizePartForWire);
   return {
     trackId,
     title: draft.title.trim(),
     description: draft.description.trim().length > 0 ? draft.description.trim() : null,
-    parts: draft.parts,
+    parts,
     flow,
     audience,
     window,
     postClosePolicy: postClose,
     completionRule: { kind: draft.completionRule },
-    libraryRefs: collectLibraryRefs(draft.parts),
+    libraryRefs: collectLibraryRefs(parts),
     prerequisiteActivityIds: Array.from(draft.selectedPrereqIds),
     suggestedNextActivityIds: Array.from(draft.selectedSuggestedIds),
+  };
+}
+
+/**
+ * Normalize a Part to what the server's Zod schema will accept, so an
+ * optional-extra field left half-filled is silently dropped rather than
+ * 400-ing on an opaque error. Today only short-answer quiz keys need it:
+ * `acceptedAnswer` is `z.string().trim().min(1)` for both `correctAnswer`
+ * and every `alsoAccept` entry (`packages/domain/src/parts/quiz.ts`), so a
+ * whitespace-only correct answer must become `undefined` (ungraded) and a
+ * blank "Add accepted answer" row must be dropped (it's an optional extra,
+ * not a gate). The coherence refine — `alsoAccept` non-empty with no
+ * `correctAnswer` — is caught earlier by `findIncompletePart`.
+ */
+export function sanitizePartForWire(part: ActivityPart): ActivityPart {
+  if (part.kind !== "quiz") return part;
+  return {
+    ...part,
+    questions: part.questions.map((q) => {
+      if (q.shape.kind !== "short_answer") return q;
+      const correctAnswer = q.shape.correctAnswer?.trim();
+      return {
+        ...q,
+        shape: {
+          ...q.shape,
+          correctAnswer: correctAnswer && correctAnswer.length > 0 ? correctAnswer : undefined,
+          alsoAccept: q.shape.alsoAccept.filter((a) => a.trim().length > 0),
+        },
+      };
+    }),
   };
 }
 
@@ -1880,14 +2012,16 @@ function serializeDraft(draft: Draft, trackId: string): ActivityComposerPayload 
  * — server-side Zod still re-validates as defense in depth. Each branch
  * mirrors a `min(1)` / `.refine` constraint in the corresponding Part schema.
  */
-function findIncompletePart(
-  parts: readonly ActivityPart[],
-): { readonly partIndex: number; readonly message: string } | null {
+export function findIncompletePart(parts: readonly ActivityPart[]): {
+  readonly partIndex: number;
+  readonly field?: PartFieldLocator;
+  readonly message: string;
+} | null {
   for (let i = 0; i < parts.length; i++) {
     const p = parts[i];
     if (!p) continue;
     const where = `Part ${i + 1} (${p.kind.replace(/_/g, " ")})`;
-    const fail = (message: string) => ({ partIndex: i, message });
+    const fail = (message: string, field?: PartFieldLocator) => ({ partIndex: i, field, message });
     if (
       (p.kind === "read_library_item" || p.kind === "listen_audio" || p.kind === "watch_video") &&
       p.libraryItemId.length === 0
@@ -1924,17 +2058,21 @@ function findIncompletePart(
             return fail(`${at}: fill in every option or remove the empty ones.`);
           }
         }
-        // Mirror of the short-answer coherence refine: an accept-list
-        // with no primary answer can never grade. Whitespace-only entries
-        // are trimmed to empty by the schema, so they need no separate
-        // message here.
+        // Mirror of the short-answer coherence refine: an accept-list with
+        // no primary answer can never grade. A whitespace-only correct
+        // answer counts as no primary answer here — the server's
+        // `acceptedAnswer` (`z.string().trim().min(1)`) would reject it, and
+        // `sanitizePartForWire` drops it to `undefined` before the wire — so
+        // the gate must trim too. Bind to the correct-answer input (not just
+        // the Part) so the fix target is unambiguous, matching the title path.
         if (
           question.shape.kind === "short_answer" &&
-          question.shape.correctAnswer === undefined &&
+          (question.shape.correctAnswer ?? "").trim().length === 0 &&
           question.shape.alsoAccept.some((a) => a.trim().length > 0)
         ) {
           return fail(
             `${at}: add a correct answer, or clear the accepted list to leave it ungraded.`,
+            { kind: "quiz-correct-answer", questionIndex: q },
           );
         }
       }

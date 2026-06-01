@@ -89,6 +89,16 @@ test.describe("M10 — Activity rendering: interactive Parts", () => {
     await expect(page.getByRole("textbox", { name: /Your reflection/i })).toHaveValue(REFLECTION);
     await expect(page.getByRole("button", { name: /Visibility:/i })).toContainText("Just me");
 
+    // --- Clear the override: "Use my default" reverts the trigger to the
+    // resolved account default and the cleared state survives a reload. The
+    // clear path (override -> null) is otherwise untested. ---
+    await page.getByRole("button", { name: /Visibility:/i }).click();
+    await page.getByRole("button", { name: /Use my default/i }).click();
+    await expect(page.getByRole("button", { name: /Visibility:/i })).toContainText("Your default");
+    await page.reload();
+    await expect(page.getByText(/Part 1 of 2/i)).toBeVisible();
+    await expect(page.getByRole("button", { name: /Visibility:/i })).toContainText("Your default");
+
     // --- Quiz: navigate to Part 2, answer correctly, submit ---
     const sidebar = page.getByRole("navigation", { name: /Activity Parts/i }).first();
     await sidebar.getByRole("button").nth(1).click();

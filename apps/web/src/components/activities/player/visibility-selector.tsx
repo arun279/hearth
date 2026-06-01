@@ -1,5 +1,5 @@
 import type { VisibilityPreference } from "@hearth/domain";
-import { Popover, RadioGroup } from "@hearth/ui";
+import { Popover, RadioGroup, SaveIndicator, type SaveStatus } from "@hearth/ui";
 import { ChevronDown, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useSetRecordVisibility } from "../../../hooks/use-activity-record.ts";
@@ -34,9 +34,20 @@ export function VisibilitySelector({ activityId, value }: Props) {
   // the same scope as clearing the override, surfaced as "Your default" below.
   const radioValue = isSelectableOverride(value) ? value : null;
 
+  // Mirror the reflection autosave's SaveIndicator model so the change has a
+  // durable in-panel "Saving…" / "Saved" / failure signal (Nielsen #1) rather
+  // than only a transient toast: the trigger spinner shows in-flight; this pill
+  // confirms the outcome while the popover is still open.
+  const status: SaveStatus = setVisibility.isError
+    ? "error"
+    : setVisibility.isPending
+      ? "saving"
+      : setVisibility.isSuccess
+        ? "saved"
+        : "idle";
+
   const pick = (next: VisibilityPreference | null) => {
     setVisibility.mutate(next, {
-      onSuccess: () => toast.success("Visibility updated"),
       onError: (err) => toast.error(asUserMessage(err, "Couldn't update visibility.")),
     });
   };
@@ -88,6 +99,11 @@ export function VisibilitySelector({ activityId, value }: Props) {
         >
           Use my default ({VISIBILITY_LABELS.default.label})
         </button>
+      ) : null}
+      {status !== "idle" ? (
+        <div className="mt-2">
+          <SaveIndicator status={status} onRetry={() => pick(setVisibility.variables ?? null)} />
+        </div>
       ) : null}
     </Popover>
   );

@@ -99,15 +99,15 @@ export function QuizPart({ activityId, part, partState, canParticipate }: Props)
           {submit.isError && !submit.isPending ? (
             <span
               role="alert"
-              className="inline-flex items-center gap-1 text-[11px] text-[var(--color-danger)]"
+              className="inline-flex items-center gap-1 text-[12px] text-[var(--color-danger)]"
             >
-              Couldn't submit
+              Couldn't submit your answers — your answers are still here.
               <button
                 type="button"
                 onClick={onSubmit}
                 className="rounded-[var(--radius-sm)] underline hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
               >
-                retry
+                Try again
               </button>
             </span>
           ) : null}

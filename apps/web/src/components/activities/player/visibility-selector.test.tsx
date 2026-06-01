@@ -15,6 +15,11 @@ import { VisibilitySelector } from "./visibility-selector.tsx";
  * Popover panel that mounts only after a client click + focus effect, neither
  * of which runs under `renderToString`; their behaviour is exercised by the
  * m10 e2e and lands in the deferred jsdom component-test layer (separate PR).
+ *
+ * TODO(test): add jsdom component coverage for the deferred DOM behaviors —
+ * the in-panel popover radios selecting a scope, and the "Use my default"
+ * clear round-trip (override -> null reverts the trigger to the resolved
+ * account default) including the SaveIndicator settling to "Saved".
  */
 
 function render(value: VisibilityPreference | null): string {
