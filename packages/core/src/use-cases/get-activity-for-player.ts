@@ -72,9 +72,10 @@ export type GetActivityForPlayerDeps = {
  * so the R2 GET budget is preserved when a participant is just peeking
  * at the chrome.
  *
- * Per-Part progress + per-Part status are deliberately not in the
- * projection: M11 will layer them in via `activity_records` reads.
- * Today every Part Status renders neutral on the SPA.
+ * Per-Part progress + per-Part status are deliberately not in this
+ * projection. The SPA sources per-Part completion from the sibling
+ * `GET /my-record` query (the participant's own `activity_records` row),
+ * keeping this player-chrome read free of the per-viewer record fetch.
  */
 export async function getActivityForPlayer(
   input: GetActivityForPlayerInput,
