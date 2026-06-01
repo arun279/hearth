@@ -2,21 +2,28 @@ import type { PartProgressState, QuizPart as QuizPartT } from "@hearth/domain";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { gradedMcOptions, initialAnswers, isAnswered, QuizPart } from "./quiz-part.tsx";
+import {
+  gradedMcOptions,
+  initialAnswers,
+  isAnswered,
+  QuizPart,
+  verdictBadge,
+} from "./quiz-part.tsx";
 
 /**
  * Pure coverage for `initialAnswers` (which `useState` seeds the answer map
- * from on mount) and `gradedMcOptions` (the post-grade option tinting, across
- * the correct / incorrect / no-key verdicts), plus SSR checks for the
- * participant and read-only render arms.
+ * from on mount), `gradedMcOptions` (the post-grade option tinting, across
+ * the correct / incorrect / no-key verdicts), and `verdictBadge` (the
+ * outcome-badge tone + copy), plus SSR checks for the participant and
+ * read-only render arms.
  *
- * TODO(test): the post-submit rendering paths — the "Not quite" incorrect
- * badge, the `ScoreSummary` `gradeable === 0` ("no auto-graded questions")
- * branch, the short-answer submit round-trip, and verdict-clears-on-edit —
- * depend on a submit mutation firing and updating state, so they need a real
- * DOM. They land with the deferred jsdom component-test layer (separate PR),
- * alongside the reflection keepalive-flush / autosave-transition tests; the
- * m10 e2e covers the single correct-MC path end-to-end in the meantime.
+ * TODO(test): the post-submit rendering paths — the `ScoreSummary`
+ * `gradeable === 0` ("no auto-graded questions") branch, the short-answer
+ * submit round-trip, and verdict-clears-on-edit — depend on a submit mutation
+ * firing and updating state, so they need a real DOM. They land with the
+ * deferred jsdom component-test layer (separate PR), alongside the reflection
+ * keepalive-flush / autosave-transition tests; the m10 e2e covers the single
+ * correct-MC path end-to-end in the meantime.
  */
 
 const PART: QuizPartT = {
@@ -113,6 +120,25 @@ describe("gradedMcOptions", () => {
     expect(out[1]?.tone).toBeUndefined();
     expect(out[2]?.tone).toBe("danger");
     expect(out[2]?.adornment).toBeTruthy();
+  });
+});
+
+describe("verdictBadge", () => {
+  it("reads a correct verdict as a good-toned 'Correct'", () => {
+    expect(verdictBadge("correct", true)).toEqual({ tone: "good", label: "Correct" });
+  });
+
+  it("reads a wrong attempt as danger-toned 'Not quite'", () => {
+    expect(verdictBadge("incorrect", true)).toEqual({ tone: "danger", label: "Not quite" });
+  });
+
+  it("reads a left-blank question as neutral-toned 'Not answered' — a skip is not an error", () => {
+    expect(verdictBadge("incorrect", false)).toEqual({ tone: "neutral", label: "Not answered" });
+  });
+
+  it("reads an ungraded (no-key) verdict as neutral 'Submitted'", () => {
+    expect(verdictBadge("no_key", true)).toEqual({ tone: "neutral", label: "Submitted" });
+    expect(verdictBadge("no_key", false)).toEqual({ tone: "neutral", label: "Submitted" });
   });
 });
 

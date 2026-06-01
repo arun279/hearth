@@ -242,10 +242,16 @@ function PlayerBody({
                     canMark: canAuthor,
                     pending: setCompleted.isPending,
                     onToggle: () =>
-                      setCompleted.mutate({
-                        partId: activePartId,
-                        completed: !activePartCompleted,
-                      }),
+                      setCompleted.mutate(
+                        {
+                          partId: activePartId,
+                          completed: !activePartCompleted,
+                        },
+                        {
+                          onError: (err) =>
+                            toast.error(asUserMessage(err, "Couldn't update completion.")),
+                        },
+                      ),
                   }
                 : null
             }

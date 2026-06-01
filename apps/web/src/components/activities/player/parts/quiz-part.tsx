@@ -4,7 +4,7 @@ import type {
   QuizPart as QuizPartT,
   QuizQuestion,
 } from "@hearth/domain";
-import { Badge, Button, Input, RadioGroup, type RadioOption } from "@hearth/ui";
+import { Badge, type BadgeTone, Button, Input, RadioGroup, type RadioOption } from "@hearth/ui";
 import { Check, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -268,6 +268,25 @@ function QuestionCard({
   );
 }
 
+// Map a graded verdict to its badge presentation. For multiple choice the
+// keyed-correct answer is already tinted inline on the option itself, so the
+// badge only summarizes the outcome. A wrong attempt reads "Not quite" in
+// danger red; a question the learner left blank reads "Not answered" in a
+// neutral tone — a non-attempt is an omission, not an error, so reserving
+// danger red for a real miss keeps the tone proportional to the outcome.
+export function verdictBadge(
+  verdict: Verdict["verdict"],
+  answered: boolean,
+): { readonly tone: BadgeTone; readonly label: string } {
+  if (verdict === "correct") return { tone: "good", label: "Correct" };
+  if (verdict === "incorrect") {
+    return answered
+      ? { tone: "danger", label: "Not quite" }
+      : { tone: "neutral", label: "Not answered" };
+  }
+  return { tone: "neutral", label: "Submitted" };
+}
+
 function Feedback({
   verdict,
   question,
@@ -277,22 +296,13 @@ function Feedback({
   readonly question: QuizQuestion;
   readonly answered: boolean;
 }) {
+  const badge = verdictBadge(verdict.verdict, answered);
   return (
     <div className="mt-2.5 flex flex-col gap-1.5">
       {/* Wrap the badge in a row so it hugs its label (a bare Badge in the
-          flex-col would stretch full width). For multiple choice, the keyed
-          correct answer is shown inline on the option itself (good tint +
-          check), so it isn't repeated here. An incorrect verdict on a
-          question the learner left blank reads "Not answered" — "Not quite"
-          would imply an attempt that never happened. */}
+          flex-col would stretch full width). */}
       <div className="flex flex-wrap items-center gap-2">
-        {verdict.verdict === "correct" ? (
-          <Badge tone="good">Correct</Badge>
-        ) : verdict.verdict === "incorrect" ? (
-          <Badge tone="danger">{answered ? "Not quite" : "Not answered"}</Badge>
-        ) : (
-          <Badge tone="neutral">Submitted</Badge>
-        )}
+        <Badge tone={badge.tone}>{badge.label}</Badge>
       </div>
       {question.explainAfterAnswer ? (
         <p className="text-[12px] text-[var(--color-ink-2)] leading-relaxed">
