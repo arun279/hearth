@@ -136,19 +136,22 @@ export function createActivityRecordRepository(
       await deps.gate.assertWritable();
       const now = new Date();
       const stateJson = JSON.stringify(partProgressEnvelopeSchema.parse({ v: 1, data: state }));
-      await deps.db
-        .insert(partProgress)
-        .values({ id: ids.generate(), activityRecordId, partId, stateJson, updatedAt: now })
-        .onConflictDoUpdate({
-          target: [partProgress.activityRecordId, partProgress.partId],
-          set: { stateJson, updatedAt: now },
-        });
-      // Surface the edit on the parent record's updatedAt so the
-      // (participantId, updatedAt) "recent records" ordering reflects it.
-      await deps.db
-        .update(activityRecords)
-        .set({ updatedAt: now })
-        .where(eq(activityRecords.id, activityRecordId));
+      // Batch the child UPSERT and the parent updatedAt touch so the
+      // (participantId, updatedAt) "recent records" ordering can never fall
+      // behind the part_progress row it summarizes.
+      await deps.db.batch([
+        deps.db
+          .insert(partProgress)
+          .values({ id: ids.generate(), activityRecordId, partId, stateJson, updatedAt: now })
+          .onConflictDoUpdate({
+            target: [partProgress.activityRecordId, partProgress.partId],
+            set: { stateJson, updatedAt: now },
+          }),
+        deps.db
+          .update(activityRecords)
+          .set({ updatedAt: now })
+          .where(eq(activityRecords.id, activityRecordId)),
+      ] as unknown as Parameters<typeof deps.db.batch>[0]);
     }),
   };
 }

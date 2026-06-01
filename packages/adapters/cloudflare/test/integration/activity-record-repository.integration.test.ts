@@ -160,6 +160,26 @@ describe("activity-record adapter (real D1)", () => {
     expect(rows).toHaveLength(1);
   });
 
+  it("savePartProgress bumps the parent record's updatedAt in one batch", async () => {
+    const repos = buildRepos();
+    const { participant, activityId } = await setup(repos, "touch");
+    const record = await repos.records.upsert({ activityId, participantId: participant });
+
+    await repos.records.savePartProgress({
+      activityRecordId: record.id,
+      partId: "p1" as ActivityPartId,
+      state: { kind: "write_reflection", completed: false, text: "draft" },
+    });
+
+    const after = await repos.records.byParticipantAndActivity(activityId, participant);
+    const childRows = await repos.db
+      .select()
+      .from(schema.partProgress)
+      .where(eq(schema.partProgress.activityRecordId, record.id));
+    expect(after?.updatedAt.getTime()).toBeGreaterThanOrEqual(record.updatedAt.getTime());
+    expect(after?.updatedAt.getTime()).toBe(childRows[0]?.updatedAt.getTime());
+  });
+
   it("listPartProgress returns every saved Part; getPartProgress is null for untouched", async () => {
     const repos = buildRepos();
     const { participant, activityId } = await setup(repos, "list");
