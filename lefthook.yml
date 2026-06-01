@@ -117,7 +117,10 @@ pre-push:
     dup:
       run: pnpm check:dup
     policy-purity:
-      glob: "packages/domain/src/(policy|visibility)/**/*.ts"
+      # Mirrors `lefthookGlob` in policy-pure-dirs.cjs (the SPA-pure dir SoT);
+      # pinned against drift by the policy-purity vitest assertion. Update both
+      # together when DIRS changes.
+      glob: "packages/domain/src/(policy|visibility|library|parts|record)/**/*.ts"
       run: pnpm --filter @hearth/domain test -- --run policy-purity
     # `db-check-auth` (Better Auth schema-drift guard via `pnpm dlx
     # @better-auth/cli`) is intentionally NOT in the pre-push pool. Under

@@ -1,7 +1,9 @@
 import {
   activityLibraryRefs,
   activityPrerequisites,
+  activityRecords,
   activitySuggestedSequences,
+  evidenceSignals,
   learningActivities,
   tracks,
 } from "@hearth/db/schema";
@@ -308,16 +310,25 @@ export function createLearningActivityRepository(
       // archived. The exists-clause walks tracks.status so a concurrent
       // archive between the use case's read and this write surfaces as
       // CONFLICT — the same race-resilience guarantee `update` carries.
-      // The child deletes batch with the parent so all four either
-      // commit or none does; if the parent's `.returning()` comes back
-      // empty we know the row vanished or the track flipped archived,
-      // and the child cleanups are no-ops on a vanished id.
+      // The child deletes batch with the parent so all either commit or
+      // none does; if the parent's `.returning()` comes back empty we
+      // know the row vanished or the track flipped archived, and the
+      // child cleanups are no-ops on a vanished id.
+      //
+      // Participant Activity Records (and the evidence_signals keyed to the
+      // activity) carry a non-cascading FK to learning_activities, so they
+      // must be dropped here too — otherwise a delete of an activity any
+      // participant has touched trips FK RESTRICT. part_progress / part_history
+      // cascade from activity_records (FK onDelete: cascade), so removing the
+      // record rows clears them transitively.
       const childDeletes = [
         deps.db.delete(activityLibraryRefs).where(eq(activityLibraryRefs.activityId, id)),
         deps.db.delete(activityPrerequisites).where(eq(activityPrerequisites.activityId, id)),
         deps.db
           .delete(activitySuggestedSequences)
           .where(eq(activitySuggestedSequences.activityId, id)),
+        deps.db.delete(evidenceSignals).where(eq(evidenceSignals.activityId, id)),
+        deps.db.delete(activityRecords).where(eq(activityRecords.activityId, id)),
       ] as const;
       const parentDelete = deps.db
         .delete(learningActivities)
@@ -330,8 +341,15 @@ export function createLearningActivityRepository(
         .returning({ id: learningActivities.id });
       const results = (await deps.db.batch([...childDeletes, parentDelete] as unknown as Parameters<
         typeof deps.db.batch
-      >[0])) as readonly [unknown, unknown, unknown, ReadonlyArray<{ readonly id: string }>];
-      const deletedRows = results[3];
+      >[0])) as readonly [
+        unknown,
+        unknown,
+        unknown,
+        unknown,
+        unknown,
+        ReadonlyArray<{ readonly id: string }>,
+      ];
+      const deletedRows = results[childDeletes.length];
       if (deletedRows.length === 0) {
         const probe = await deps.db
           .select({ id: learningActivities.id })

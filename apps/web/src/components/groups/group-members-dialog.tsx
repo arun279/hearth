@@ -143,7 +143,15 @@ export function GroupMembersDialog({ open, onClose, group }: Props) {
         }
         confirmLabel="Make admin"
         pending={setRole.isPending}
-        onClose={() => setConfirming(null)}
+        // setRole is shared with the demote dialog; reset its error on close so
+        // a failed promote can't leak its message into a later demote dialog.
+        errorMessage={
+          setRole.isError ? asUserMessage(setRole.error, "Role change failed.") : undefined
+        }
+        onClose={() => {
+          setRole.reset();
+          setConfirming(null);
+        }}
         onConfirm={async () => {
           if (confirming?.kind !== "promote") return;
           await runRoleChange(
@@ -166,7 +174,13 @@ export function GroupMembersDialog({ open, onClose, group }: Props) {
         }
         confirmLabel="Remove admin"
         pending={setRole.isPending}
-        onClose={() => setConfirming(null)}
+        errorMessage={
+          setRole.isError ? asUserMessage(setRole.error, "Role change failed.") : undefined
+        }
+        onClose={() => {
+          setRole.reset();
+          setConfirming(null);
+        }}
         onConfirm={async () => {
           if (confirming?.kind !== "demote") return;
           await runRoleChange(
@@ -189,6 +203,9 @@ export function GroupMembersDialog({ open, onClose, group }: Props) {
         }
         confirmLabel="Remove member"
         pending={remove.isPending}
+        errorMessage={
+          remove.isError ? asUserMessage(remove.error, "Couldn't remove member.") : undefined
+        }
         onClose={() => setConfirming(null)}
         onConfirm={async () => {
           if (confirming?.kind !== "remove") return;

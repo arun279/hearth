@@ -137,7 +137,7 @@ Implementation lives at `scripts/lib/auth-session.mjs` (shared module, JSDoc-typ
 | `pnpm test:integration`          | —                  | —                                | ✓                               | ✓                                          |
 | `pnpm check:coverage`            | —                  | —                                | ✓                               | ✓                                          |
 | `pnpm check:licenses`            | —                  | —                                | ✓                               | (mirrored by dep-review action)            |
-| Policy-purity test               | —                  | —                                | when policy/visibility changes  | (part of `pnpm test`)                      |
+| Policy-purity test               | —                  | —                                | when SPA-pure dirs change       | (part of `pnpm test`)                      |
 | `pnpm audit --audit-level=high`  | —                  | —                                | ✓                               | daily + per-PR                             |
 | TruffleHog secrets scan          | —                  | staged files only                | —                               | daily + per-PR                             |
 

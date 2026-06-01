@@ -26,6 +26,13 @@ function blankAnswer(q: QuizQuestion): QuizAnswer {
     : { questionId: q.id, kind: "short_answer", text: "" };
 }
 
+/** True once the learner has supplied any content for this answer. */
+export function isAnswered(answer: QuizAnswer): boolean {
+  return answer.kind === "multiple_choice"
+    ? answer.selectedIndex !== null
+    : answer.text.trim().length > 0;
+}
+
 export function initialAnswers(
   part: QuizPartT,
   partState: PartProgressState | null,
@@ -46,12 +53,18 @@ export function QuizPart({ activityId, part, partState, canParticipate }: Props)
   );
   const [feedback, setFeedback] = useState<Map<string, Verdict> | null>(null);
   const [score, setScore] = useState<QuizSubmitResult["autoScore"] | null>(null);
+  // Set when the learner attempts an all-blank submit. Grading nothing would
+  // tint the keyed-correct options and reveal the answers from a stray click,
+  // so we warn inline instead of POSTing (the next state is a true no-op).
+  const [emptyWarning, setEmptyWarning] = useState(false);
   const submit = useSubmitQuiz(activityId);
 
   // Editing any answer invalidates the prior grading — clear it so the
-  // learner re-submits to see fresh feedback.
+  // learner re-submits to see fresh feedback. A real edit also clears the
+  // empty-submit warning.
   const updateAnswer = (next: QuizAnswer) => {
     setAnswers((prev) => ({ ...prev, [next.questionId]: next }));
+    setEmptyWarning(false);
     if (feedback !== null) {
       setFeedback(null);
       setScore(null);
@@ -60,6 +73,11 @@ export function QuizPart({ activityId, part, partState, canParticipate }: Props)
 
   const onSubmit = () => {
     const payload = part.questions.map((q) => answers[q.id] ?? blankAnswer(q));
+    if (!payload.some(isAnswered)) {
+      setEmptyWarning(true);
+      return;
+    }
+    setEmptyWarning(false);
     submit.mutate(
       { partId: part.id, answers: payload },
       {
@@ -74,23 +92,32 @@ export function QuizPart({ activityId, part, partState, canParticipate }: Props)
 
   return (
     <div className="flex flex-col gap-3.5">
-      {part.questions.map((q, idx) => (
-        <QuestionCard
-          key={q.id}
-          index={idx}
-          question={q}
-          answer={answers[q.id] ?? blankAnswer(q)}
-          onChange={updateAnswer}
-          verdict={feedback?.get(q.id) ?? null}
-          disabled={!canParticipate}
-        />
-      ))}
+      {part.questions.map((q, idx) => {
+        const answer = answers[q.id] ?? blankAnswer(q);
+        return (
+          <QuestionCard
+            key={q.id}
+            index={idx}
+            question={q}
+            answer={answer}
+            onChange={updateAnswer}
+            verdict={feedback?.get(q.id) ?? null}
+            answered={isAnswered(answer)}
+            disabled={!canParticipate}
+          />
+        );
+      })}
 
       {canParticipate ? (
         <div className="flex flex-wrap items-center gap-3">
           <Button type="button" onClick={onSubmit} disabled={submit.isPending} size="sm">
             {submit.isPending ? "Submitting…" : feedback ? "Re-submit" : "Submit"}
           </Button>
+          {emptyWarning ? (
+            <span role="alert" className="text-[12px] text-[var(--color-ink-2)]">
+              Answer at least one question before submitting.
+            </span>
+          ) : null}
           {/* A failed submit latches a persistent inline failure + retry,
               mirroring the reflection autosave's SaveIndicator: the one-shot
               toast above announces the moment of failure, this is the durable
@@ -190,6 +217,7 @@ function QuestionCard({
   answer,
   onChange,
   verdict,
+  answered,
   disabled,
 }: {
   readonly index: number;
@@ -197,6 +225,7 @@ function QuestionCard({
   readonly answer: QuizAnswer;
   readonly onChange: (next: QuizAnswer) => void;
   readonly verdict: Verdict | null;
+  readonly answered: boolean;
   readonly disabled: boolean;
 }) {
   return (
@@ -234,7 +263,7 @@ function QuestionCard({
           placeholder="Your answer"
         />
       )}
-      {verdict ? <Feedback verdict={verdict} question={question} /> : null}
+      {verdict ? <Feedback verdict={verdict} question={question} answered={answered} /> : null}
     </div>
   );
 }
@@ -242,21 +271,25 @@ function QuestionCard({
 function Feedback({
   verdict,
   question,
+  answered,
 }: {
   readonly verdict: Verdict;
   readonly question: QuizQuestion;
+  readonly answered: boolean;
 }) {
   return (
     <div className="mt-2.5 flex flex-col gap-1.5">
       {/* Wrap the badge in a row so it hugs its label (a bare Badge in the
           flex-col would stretch full width). For multiple choice, the keyed
           correct answer is shown inline on the option itself (good tint +
-          check), so it isn't repeated here. */}
+          check), so it isn't repeated here. An incorrect verdict on a
+          question the learner left blank reads "Not answered" — "Not quite"
+          would imply an attempt that never happened. */}
       <div className="flex flex-wrap items-center gap-2">
         {verdict.verdict === "correct" ? (
           <Badge tone="good">Correct</Badge>
         ) : verdict.verdict === "incorrect" ? (
-          <Badge tone="danger">Not quite</Badge>
+          <Badge tone="danger">{answered ? "Not quite" : "Not answered"}</Badge>
         ) : (
           <Badge tone="neutral">Submitted</Badge>
         )}

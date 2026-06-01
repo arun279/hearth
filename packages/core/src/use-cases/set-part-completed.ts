@@ -53,6 +53,13 @@ export async function setPartCompleted(
     partId: part.id as ActivityPartId,
   });
   const base = existing?.state ?? initialPartProgressState(part);
+  // TODO(m11): this read-modify-write carries `base`'s working value (e.g. a
+  // reflection's `text`) back with the `completed` flip. If the participant
+  // toggles complete while an autosave is still in flight, the completion write
+  // can land the last-persisted (stale) text over newer prose. M11 owns
+  // ActivityRecord/PartProgress durability — fold completion into a targeted
+  // write there (or have the player flush the pending autosave first). See the
+  // docs/tripwires.md "completion toggle clobbers in-flight reflection" entry.
   await deps.records.savePartProgress({
     activityRecordId: record.id,
     partId: part.id as ActivityPartId,

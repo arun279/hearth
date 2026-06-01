@@ -172,6 +172,7 @@ export function OperatorsTab({ currentUserId }: Props) {
         }
         confirmLabel="Revoke"
         pending={revoke.isPending}
+        errorMessage={revoke.isError ? asUserMessage(revoke.error, "Revoke failed.") : undefined}
         onClose={() => setTargetRevoke(null)}
         onConfirm={async () => {
           if (!targetRevoke) return;

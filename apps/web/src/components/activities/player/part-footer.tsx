@@ -46,9 +46,11 @@ type Props = {
  *
  * The Previous/Next labels collapse to icon-only below `sm` (their accessible
  * name stays via `aria-label`) and the control row wraps if it still can't
- * fit, so nothing overflows down to a 320px viewport. On the last Part the
- * forward affordance becomes the primary finish and Mark-complete steps down
- * to secondary — at most one filled-primary button per state.
+ * fit, so nothing overflows down to a 320px viewport. At most one
+ * filled-primary button per state: while the active Part is still markable and
+ * incomplete, Mark-complete is primary and the forward affordance steps down;
+ * once the Part is complete (or the viewer can't mark), the forward affordance
+ * (Next, or "Back to track" on the last Part) takes primary.
  */
 export function PartFooter({
   previousPartId,
@@ -61,16 +63,34 @@ export function PartFooter({
 }: Props) {
   const isLastPart = nextPartId === null;
   const activePartComplete = completion?.completed ?? false;
-  // On the last Part, "Back to track" is the finish action. It claims primary
-  // emphasis only once there's nothing left to mark here — while the active
-  // Part is still incomplete, Mark-complete owns the single primary slot so the
-  // two never render filled-blue at once (WCAG-adjacent visual-hierarchy rule).
-  const finishIsPrimary = isLastPart && activePartComplete;
+  // The forward affordance ("Back to track" on the last Part, "Next" otherwise)
+  // claims primary emphasis only once there's nothing left to mark here — while
+  // the active Part is still incomplete (and the viewer may mark it),
+  // Mark-complete owns the single primary slot so the two never render
+  // filled-blue at once (one primary per footer; visual-hierarchy rule). Once
+  // the Part is complete, Mark-complete steps down and the forward action leads.
+  const forwardIsPrimary = activePartComplete || !(completion?.canMark ?? false);
+  const finishIsPrimary = isLastPart && forwardIsPrimary;
   return (
     <footer className="sticky bottom-0 z-10 flex flex-col gap-2 border-[var(--color-rule)] border-t bg-[var(--color-surface)] px-4 py-3 md:px-8">
       {allPartsComplete ? (
+        // The strongest closure signal carries the strongest onward action so
+        // it's reachable from any Part. On the last Part the footer's own
+        // "Back to track" already covers it, so the in-banner link only shows
+        // mid-flow (avoids two identical links side by side at the end).
         <Callout tone="good" className="py-2">
-          All parts complete — you've marked every part of this activity done.
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <span>All parts complete — you've marked every part of this activity done.</span>
+            {isLastPart ? null : (
+              <Link
+                to="/g/$groupId/t/$trackId"
+                params={{ groupId, trackId }}
+                className={buttonClasses("secondary", "sm")}
+              >
+                Back to track
+              </Link>
+            )}
+          </div>
         </Callout>
       ) : null}
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -86,7 +106,7 @@ export function PartFooter({
           <span className="hidden sm:inline">Previous</span>
         </Button>
         {completion?.canMark ? (
-          <MarkCompleteButton completion={completion} demoteToSecondary={finishIsPrimary} />
+          <MarkCompleteButton completion={completion} demoteToSecondary={forwardIsPrimary} />
         ) : null}
         {isLastPart ? (
           <Link
@@ -99,7 +119,7 @@ export function PartFooter({
         ) : (
           <Button
             type="button"
-            variant="primary"
+            variant={forwardIsPrimary ? "primary" : "secondary"}
             onClick={() => nextPartId && onNavigate(nextPartId)}
             size="sm"
             aria-label="Next part"
@@ -122,9 +142,10 @@ export function PartFooter({
  * announces the pending state and the handler short-circuits a re-entrant click,
  * so focus and the focus ring stay on the control (WCAG 2.4.7).
  *
- * `demoteToSecondary` forces the incomplete state to render secondary on the
- * last Part, where "Back to track" is the primary finish; everywhere else the
- * incomplete state is the footer's primary call to action.
+ * `demoteToSecondary` forces the button to render secondary whenever the
+ * forward affordance (Next / Back to track) owns the footer's single primary
+ * slot — once the Part is complete; otherwise the incomplete Mark-complete is
+ * the footer's primary call to action.
  */
 function MarkCompleteButton({
   completion,

@@ -365,6 +365,9 @@ export function TrackSettingsDialog({
         confirmationPhrase="archive"
         confirmLabel="Archive track"
         pending={updateStatus.isPending}
+        // `updateStatus` is shared with the inline pause/resume save, so its
+        // `isError` can't cleanly attribute a failure to the archive action;
+        // a failed archive surfaces via the catch's toast below.
         onClose={() => setConfirmingArchive(false)}
         onConfirm={async () => {
           try {

@@ -4,11 +4,10 @@ import { type ActivityPart, quizAnswerSchema } from "../parts/index.ts";
 
 /**
  * Per-Part participant state, discriminated by the Part `kind` it belongs
- * to. `completed` is the honor-system "I finished this Part" flag (toggled
- * by a later milestone's Mark-Complete action); the remaining fields carry
- * the Part's working value: reflection prose, quiz answers, or a resume
- * cursor for passive Parts. Stored inside the versioned envelope on
- * `part_progress.stateJson`.
+ * to. `completed` is the honor-system "I finished this Part" flag toggled by
+ * the Mark-Complete action; the remaining fields carry the Part's working
+ * value: reflection prose, quiz answers, or a resume cursor for passive
+ * Parts. Stored inside the versioned envelope on `part_progress.stateJson`.
  */
 export const partProgressStateSchema = z.discriminatedUnion("kind", [
   z.object({

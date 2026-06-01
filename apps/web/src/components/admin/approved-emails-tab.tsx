@@ -247,6 +247,7 @@ export function ApprovedEmailsTab() {
         }
         confirmLabel="Remove email"
         pending={remove.isPending}
+        errorMessage={remove.isError ? asUserMessage(remove.error, "Remove failed.") : undefined}
         onClose={() => setTargetRemove(null)}
         onConfirm={async () => {
           if (!targetRemove) return;

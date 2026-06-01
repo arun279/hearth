@@ -2,7 +2,7 @@ import type { PartProgressState, QuizPart as QuizPartT } from "@hearth/domain";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { gradedMcOptions, initialAnswers, QuizPart } from "./quiz-part.tsx";
+import { gradedMcOptions, initialAnswers, isAnswered, QuizPart } from "./quiz-part.tsx";
 
 /**
  * Pure coverage for `initialAnswers` (which `useState` seeds the answer map
@@ -113,6 +113,21 @@ describe("gradedMcOptions", () => {
     expect(out[1]?.tone).toBeUndefined();
     expect(out[2]?.tone).toBe("danger");
     expect(out[2]?.adornment).toBeTruthy();
+  });
+});
+
+describe("isAnswered", () => {
+  it("treats a chosen MC option as answered and a null selection as blank", () => {
+    expect(isAnswered({ questionId: "q", kind: "multiple_choice", selectedIndex: 0 })).toBe(true);
+    expect(isAnswered({ questionId: "q", kind: "multiple_choice", selectedIndex: null })).toBe(
+      false,
+    );
+  });
+
+  it("treats whitespace-only short-answer text as blank", () => {
+    expect(isAnswered({ questionId: "q", kind: "short_answer", text: "hola" })).toBe(true);
+    expect(isAnswered({ questionId: "q", kind: "short_answer", text: "   " })).toBe(false);
+    expect(isAnswered({ questionId: "q", kind: "short_answer", text: "" })).toBe(false);
   });
 });
 

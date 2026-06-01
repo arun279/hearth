@@ -69,7 +69,7 @@ const baseCompletion: TestCompletion = {
 };
 
 describe("<PartFooter> visual hierarchy", () => {
-  it("mid-flow: Mark-complete (incomplete) is the only primary; Next is the other", () => {
+  it("mid-flow incomplete: Mark-complete is the single primary, Next steps down", () => {
     const tree = PartFooter({
       previousPartId: "p1",
       nextPartId: "p3",
@@ -79,12 +79,41 @@ describe("<PartFooter> visual hierarchy", () => {
       allPartsComplete: false,
       completion: baseCompletion,
     });
-    // Mark-complete + Next both want emphasis, but only one filled-primary is
-    // allowed per state, so mid-flow exactly one resolves to primary here. The
-    // MarkCompleteButton wrapper element is unrendered, so resolve its variant
-    // from the props it would pass through.
-    const markVariant = markCompleteVariant(tree);
-    expect(markVariant).toBe("primary");
+    // The MarkCompleteButton wrapper is unrendered, so resolve its variant from
+    // the props it carries; the Next <Button variant> is on the rendered tree.
+    expect(markCompleteVariant(tree)).toBe("primary");
+    // The one-primary-per-footer invariant must hold mid-flow too: the rendered
+    // Next button is the only other candidate and must be secondary here.
+    expect(collect(tree, isPrimary)).toHaveLength(0);
+  });
+
+  it("mid-flow complete: Next becomes the single primary, Mark-complete steps down", () => {
+    const tree = PartFooter({
+      previousPartId: "p1",
+      nextPartId: "p3",
+      onNavigate: noop,
+      groupId: "g_1",
+      trackId: "t_1",
+      allPartsComplete: false,
+      completion: { ...baseCompletion, completed: true },
+    });
+    expect(markCompleteVariant(tree)).toBe("secondary");
+    // Next now leads; exactly one filled-primary.
+    expect(collect(tree, isPrimary)).toHaveLength(1);
+  });
+
+  it("mid-flow, viewer can't mark: Next leads as the single primary", () => {
+    const tree = PartFooter({
+      previousPartId: "p1",
+      nextPartId: "p3",
+      onNavigate: noop,
+      groupId: "g_1",
+      trackId: "t_1",
+      allPartsComplete: false,
+      completion: { ...baseCompletion, canMark: false },
+    });
+    // No Mark-complete control renders; Next is the footer's primary.
+    expect(collect(tree, isPrimary)).toHaveLength(1);
   });
 
   it("last Part, active incomplete: Mark-complete is primary, Back to track is secondary", () => {
@@ -137,6 +166,42 @@ describe("<PartFooter> all-parts-complete closure", () => {
     expect(note).toHaveLength(1);
     const copy = note[0]?.props as { children?: string };
     expect(copy.children).not.toMatch(/activity complete/i);
+  });
+
+  it("mid-flow all-complete: the closure note carries a Back-to-track onward link", () => {
+    const tree = PartFooter({
+      previousPartId: "p1",
+      nextPartId: "p3",
+      onNavigate: noop,
+      groupId: "g_1",
+      trackId: "t_1",
+      allPartsComplete: true,
+      completion: { ...baseCompletion, completed: true },
+    });
+    const links = collect(tree, (el) => {
+      const props = el.props as { to?: unknown; children?: unknown };
+      return props.to === "/g/$groupId/t/$trackId" && props.children === "Back to track";
+    });
+    // One in the closure banner, one as the footer's forward affordance — both
+    // reachable mid-flow so the closure signal isn't a dead end.
+    expect(links.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("last Part all-complete: only the footer's Back-to-track renders (no duplicate)", () => {
+    const tree = PartFooter({
+      previousPartId: "p2",
+      nextPartId: null,
+      onNavigate: noop,
+      groupId: "g_1",
+      trackId: "t_1",
+      allPartsComplete: true,
+      completion: { ...baseCompletion, completed: true },
+    });
+    const links = collect(tree, (el) => {
+      const props = el.props as { to?: unknown; children?: unknown };
+      return props.to === "/g/$groupId/t/$trackId" && props.children === "Back to track";
+    });
+    expect(links).toHaveLength(1);
   });
 
   it("omits the closure note until every Part is complete", () => {

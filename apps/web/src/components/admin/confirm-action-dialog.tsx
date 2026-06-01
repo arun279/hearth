@@ -1,4 +1,4 @@
-import { Button, Field, Input, Modal } from "@hearth/ui";
+import { Button, Callout, Field, Input, Modal } from "@hearth/ui";
 import { type ReactNode, useEffect, useState } from "react";
 
 type ConfirmActionTone = "destructive" | "primary";
@@ -27,6 +27,14 @@ type ConfirmActionDialogProps = {
    * leave this unset; the basic Cancel/Confirm is enough friction.
    */
   readonly confirmationPhrase?: string;
+  /**
+   * A failed-confirm message. The dialog stays open after a failed action
+   * (it only closes on success), so a toast alone auto-dismisses before the
+   * user re-reads it — this renders a durable in-dialog danger Callout and
+   * leaves the confirm button live for a retry. Pass the mutation's
+   * `asUserMessage(...)` text when its `isError` is set.
+   */
+  readonly errorMessage?: string;
 };
 
 export function ConfirmActionDialog({
@@ -40,6 +48,7 @@ export function ConfirmActionDialog({
   pending,
   children,
   confirmationPhrase,
+  errorMessage,
 }: ConfirmActionDialogProps) {
   const [typed, setTyped] = useState("");
   const requiresPhrase = confirmationPhrase !== undefined && confirmationPhrase.length > 0;
@@ -76,6 +85,11 @@ export function ConfirmActionDialog({
       }
     >
       {children}
+      {errorMessage ? (
+        <Callout tone="danger" className="mb-3">
+          {errorMessage}
+        </Callout>
+      ) : null}
       {requiresPhrase ? (
         <Field
           label={

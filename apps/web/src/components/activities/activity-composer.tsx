@@ -1150,6 +1150,13 @@ function QuizOptionsEditor({
         <legend className="mb-1 block font-medium text-[11px] text-[var(--color-ink-2)] uppercase tracking-wide">
           Options · select the correct answer
         </legend>
+        {/* Mirror the short-answer "leave blank to leave ungraded" affordance:
+            without a keyed option the question still saves, but the player
+            can't auto-grade it — say so where the choice is made. */}
+        <p className="text-[11px] text-[var(--color-ink-2)] normal-case tracking-normal">
+          Mark one option correct to auto-grade this question. Leave none selected to leave it
+          ungraded.
+        </p>
         {options.map((option, i) => (
           <div key={keys.at(i)} className="flex items-center gap-2">
             <input

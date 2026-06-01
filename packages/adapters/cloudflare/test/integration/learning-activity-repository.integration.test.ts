@@ -4,6 +4,7 @@ import type { ActivityPart, LearningActivityDraft, StudyGroupId, UserId } from "
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { describe, expect, it } from "vitest";
+import { createActivityRecordRepository } from "../../src/activity-record-repository.ts";
 import { createKillswitchGate } from "../../src/killswitch.ts";
 import { createLearningActivityRepository } from "../../src/learning-activity-repository.ts";
 import { createLearningTrackRepository } from "../../src/learning-track-repository.ts";
@@ -37,6 +38,7 @@ describe("learning-activity adapter (real D1)", () => {
       tracksRepo: createLearningTrackRepository({ db, gate }),
       library: createLibraryItemRepository({ db, gate }),
       activities: createLearningActivityRepository({ db, gate }),
+      records: createActivityRecordRepository({ db, gate }),
     };
   }
 
@@ -275,6 +277,67 @@ describe("learning-activity adapter (real D1)", () => {
       // children are wiped first, but b's prereq row still references
       // a, so the final DELETE on learning_activities is FK-blocked.
       await expect(repos.activities.delete({ id: a.id, by: creator })).rejects.toThrow();
+    });
+  });
+
+  describe("delete cascades participant Activity Records", () => {
+    it("deletes an activity a participant has worked, clearing record + progress + signals", async () => {
+      const repos = buildRepos();
+      const { creator, track } = await setupTrack(repos, "ac_del_rec");
+      const activity = await repos.activities.create({
+        draft: baseDraft(track.id),
+        createdBy: creator,
+      });
+
+      // A participant touches the activity: a record + part_progress (which
+      // also produces part_history) and an evidence_signals row keyed to the
+      // activity. activity_records / evidence_signals carry a non-cascading FK
+      // to learning_activities, so before the cascade fix this delete tripped
+      // FK RESTRICT with a 500.
+      const record = await repos.records.upsert({
+        activityId: activity.id,
+        participantId: creator,
+      });
+      await repos.records.savePartProgress({
+        activityRecordId: record.id,
+        partId: "p1" as never,
+        state: { kind: "write_reflection", completed: true, text: "done" },
+      });
+      const now = new Date();
+      await repos.db.insert(schema.evidenceSignals).values({
+        id: `es_${Math.random().toString(36).slice(2, 10)}`,
+        activityId: activity.id,
+        participantId: creator,
+        partId: "p1",
+        signalType: "word_count",
+        valueJson: JSON.stringify({ value: 1 }),
+        updatedAt: now,
+      });
+
+      await expect(
+        repos.activities.delete({ id: activity.id, by: creator }),
+      ).resolves.toBeUndefined();
+
+      expect(await repos.activities.byId(activity.id)).toBeNull();
+      expect(
+        await repos.db
+          .select({ id: schema.activityRecords.id })
+          .from(schema.activityRecords)
+          .where(eq(schema.activityRecords.activityId, activity.id)),
+      ).toEqual([]);
+      // part_progress / part_history cascade from the deleted record.
+      expect(
+        await repos.db
+          .select({ id: schema.partProgress.id })
+          .from(schema.partProgress)
+          .where(eq(schema.partProgress.activityRecordId, record.id)),
+      ).toEqual([]);
+      expect(
+        await repos.db
+          .select({ id: schema.evidenceSignals.id })
+          .from(schema.evidenceSignals)
+          .where(eq(schema.evidenceSignals.activityId, activity.id)),
+      ).toEqual([]);
     });
   });
 

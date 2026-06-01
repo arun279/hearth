@@ -97,11 +97,6 @@ export function LibraryItemDetail({ groupId, itemId, open, onClose, archived }: 
         }
       >
         {query.isLoading || !data ? <DetailSkeleton /> : <DetailBody data={data} itemId={itemId} />}
-        {error ? (
-          <Callout tone="warn" title="Action failed">
-            {error}
-          </Callout>
-        ) : null}
       </Modal>
 
       <UploadDialog
@@ -121,6 +116,7 @@ export function LibraryItemDetail({ groupId, itemId, open, onClose, archived }: 
         tone="destructive"
         confirmationPhrase="retire"
         pending={retire.isPending}
+        errorMessage={error ?? undefined}
       />
     </>
   );

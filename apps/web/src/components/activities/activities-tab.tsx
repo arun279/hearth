@@ -265,6 +265,9 @@ function EditActivityDialog({
         pending={remove.isPending}
         tone="destructive"
         confirmationPhrase="delete"
+        errorMessage={
+          remove.isError ? asUserMessage(remove.error, "Couldn't delete the activity.") : undefined
+        }
       />
     </>
   );

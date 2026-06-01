@@ -37,6 +37,7 @@ export function LeaveTrackDialog({ open, onClose, groupId, track }: Props) {
       tone="destructive"
       confirmLabel={leave.isPending ? "Leaving…" : "Leave track"}
       pending={leave.isPending}
+      errorMessage={leave.isError ? asUserMessage(leave.error, "Couldn't leave.") : undefined}
       onConfirm={async () => {
         try {
           await leave.mutateAsync();

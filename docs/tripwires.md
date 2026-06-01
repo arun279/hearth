@@ -144,6 +144,20 @@ Each entry names the **pinned tool**, the **condition** that triggers a reassess
 
 ## Activity records
 
+### Completion toggle clobbers an in-flight reflection (read-modify-write on part_progress)
+
+- **Trigger**: M11 implements the durable ActivityRecord/PartProgress model (M11 PRD § Records). M11 owns this surface; it is M11 work by design, not an M10 gap.
+- **Why deferred (not done in M10)**: `set-part-completed.ts` reads the existing PartProgress, flips `completed`, and re-writes the whole envelope; the adapter's `savePartProgress` replaces the full `stateJson`. In the player the reflection editor and the footer's Mark-complete button are uncoordinated siblings. A participant who types, then clicks Mark-complete before the 800ms autosave debounce persists, makes the completion write read the last-persisted (stale) text and write it back — losing the just-typed prose when the completion write lands after the final autosave (in-flight ordering, or remote D1 read-replica lag). A correct now-fix needs either a targeted `completed`-only write (impossible against a single JSON envelope without a port-level rethink) or cross-component flush coordination that risks the carefully-tuned autosave. The data-loss window is narrow and bounded to a manual completion race.
+- **Action**: M11 either folds completion into a targeted write surfaced from inside the PartProgress UPDATE, or has the player flush the pending reflection autosave before firing the completion toggle. The call site carries a `TODO(m11)` marker.
+- **Location**: `packages/core/src/use-cases/set-part-completed.ts` (`getPartProgress` → `savePartProgress` read-modify-write); `packages/adapters/cloudflare/src/activity-record-repository.ts` (`savePartProgress` whole-`stateJson` replace); `apps/web/src/components/activities/player/activity-player.tsx` (uncoordinated `setCompleted.mutate`).
+
+### Quiz grade verdict is not rehydrated on reload (only re-derivable via a fresh submit)
+
+- **Trigger**: M11 implements the durable ActivityRecord model. M11 owns persisting/rehydrating quiz grading.
+- **Why deferred (not done in M10)**: the record stores a quiz's `answers` but not the per-question verdict/score. The verdict is derived server-side from the answers + the answer key, which is deliberately redacted from the client (`redactQuizAnswerKeys`), so the SPA cannot re-grade on load — the grade is only available in the `submit` POST response. Persisting a verdict snapshot would duplicate derivable state and risk drift against a later answer-key edit. On reload the answers restore and the Part still reads "(completed)", but the score/feedback is gone until the learner re-submits.
+- **Action**: M11 decides whether the durable Record carries a graded-result projection (rehydrated on read) or whether the player re-POSTs to re-grade on mount. Either way it is coupled to the M11 durable-Record shape, not an M10 ephemeral-state bug.
+- **Location**: `packages/core/src/use-cases/submit-quiz-answers.ts` (returns the verdict; persists only answers); `apps/web/src/components/activities/player/parts/quiz-part.tsx` (`feedback` / `score` are mount-local state, seeded only by a submit response).
+
 ### Evidence Signals are deferred to M11 (port + enqueue) and M17 (batcher + budget)
 
 - **Trigger**: M11 implements the `ActivityRecordRepository` / `EvidenceSignalRepository` surface (M11 PRD § Ports). This is M11/M17 work by design, not an M10 gap — see the dedicated note in the M11 and M17 PRDs.
