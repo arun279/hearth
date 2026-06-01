@@ -36,6 +36,9 @@ test-results/
 # Local design review output (screenshots + REVIEW.md). Never push.
 design-review/
 
+# Local scratch docs (plans, punch-lists, review artifacts). Never push.
+docs/temp/
+
 # Editor / OS
 .DS_Store
 .vscode/*

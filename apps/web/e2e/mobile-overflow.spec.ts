@@ -278,14 +278,10 @@ test.describe("Mobile (375px) overflow regression guard", () => {
 
     await page.getByRole("button", { name: /Visibility:/i }).click();
     // The radios carry "<label> <description>" as their accessible name; match
-    // on the unique description fragment so "Track" doesn't also resolve the
-    // "Track only" radio. All three are the "Track", "Track only", and
-    // "Just me" options.
-    for (const fragment of [
-      /Others in this track/i,
-      /Only this track/i,
-      /Hidden from the group/i,
-    ]) {
+    // on a unique description fragment. The chooser offers the two concrete
+    // override scopes — "Track only" and "Just me" — while inheriting the
+    // account default is a separate clear action, not a radio.
+    for (const fragment of [/Only this track/i, /Hidden from the group/i]) {
       await expect(page.getByRole("radio", { name: fragment })).toBeInViewport();
     }
 
