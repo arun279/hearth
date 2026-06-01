@@ -7,9 +7,10 @@ import { SaveIndicator } from "../src/save-indicator.tsx";
  * `SaveIndicator` carries two contracts that markup can express:
  *
  *   1. State copy + live-region role for each status (idle renders nothing;
- *      saving/saved announce politely; error is a `role="status"` with the
- *      durable failure message). This is the autosave feedback channel that
- *      replaces a toast-per-keystroke.
+ *      saving/saved announce politely; error is a `role="alert"` with the
+ *      durable failure message, escalated to match the danger-tinted
+ *      mutation-failure treatment elsewhere). This is the autosave feedback
+ *      channel that replaces a toast-per-keystroke.
  *   2. The retry control is keyboard-operable WITH a visible focus ring —
  *      it is the recovery path after a save failure, so a missing
  *      `focus-visible:ring` (WCAG 2.4.7) would strand keyboard users on the
@@ -56,10 +57,12 @@ describe("SaveIndicator", () => {
     expect(html).toContain('aria-live="polite"');
   });
 
-  it("surfaces the failure as a status region", () => {
+  it("surfaces the failure as an assertive alert with weight matching its consequence", () => {
     const html = renderToStaticMarkup(<SaveIndicator status="error" />);
     expect(html).toContain("Couldn&#x27;t save");
-    expect(html).toContain('role="status"');
+    expect(html).toContain('role="alert"');
+    expect(html).toContain("bg-[var(--color-danger-soft)]");
+    expect(html).toContain("border-[var(--color-danger-border)]");
   });
 
   it("omits the retry control when no handler is given", () => {

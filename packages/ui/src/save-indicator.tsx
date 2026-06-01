@@ -1,4 +1,4 @@
-import { Check, Loader2 } from "lucide-react";
+import { AlertCircle, Check, Loader2 } from "lucide-react";
 import { cn } from "./cn.ts";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
@@ -10,11 +10,14 @@ export type SaveIndicatorProps = {
 };
 
 /**
- * Persistent autosave status pill. Renders nothing while idle; otherwise
- * announces the current state via `aria-live` so screen-reader users hear
- * "Saving…" / "Saved" / the failure without focus moving. The failure state
- * keeps a retry affordance inline (the call site shows a one-off toast for
- * the failure; this pill is the durable signal, not a toast per keystroke).
+ * Persistent autosave status pill. Renders nothing while idle; the quiet
+ * "Saving…" / "Saved" states announce politely so screen-reader users hear
+ * progress without focus moving. The failure state carries weight
+ * proportional to its consequence (the draft is only as safe as the open
+ * tab): a danger-tinted pill with an alert icon and `role="alert"`, matching
+ * the danger `Callout` used for mutation failures elsewhere. It keeps a retry
+ * affordance inline (the call site shows a one-off toast for the failure;
+ * this pill is the durable signal, not a toast per keystroke).
  */
 export function SaveIndicator({ status, onRetry, className }: SaveIndicatorProps) {
   if (status === "idle") return null;
@@ -36,7 +39,15 @@ export function SaveIndicator({ status, onRetry, className }: SaveIndicatorProps
     );
   }
   return (
-    <span className={cn(base, "text-[var(--color-danger)]", className)} role="status">
+    <span
+      className={cn(
+        base,
+        "rounded-[var(--radius-sm)] border border-[var(--color-danger-border)] bg-[var(--color-danger-soft)] px-1.5 py-0.5 font-medium text-[var(--color-danger)]",
+        className,
+      )}
+      role="alert"
+    >
+      <AlertCircle size={12} strokeWidth={2} aria-hidden="true" />
       Couldn't save
       {onRetry ? (
         <button
