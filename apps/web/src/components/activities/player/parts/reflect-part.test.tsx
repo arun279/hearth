@@ -2,7 +2,7 @@ import type { PartProgressState, WriteReflectionPart } from "@hearth/domain";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { deriveSaveStatus, ReflectPart } from "./reflect-part.tsx";
+import { deriveSaveStatus, ReflectPart, wordCountLabel } from "./reflect-part.tsx";
 
 /**
  * `deriveSaveStatus` is the precedence rule the autosave pill reads; pinning
@@ -45,6 +45,20 @@ describe("deriveSaveStatus", () => {
     expect(
       deriveSaveStatus({ isError: false, isPending: false, dirty: false, isSuccess: false }),
     ).toBe("idle");
+  });
+});
+
+describe("wordCountLabel", () => {
+  it("flips copy (not just colour) when the minimum is met", () => {
+    expect(wordCountLabel(3, 10)).toEqual({ text: "3 of 10 words", met: false });
+    expect(wordCountLabel(14, 10)).toEqual({ text: "10+ words", met: true });
+    // At the boundary the minimum counts as met.
+    expect(wordCountLabel(10, 10)).toEqual({ text: "10+ words", met: true });
+  });
+
+  it("reads as a plain count with no minimum (never 'met')", () => {
+    expect(wordCountLabel(1, undefined)).toEqual({ text: "1 word", met: false });
+    expect(wordCountLabel(5, undefined)).toEqual({ text: "5 words", met: false });
   });
 });
 

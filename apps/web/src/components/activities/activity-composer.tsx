@@ -1186,6 +1186,21 @@ function QuizOptionsEditor({
             </IconButton>
           </div>
         ))}
+        {/* Native radios don't un-check on re-click, so without this the
+            "leave none selected to leave it ungraded" affordance is reachable
+            only before the first pick — an author who keys a correct option by
+            mistake (or changes their mind) couldn't get back to ungraded short
+            of deleting the question. Shown only once a key is set. */}
+        {answerKeyIndex !== undefined ? (
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => onChange([...options], undefined)}
+            className="font-medium text-[11px] text-[var(--color-ink-2)] underline hover:text-[var(--color-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] disabled:pointer-events-none disabled:opacity-60"
+          >
+            Clear correct answer (leave ungraded)
+          </button>
+        ) : null}
       </fieldset>
       <Button
         type="button"

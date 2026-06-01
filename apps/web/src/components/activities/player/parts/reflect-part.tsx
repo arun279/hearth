@@ -5,6 +5,7 @@ import {
   type WriteReflectionPart,
 } from "@hearth/domain";
 import { cn, SaveIndicator, type SaveStatus, Textarea } from "@hearth/ui";
+import { Check } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useSaveReflection } from "../../../../hooks/use-activity-record.ts";
@@ -42,6 +43,25 @@ export function deriveSaveStatus({
   if (isPending || dirty) return "saving";
   if (isSuccess) return "saved";
   return "idle";
+}
+
+/**
+ * Word-count copy that doesn't lean on colour to convey met/not-met (WCAG
+ * 1.4.1). With no minimum it's a plain count. Below the minimum it reads
+ * "N of M words" — progress toward a soft target, not an over-budget limit.
+ * At/above it reads "M+ words", which the caller pairs with a check icon so
+ * the "met" state carries a non-colour cue. "M / N words" was the prior copy:
+ * identical string in both states, so the only signal was hue.
+ */
+export function wordCountLabel(
+  words: number,
+  minWords: number | undefined,
+): { readonly text: string; readonly met: boolean } {
+  if (minWords === undefined) {
+    return { text: `${words} ${words === 1 ? "word" : "words"}`, met: false };
+  }
+  const met = words >= minWords;
+  return { text: met ? `${minWords}+ words` : `${words} of ${minWords} words`, met };
 }
 
 function Prompt({ prompt }: { readonly prompt: string }) {
@@ -212,7 +232,7 @@ function ReflectEditor({
   });
 
   const words = countWords(text);
-  const meetsMin = part.minWords === undefined || words >= part.minWords;
+  const count = wordCountLabel(words, part.minWords);
 
   return (
     <div className="flex flex-col gap-3">
@@ -228,15 +248,13 @@ function ReflectEditor({
         <div className="flex items-center gap-3">
           <span
             className={cn(
-              "text-[11px]",
-              part.minWords !== undefined && meetsMin
-                ? "text-[var(--color-good)]"
-                : "text-[var(--color-ink-2)]",
+              "inline-flex items-center gap-1 text-[11px]",
+              count.met ? "text-[var(--color-good)]" : "text-[var(--color-ink-2)]",
             )}
           >
-            {part.minWords !== undefined
-              ? `${words} / ${part.minWords} words`
-              : `${words} ${words === 1 ? "word" : "words"}`}
+            {count.met ? <Check size={12} strokeWidth={2.25} aria-hidden="true" /> : null}
+            {count.text}
+            {count.met ? <span className="sr-only"> — suggested minimum met</span> : null}
           </span>
           <SaveIndicator status={status} onRetry={() => persist(text)} />
         </div>

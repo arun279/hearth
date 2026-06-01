@@ -33,6 +33,14 @@ type ConfirmActionDialogProps = {
    * user re-reads it — this renders a durable in-dialog danger Callout and
    * leaves the confirm button live for a retry. Pass the mutation's
    * `asUserMessage(...)` text when its `isError` is set.
+   *
+   * Callers feed this straight from a React Query mutation's `isError`, which
+   * stays latched until the next `mutate`/`reset`. The dialog scopes display
+   * to the current open session (suppressed until the user confirms again
+   * after reopening), so a failed action followed by close→reopen never shows
+   * a stale Callout with no request in flight — and a mutation shared across
+   * sibling dialogs (promote/demote) can't leak its error into the other.
+   * Call sites therefore don't need to `reset()` the mutation on close.
    */
   readonly errorMessage?: string;
 };
@@ -51,15 +59,24 @@ export function ConfirmActionDialog({
   errorMessage,
 }: ConfirmActionDialogProps) {
   const [typed, setTyped] = useState("");
+  const [confirmAttempted, setConfirmAttempted] = useState(false);
   const requiresPhrase = confirmationPhrase !== undefined && confirmationPhrase.length > 0;
   const phraseMatches =
     !requiresPhrase || typed.trim().toLowerCase() === confirmationPhrase?.toLowerCase();
 
-  // Reset the field every time the dialog opens or the phrase changes so
-  // a half-typed value from a prior cancel never carries forward.
+  // Reset transient state every time the dialog opens so a half-typed phrase
+  // or a latched error from a prior open never carries forward. The error is
+  // shown only after a confirm in this session, so a stale mutation error
+  // (close→reopen, or a sibling dialog sharing the mutation) stays hidden
+  // until the user actually retries.
   useEffect(() => {
-    if (open) setTyped("");
+    if (open) {
+      setTyped("");
+      setConfirmAttempted(false);
+    }
   }, [open, confirmationPhrase]);
+
+  const showError = confirmAttempted && errorMessage !== undefined;
 
   return (
     <Modal
@@ -76,7 +93,10 @@ export function ConfirmActionDialog({
           </Button>
           <Button
             variant={tone === "destructive" ? "danger" : "primary"}
-            onClick={onConfirm}
+            onClick={() => {
+              setConfirmAttempted(true);
+              onConfirm();
+            }}
             disabled={pending || !phraseMatches}
           >
             {pending ? "Working…" : confirmLabel}
@@ -85,7 +105,7 @@ export function ConfirmActionDialog({
       }
     >
       {children}
-      {errorMessage ? (
+      {showError ? (
         <Callout tone="danger" className="mb-3">
           {errorMessage}
         </Callout>

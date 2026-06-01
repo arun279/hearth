@@ -143,15 +143,10 @@ export function GroupMembersDialog({ open, onClose, group }: Props) {
         }
         confirmLabel="Make admin"
         pending={setRole.isPending}
-        // setRole is shared with the demote dialog; reset its error on close so
-        // a failed promote can't leak its message into a later demote dialog.
         errorMessage={
           setRole.isError ? asUserMessage(setRole.error, "Role change failed.") : undefined
         }
-        onClose={() => {
-          setRole.reset();
-          setConfirming(null);
-        }}
+        onClose={() => setConfirming(null)}
         onConfirm={async () => {
           if (confirming?.kind !== "promote") return;
           await runRoleChange(
@@ -177,10 +172,7 @@ export function GroupMembersDialog({ open, onClose, group }: Props) {
         errorMessage={
           setRole.isError ? asUserMessage(setRole.error, "Role change failed.") : undefined
         }
-        onClose={() => {
-          setRole.reset();
-          setConfirming(null);
-        }}
+        onClose={() => setConfirming(null)}
         onConfirm={async () => {
           if (confirming?.kind !== "demote") return;
           await runRoleChange(
