@@ -43,6 +43,7 @@ export const POLICY_DENIAL_CODES = [
   "not_facilitator",
   "not_group_admin",
   "not_group_member",
+  "not_in_audience",
   "not_instance_operator",
   "not_library_steward",
   "not_self",

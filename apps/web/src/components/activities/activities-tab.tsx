@@ -1,4 +1,5 @@
 import { Button, Callout, EmptyState, Modal, Skeleton } from "@hearth/ui";
+import { useNavigate } from "@tanstack/react-router";
 import { Plus, Trash2 } from "lucide-react";
 import { lazy, Suspense, useState } from "react";
 import { toast } from "sonner";
@@ -40,13 +41,14 @@ type Props = {
  *   - The composer dialog, opened either fresh (Create) or seeded with
  *     an existing activity's body (Edit).
  *
- * Per the design prototype, clicking a row opens the composer for a
- * facilitator. Non-facilitators land here only via the future Activity
- * Player — until that surface ships in M9/M10, a participant viewing
- * this tab sees row metadata as a discovery surface; clicking is a
- * no-op for them.
+ * Row click always routes to the Activity Player — Hearth is a study
+ * group, so a facilitator is also a learner and lands in the same
+ * reading surface as a participant. Edit-the-composition is a
+ * separate, authority-gated affordance: an explicit pencil button on
+ * each row opens the composer dialog without leaving the tab.
  */
 export function ActivitiesTab({ groupId, trackId, canCreate }: Props) {
+  const navigate = useNavigate();
   const query = useTrackActivities(trackId, true);
   const items = query.data ?? [];
   const showSkeleton = query.isLoading;
@@ -58,6 +60,14 @@ export function ActivitiesTab({ groupId, trackId, canCreate }: Props) {
   const create = useCreateActivity(groupId, trackId);
 
   const onCreate = async (payload: ActivityComposerPayload) => create.mutateAsync(payload);
+
+  const onOpen = (activityId: string) => {
+    void navigate({
+      to: "/g/$groupId/t/$trackId/a/$activityId",
+      params: { groupId, trackId, activityId },
+      search: {},
+    });
+  };
 
   return (
     <div className="space-y-3">
@@ -118,21 +128,10 @@ export function ActivitiesTab({ groupId, trackId, canCreate }: Props) {
               key={a.id}
               className={i < items.length - 1 ? "border-[var(--color-rule)] border-b" : undefined}
             >
-              {/*
-               * TODO(m10): row click should route everyone (including
-               * facilitators) to the activity player surface — Hearth
-               * is a study group, the facilitator is also a learner.
-               * Edit-mode is an authority-gated affordance ON the
-               * player chrome, not a separate destination. Today the
-               * player doesn't exist yet, so facilitators land in the
-               * composer (edit) and participants get a no-op. When
-               * M10 ships the player, both roles route to it; the
-               * `canCreate` gate moves to an "Edit" button rendered
-               * on the player surface for those with authority.
-               */}
               <ActivityRow
                 activity={a}
-                onSelect={canCreate ? () => setEditId(a.id) : () => undefined}
+                onOpen={onOpen}
+                onEdit={canCreate ? setEditId : undefined}
               />
             </div>
           ))}

@@ -1,3 +1,5 @@
+import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig, devices } from "@playwright/test";
@@ -11,6 +13,71 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // D1 sqlite file — schema is identical, rows are isolated.
 const SPA_PORT = 5174;
 const WORKER_PORT = 8788;
+const REPO_ROOT = path.resolve(__dirname, "..", "..");
+const E2E_PERSIST_DIR = path.resolve(REPO_ROOT, "apps/worker/.wrangler/state-e2e");
+const SPA_DIST_INDEX = path.resolve(REPO_ROOT, "apps/web/dist/index.html");
+
+// One-shot prep that runs in the Playwright runner process (skipped in
+// spec workers via `TEST_WORKER_INDEX`). Two steps:
+//
+//   1. Build the SPA when `apps/web/dist` is missing. The `wrangler dev`
+//      webServer points its `assets.directory` at `../web/dist`; without
+//      that directory wrangler refuses to start. Tests still hit Vite on
+//      `:5174`, so dist is only here to satisfy wrangler's start-up check
+//      — but it MUST exist. Turbo caches the build so subsequent runs
+//      are instant if nothing changed.
+//
+//   2. Apply D1 migrations to the e2e persist dir. `wrangler d1
+//      migrations apply` is idempotent (tracks applied rows in `_cf_KV`
+//      and no-ops on re-run), so this works on a fresh clone and on
+//      every subsequent run. Row-level isolation between specs is
+//      handled by `resetInstanceState` in `apps/web/e2e/auth.ts`.
+// `HEARTH_WRANGLER_ENV === "e2e"` is set by the `pnpm e2e` script (see
+// `apps/web/package.json`) — the only context where this build + migrate
+// pair is wanted. Skip otherwise so an editor opening this file for
+// typecheck / IDE completion doesn't trigger a full SPA build + a
+// d1-migrations subprocess. Worker processes spawned by Playwright also
+// inherit `HEARTH_WRANGLER_ENV` but additionally carry `TEST_WORKER_INDEX`,
+// so they skip on the second guard.
+if (process.env["HEARTH_WRANGLER_ENV"] === "e2e" && !process.env["TEST_WORKER_INDEX"]) {
+  if (!existsSync(SPA_DIST_INDEX)) {
+    const build = spawnSync("pnpm", ["--filter", "@hearth/web", "build"], {
+      cwd: REPO_ROOT,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    if (build.status !== 0) {
+      throw new Error(
+        `pnpm --filter @hearth/web build failed:\n${build.stderr || build.stdout || "unknown error"}`,
+      );
+    }
+  }
+
+  const migrate = spawnSync(
+    "pnpm",
+    [
+      "--filter",
+      "@hearth/worker",
+      "exec",
+      "wrangler",
+      "d1",
+      "migrations",
+      "apply",
+      "hearth",
+      "--local",
+      "--env",
+      "e2e",
+      "--persist-to",
+      E2E_PERSIST_DIR,
+    ],
+    { cwd: REPO_ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+  );
+  if (migrate.status !== 0) {
+    throw new Error(
+      `wrangler d1 migrations apply (env=e2e) failed:\n${migrate.stderr || migrate.stdout || "unknown error"}`,
+    );
+  }
+}
 
 /**
  * Playwright drives the SPA + Worker stack as a real user. Because Better Auth
@@ -80,10 +147,6 @@ export default defineConfig({
 
   webServer: [
     {
-      // E2E Vite runs on 5174 with its `/api` proxy pointed at port
-      // 8788 — both env vars are read by `vite.config.ts`. Sitting one
-      // port off dev (5173/8787) means `pnpm dev` and `pnpm e2e` can
-      // run concurrently on the same machine.
       command: `pnpm exec vite --port ${SPA_PORT}`,
       env: {
         HEARTH_SPA_PORT: String(SPA_PORT),
@@ -91,21 +154,14 @@ export default defineConfig({
       },
       cwd: path.resolve(__dirname),
       url: `http://localhost:${SPA_PORT}/`,
-      reuseExistingServer: !process.env["CI"],
+      reuseExistingServer: false,
       timeout: 60_000,
       gracefulShutdown: { signal: "SIGTERM", timeout: 5_000 },
       stderr: "pipe",
       stdout: "ignore",
     },
     {
-      // `--env e2e` binds the Worker to the isolated D1 / R2 declared
-      // under `env.e2e` in `apps/worker/wrangler.jsonc` — distinct
-      // `database_id` selects a separate Miniflare sqlite file, so
-      // spec teardown can't touch a developer's dev D1 state. The
-      // port (8788) is also off the dev default (8787) so a running
-      // `wrangler dev` doesn't clash; reuse is disabled regardless
-      // to keep the binding isolation honest in CI.
-      command: `pnpm exec wrangler dev --env e2e --port ${WORKER_PORT}`,
+      command: `pnpm exec wrangler dev --env e2e --port ${WORKER_PORT} --persist-to ./.wrangler/state-e2e`,
       cwd: path.resolve(__dirname, "../worker"),
       url: `http://localhost:${WORKER_PORT}/healthz`,
       reuseExistingServer: false,

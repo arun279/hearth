@@ -76,10 +76,11 @@ test.describe("M8 — Activity composer", () => {
     await expect(page.getByText(/2 parts/)).toBeVisible();
     await expect(page.getByText(/Everyone enrolled/)).toBeVisible();
 
-    // Edit flow: click the activity row → composer reopens in edit
-    // mode seeded from the saved row → change the title → save → the
-    // row updates in place.
-    await activityCard.click();
+    // Edit flow: clicking the row routes to the Activity Player surface
+    // for everyone (including facilitators); the composer reopens via
+    // the explicit Edit pencil affordance on the row, gated on
+    // facilitator authority.
+    await page.getByRole("button", { name: /Edit activity: Greetings & introductions/i }).click();
     const editDialog = page.getByRole("dialog", { name: /Edit activity/i });
     await expect(editDialog).toBeVisible();
     const titleField = editDialog.getByRole("textbox", { name: /^Title$/i });
@@ -116,10 +117,11 @@ test.describe("M8 — Activity composer", () => {
     await composer.getByRole("button", { name: /Create activity/i }).click();
     await expect(page.getByText(/Activity created/i)).toBeVisible();
 
-    // Re-open in edit mode + click Delete. The destructive confirm
-    // requires typing "delete" before the button enables — proves the
-    // confirmation guard is live across the M8 surface.
-    await page.getByText("Throwaway").click();
+    // Re-open in edit mode via the row's Edit pencil (row click routes
+    // to the player, not the composer) + click Delete. The destructive
+    // confirm requires typing "delete" before the button enables —
+    // proves the confirmation guard is live across the M8 surface.
+    await page.getByRole("button", { name: /Edit activity: Throwaway/i }).click();
     const editDialog = page.getByRole("dialog", { name: /Edit activity/i });
     await editDialog.getByRole("button", { name: /^Delete$/i }).click();
     const confirm = page.getByRole("dialog", { name: /Delete this activity/i });

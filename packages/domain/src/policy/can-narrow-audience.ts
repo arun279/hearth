@@ -11,13 +11,12 @@ import { evaluateActivityScopeAuthority } from "./_activity-scope-gate.ts";
  * this predicate covers only the authority gate.
  */
 export function canNarrowAudience(
-  actor: User,
+  _actor: User,
   group: StudyGroup,
   track: LearningTrack,
   groupMembership: GroupMembership | null,
   trackEnrollment: TrackEnrollment | null,
 ): PolicyResult {
-  void actor;
   return evaluateActivityScopeAuthority({
     group,
     track,

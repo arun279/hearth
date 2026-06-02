@@ -10,13 +10,12 @@ import { evaluateActivityScopeAuthority } from "./_activity-scope-gate.ts";
  * predicate covers only the authority gate.
  */
 export function canSetPrerequisites(
-  actor: User,
+  _actor: User,
   group: StudyGroup,
   track: LearningTrack,
   groupMembership: GroupMembership | null,
   trackEnrollment: TrackEnrollment | null,
 ): PolicyResult {
-  void actor;
   return evaluateActivityScopeAuthority({
     group,
     track,

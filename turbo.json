@@ -22,6 +22,10 @@
       "dependsOn": ["^build"],
       "outputs": []
     },
+    "test:bundle": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
     "e2e": {
       "dependsOn": ["^build"],
       "cache": false,

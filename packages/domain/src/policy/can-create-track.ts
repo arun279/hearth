@@ -3,7 +3,7 @@ import type { GroupMembership, StudyGroup } from "../group.ts";
 import type { User } from "../user.ts";
 
 export function canCreateTrack(
-  actor: User,
+  _actor: User,
   group: StudyGroup,
   membership: GroupMembership | null,
 ): PolicyResult {
@@ -16,6 +16,5 @@ export function canCreateTrack(
   if (membership.role !== "admin") {
     return policyDeny("not_group_admin", "Only Group Admins may create a new Learning Track.");
   }
-  void actor;
   return policyAllow();
 }

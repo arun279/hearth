@@ -12,7 +12,7 @@ import type { User } from "../user.ts";
  * existing items stay readable / downloadable but no new uploads land.
  */
 export function canUploadLibraryItem(
-  actor: User,
+  _actor: User,
   group: StudyGroup,
   membership: GroupMembership | null,
 ): PolicyResult {
@@ -22,6 +22,5 @@ export function canUploadLibraryItem(
   if (!membership || membership.removedAt !== null) {
     return policyDeny("not_group_member", "Only Group Members may upload to the library.");
   }
-  void actor;
   return policyAllow();
 }

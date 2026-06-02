@@ -9,14 +9,12 @@ import type { User } from "../user.ts";
  * over actor + membership, not a precondition over current status.
  */
 export function canArchiveGroup(
-  actor: User,
-  group: StudyGroup,
+  _actor: User,
+  _group: StudyGroup,
   membership: GroupMembership | null,
 ): PolicyResult {
-  void group;
   if (!membership || membership.removedAt !== null || membership.role !== "admin") {
     return policyDeny("not_group_admin", "Only a Group Admin may archive a Study Group.");
   }
-  void actor;
   return policyAllow();
 }

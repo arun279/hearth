@@ -110,14 +110,14 @@ export type LearningActivityDraft = {
 };
 
 /**
- * The activity's accessibility for a viewer at the moment of read. M8
- * ships only `open` (no Activity Records exist yet, so prerequisites
- * trivially evaluate to "open" everywhere) and `hidden` (post-close
- * `hidden` policy after the close window has passed); M9–M12 grow this
- * union as records, windows, and visibility computation land. Any UI
- * state that depends on "is this completable?" reads from here.
+ * The activity's accessibility for a viewer at the moment of read.
+ * `pre_open` and `locked` are window-driven and ship in M9; `hidden`
+ * surfaces today for the post-close `hidden` policy and routes 404 in
+ * the API layer. M11 will grow the union further when Activity Records
+ * make prerequisite-driven locking observable per-viewer. Any UI state
+ * that depends on "is this completable?" reads from here.
  */
-export type ActivityAccessState = "open" | "hidden";
+export type ActivityAccessState = "open" | "pre_open" | "locked" | "hidden";
 
 /**
  * Row projection for the Activities tab. Shared by the port, adapter,
@@ -125,6 +125,13 @@ export type ActivityAccessState = "open" | "hidden";
  * computed counts the SPA needs to render `<ActivityRow>` (prereq
  * count, library-ref count, suggested-next count, part-kind icon
  * strip) without an N+1 fetch per row.
+ */
+/**
+ * Wire shape returned by `GET /api/v1/tracks/:trackId/activities`. The
+ * audience is reduced to its `kind` discriminator so the subset roster
+ * (`audience.userIds`) NEVER ships to clients — visibility filtering
+ * happens server-side using the richer `LearningActivityListRow`, and
+ * the SPA renders the "narrowed" badge from `audienceKind` alone.
  */
 export type LearningActivityListItem = {
   readonly id: LearningActivityId;
@@ -140,7 +147,17 @@ export type LearningActivityListItem = {
   readonly window: ActivityWindow | null;
   readonly postClosePolicy: PostClosePolicy | null;
   readonly completionRuleKind: CompletionRule["kind"];
-  readonly accessState: ActivityAccessState;
   readonly createdAt: Date;
   readonly updatedAt: Date;
+};
+
+/**
+ * Adapter / use-case-internal shape. Identical to `LearningActivityListItem`
+ * but carries the full `audience` envelope so the server-side visibility
+ * predicate (`canSeeActivity`) can decide whether to include the row. The
+ * use case projects this down to `LearningActivityListItem` before
+ * returning to the API boundary — the roster never crosses the wire.
+ */
+export type LearningActivityListRow = Omit<LearningActivityListItem, "audienceKind"> & {
+  readonly audience: ActivityAudience;
 };

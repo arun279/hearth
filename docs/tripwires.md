@@ -76,6 +76,14 @@ Each entry names the **pinned tool**, the **condition** that triggers a reassess
 - **Action**: on a long-running dev server, edit a file under `packages/*/src/` rapidly via atomic-rename (write-temp + rename — the pattern Edit tools and vim default to) and verify HMR fires every time. If it does, retire the `e2e fails locally on a long-running Vite dev server` bullet in `docs/dev-runbook.md` § 11 Troubleshooting and remove this tripwire entry. Background: with `chokidar@3.6.0`, `chokidar.add(file)` watches only the file's inode (not the parent directory); atomic-rename writes change the inode and chokidar's re-watch logic is brittle under rapid sequences. The rare-but-painful failure mode is "Vite serves the cached transform of a cross-package file from when it was first imported regardless of disk state."
 - **Location**: `apps/web/vite.config.ts` (no workaround currently applied — restart fixes the immediate state, the cost of automated workarounds outweighs the rate of recurrence).
 
+## PDF rendering
+
+### `react-pdf` / `pdfjs-dist` are version-locked (current pins: `react-pdf@10.4.1` exact, `pdfjs-dist@5.4.296` exact)
+
+- **Trigger**: `react-pdf` ships a new patch / minor / major bump, OR a `pdfjs-dist` advisory lands at the pinned version.
+- **Action**: `react-pdf@10` bundles `pdfjs-dist@5.4.296` as a hard dep (no semver range). Bumping `react-pdf` will likely bump the bundled `pdfjs-dist`; update BOTH pins together so the workspace deduplicates to a single hoisted copy of `pdfjs-dist`. Two copies break the global `pdfjs.GlobalWorkerOptions.workerSrc` configuration silently (each copy reads its own). After bumping, re-run `pnpm --filter @hearth/web test:bundle` to confirm the lazy boundary still holds and `pnpm --filter @hearth/web dev` to confirm the Vite worker URL still resolves same-origin under the newer `pdf.worker.min.mjs` shape. Note: `pdfjs-dist >= 5.6` requires Node `>= 20.19.0 || >= 22.13.0 || >= 24`; bumping past `5.5.x` is a coupled Node-floor bump.
+- **Location**: `packages/ui/package.json` (`pdfjs-dist`, `react-pdf`); `apps/web/package.json` (`pdfjs-dist` mirror for `require.resolve` in `vite.config.ts`); `packages/ui/src/parts/pdf-viewer.tsx` (worker URL + cmaps/standard_fonts URL paths); `apps/web/vite.config.ts` (pdfjs-asset copy plugin).
+
 ## Test infrastructure
 
 ### Playwright session seeding bypasses Better Auth's cookie creation
@@ -116,17 +124,23 @@ Each entry names the **pinned tool**, the **condition** that triggers a reassess
 - **Action**: on that PR, brand the touched port's mutating methods with `Write<F>` (from `packages/ports/src/_brand.ts`). Update the implementation methods in `packages/adapters/cloudflare/src/<repo>.ts` to use `markWrite(...)`. Add a per-port `it("XRepository: every branded write method is in CASES", ...)` block in `packages/adapters/cloudflare/test/killswitch-coverage.test.ts` mirroring the existing `LibraryItemRepository` / `LearningActivityRepository` shape. Tsc will then enforce that every branded write method has a CASES entry. The migration is opportunistic — no need for a sweep PR — but DO migrate any port you're already editing rather than leaving the next session to find half-branded surfaces.
 - **Location**: `packages/ports/src/_brand.ts` (the brand machinery + this rationale); `packages/adapters/cloudflare/test/killswitch-coverage.test.ts` (the type-level enforcement site).
 
-### `LearningActivityRepository.byTrack` hard-codes `accessState: "open"`
-
-- **Trigger**: M11 lands `ActivityRecord` rows or any access-state projection that needs to know which activities are post-close `hidden` for the viewer.
-- **Action**: remove the hard-coded literal in `packages/adapters/cloudflare/src/learning-activity-repository.ts` `byTrack` and replace with a real projection from the activity's window + post-close policy + the viewer's clock. The port currently has no `actor` / `clock` parameter; either thread one through or compute the projection in the use case layer (`list-track-activities`) where the viewer is already known. Today the literal is safe because no Records exist yet — but a future post-close `hidden` activity would silently surface as `"open"` to participants, which would be a real privacy bug.
-- **Location**: `packages/adapters/cloudflare/src/learning-activity-repository.ts` (`byTrack` projection); `packages/ports/src/learning-activity-repository.ts` (port signature if a parameter is needed).
-
 ### `update-activity` use case is non-atomic across body + 3 child writes
 
 - **Trigger**: M11 ships `ActivityRecord` rows whose existence depends on the activity's children being internally consistent (e.g., a learner's progress against a Part the activity claims to have).
 - **Action**: re-evaluate the four-step orchestration in `packages/core/src/use-cases/update-activity.ts` (body update + `setLibraryRefs` + `setPrerequisites` + `setSuggestedSequences`). Each call is atomic on its own; a mid-sequence failure leaves the body updated but children stale, which the use case docstring concedes. The current "user retries → idempotent wholesale-replace converges" model is acceptable while no Records exist. Once Records exist, an inconsistent intermediate state during a retry could produce a Record against a Part that the activity no longer carries. Either compose the four writes into one D1 batch (requires a port-level rethink — children writes would need to surface from inside the parent UPDATE) or accept the eventual-consistency story explicitly with an integration test pinning the recovery shape.
 - **Location**: `packages/core/src/use-cases/update-activity.ts`.
+
+### Test files are not type-checked — `Write<F>` mock brand mismatches slip through
+
+- **Trigger**: a `Write<F>`-branded port method picks up a new signature change, OR a test mock is allowed to drift from a port's real shape because the test file isn't compiled. Symptom: editor / LSP flags `Mock<...>` not assignable to `Write<...>` in `packages/core/test/**` but `pnpm typecheck` is green.
+- **Action**: extend `packages/core/tsconfig.json` (and equivalent peer packages) to include `test/**/*.ts` so `tsc --noEmit` sees the test sources. Fix the resulting mock-vs-brand mismatches by wrapping mocks with `markWrite(...)` from `packages/ports/src/_brand.ts` (the same helper the adapter uses). Mirror the change to `packages/api`, `packages/auth`, `packages/adapters/cloudflare` if their tsconfigs have the same `src/`-only include. The cost is a one-off cleanup of existing mocks; the benefit is that `Write<F>` brand drift surfaces in `pnpm check` instead of leaking past lefthook + CI.
+- **Location**: `packages/core/tsconfig.json` (includes), `packages/core/test/activity-use-cases.test.ts` and siblings (mocks needing `markWrite`).
+
+### List endpoints whose detail sibling can 404 MUST share the visibility predicate
+
+- **Trigger**: a new list endpoint lands whose detail route runs an authoritative visibility predicate (e.g. anything that gates by audience, post-close `hidden`, prerequisite locking) AND the list does not consult the same predicate. Indicator: the list endpoint loads a repository projection and `.filter()`s on a subset of the predicate's branches.
+- **Action**: extract or reuse the existing shared helper (`packages/core/src/use-cases/_lib/load-visible-activities-for-track.ts` is the canonical M9 example) so the list and the detail surface run the SAME predicate. The list MUST omit rows whose detail route would 404 — otherwise the title leaks via the list and the click 404s, creating an enumeration oracle on whichever axis the list skipped (subset audience, prerequisite lock, etc.). M11 prerequisite-driven `locked` state and M12 visibility evolution will introduce new axes; the per-use-case half-fix pattern does not scale.
+- **Location**: `packages/core/src/use-cases/_lib/load-visible-activities-for-track.ts` (the existing shared helper); any new `list*` use case + its repository projection.
 
 ### Quiz `answerKeyRegex` accepts user-supplied regex without a ReDoS guard
 

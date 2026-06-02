@@ -9,7 +9,7 @@ import {
   DomainError,
   type LearningActivity,
   type LearningActivityId,
-  type LearningActivityListItem,
+  type LearningActivityListRow,
   type PolicyResult,
   type UserId,
 } from "@hearth/domain";
@@ -53,7 +53,7 @@ export async function loadEditableActivityWithSiblings(
   deps: LoadEditableActivityWithSiblingsDeps,
 ): Promise<{
   readonly activity: LearningActivity;
-  readonly siblings: readonly LearningActivityListItem[];
+  readonly siblings: readonly LearningActivityListRow[];
   readonly siblingIds: ReadonlySet<LearningActivityId>;
 }> {
   const ctx = await loadViewableActivity(actor, activityId, deps);

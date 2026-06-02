@@ -387,6 +387,47 @@ describe("activities routes", () => {
       expect(await res.json()).toEqual([]);
     });
 
+    it("GET /tracks/:trackId/activities ships audienceKind, never the subset userIds roster", async () => {
+      // The wire shape is `LearningActivityListItem` (audience reduced
+      // to its `kind` discriminator). The internal `LearningActivityListRow`
+      // shape carries the full `audience` envelope — including the
+      // subset `userIds` roster — for server-side visibility filtering,
+      // and the use case projects to the wire item before the response
+      // crosses the boundary. This test pins that contract: a roster
+      // returned by `byTrack` MUST NOT appear in the JSON response.
+      const subsetRow = {
+        id: aid,
+        trackId: tid,
+        title: "Narrowed activity",
+        description: null,
+        partCount: 1,
+        partKindSequence: ["write_reflection"],
+        libraryRefCount: 0,
+        prereqCount: 0,
+        suggestedNextCount: 0,
+        audience: { kind: "subset" as const, userIds: [facId] },
+        window: null,
+        postClosePolicy: null,
+        completionRuleKind: "manual_mark" as const,
+        createdAt: now,
+        updatedAt: now,
+      };
+      const app = harness({
+        userId: facId,
+        ports: readyDeps({ byTrack: vi.fn(async () => [subsetRow]) }),
+      });
+      const res = await app.request(`/api/v1/tracks/${tid}/activities`);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as ReadonlyArray<Record<string, unknown>>;
+      expect(body).toHaveLength(1);
+      const [row] = body;
+      expect(row).toBeDefined();
+      expect(row?.audienceKind).toBe("subset");
+      expect(row?.audience).toBeUndefined();
+      expect(JSON.stringify(body)).not.toContain("userIds");
+      expect(JSON.stringify(body)).not.toContain(facId);
+    });
+
     it("GET /activities/:id returns the activity", async () => {
       const app = harness({ userId: facId, ports: readyDeps() });
       const res = await app.request(`/api/v1/activities/${aid}`);

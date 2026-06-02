@@ -18,6 +18,7 @@ import { Route as GGroupIdPeopleRouteImport } from './routes/g.$groupId_.people'
 import { Route as GGroupIdLibraryRouteImport } from './routes/g.$groupId_.library'
 import { Route as GGroupIdTTrackIdRouteImport } from './routes/g.$groupId_.t.$trackId'
 import { Route as GGroupIdTTrackIdPeopleRouteImport } from './routes/g.$groupId_.t.$trackId_.people'
+import { Route as GGroupIdTTrackIdAActivityIdRouteImport } from './routes/g.$groupId_.t.$trackId_.a.$activityId'
 
 const MeRoute = MeRouteImport.update({
   id: '/me',
@@ -64,6 +65,12 @@ const GGroupIdTTrackIdPeopleRoute = GGroupIdTTrackIdPeopleRouteImport.update({
   path: '/g/$groupId/t/$trackId/people',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GGroupIdTTrackIdAActivityIdRoute =
+  GGroupIdTTrackIdAActivityIdRouteImport.update({
+    id: '/g/$groupId_/t/$trackId_/a/$activityId',
+    path: '/g/$groupId/t/$trackId/a/$activityId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -75,6 +82,7 @@ export interface FileRoutesByFullPath {
   '/g/$groupId/people': typeof GGroupIdPeopleRoute
   '/g/$groupId/t/$trackId': typeof GGroupIdTTrackIdRoute
   '/g/$groupId/t/$trackId/people': typeof GGroupIdTTrackIdPeopleRoute
+  '/g/$groupId/t/$trackId/a/$activityId': typeof GGroupIdTTrackIdAActivityIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -86,6 +94,7 @@ export interface FileRoutesByTo {
   '/g/$groupId/people': typeof GGroupIdPeopleRoute
   '/g/$groupId/t/$trackId': typeof GGroupIdTTrackIdRoute
   '/g/$groupId/t/$trackId/people': typeof GGroupIdTTrackIdPeopleRoute
+  '/g/$groupId/t/$trackId/a/$activityId': typeof GGroupIdTTrackIdAActivityIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -98,6 +107,7 @@ export interface FileRoutesById {
   '/g/$groupId_/people': typeof GGroupIdPeopleRoute
   '/g/$groupId_/t/$trackId': typeof GGroupIdTTrackIdRoute
   '/g/$groupId_/t/$trackId_/people': typeof GGroupIdTTrackIdPeopleRoute
+  '/g/$groupId_/t/$trackId_/a/$activityId': typeof GGroupIdTTrackIdAActivityIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -111,6 +121,7 @@ export interface FileRouteTypes {
     | '/g/$groupId/people'
     | '/g/$groupId/t/$trackId'
     | '/g/$groupId/t/$trackId/people'
+    | '/g/$groupId/t/$trackId/a/$activityId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -122,6 +133,7 @@ export interface FileRouteTypes {
     | '/g/$groupId/people'
     | '/g/$groupId/t/$trackId'
     | '/g/$groupId/t/$trackId/people'
+    | '/g/$groupId/t/$trackId/a/$activityId'
   id:
     | '__root__'
     | '/'
@@ -133,6 +145,7 @@ export interface FileRouteTypes {
     | '/g/$groupId_/people'
     | '/g/$groupId_/t/$trackId'
     | '/g/$groupId_/t/$trackId_/people'
+    | '/g/$groupId_/t/$trackId_/a/$activityId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -145,6 +158,7 @@ export interface RootRouteChildren {
   GGroupIdPeopleRoute: typeof GGroupIdPeopleRoute
   GGroupIdTTrackIdRoute: typeof GGroupIdTTrackIdRoute
   GGroupIdTTrackIdPeopleRoute: typeof GGroupIdTTrackIdPeopleRoute
+  GGroupIdTTrackIdAActivityIdRoute: typeof GGroupIdTTrackIdAActivityIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -212,6 +226,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GGroupIdTTrackIdPeopleRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/g/$groupId_/t/$trackId_/a/$activityId': {
+      id: '/g/$groupId_/t/$trackId_/a/$activityId'
+      path: '/g/$groupId/t/$trackId/a/$activityId'
+      fullPath: '/g/$groupId/t/$trackId/a/$activityId'
+      preLoaderRoute: typeof GGroupIdTTrackIdAActivityIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -225,6 +246,7 @@ const rootRouteChildren: RootRouteChildren = {
   GGroupIdPeopleRoute: GGroupIdPeopleRoute,
   GGroupIdTTrackIdRoute: GGroupIdTTrackIdRoute,
   GGroupIdTTrackIdPeopleRoute: GGroupIdTTrackIdPeopleRoute,
+  GGroupIdTTrackIdAActivityIdRoute: GGroupIdTTrackIdAActivityIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

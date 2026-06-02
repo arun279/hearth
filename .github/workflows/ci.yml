@@ -62,7 +62,6 @@ jobs:
 
       - run: pnpm check:coverage
 
-      # TODO(m20): also run `pnpm --filter @hearth/web e2e` here.
-      # E2E is currently gated only at pre-push (lefthook.yml `e2e:`),
-      # which is bypassable. M20 ships the canonical-journey Playwright
-      # E2E suite as a CI gate per the launch milestone PRD.
+      - run: pnpm --filter @hearth/web e2e:install
+
+      - run: pnpm --filter @hearth/web e2e

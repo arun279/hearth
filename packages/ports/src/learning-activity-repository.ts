@@ -7,7 +7,7 @@ import type {
   LearningActivity,
   LearningActivityDraft,
   LearningActivityId,
-  LearningActivityListItem,
+  LearningActivityListRow,
   LearningTrackId,
   PostClosePolicy,
 } from "@hearth/domain";
@@ -92,11 +92,14 @@ export interface LearningActivityRepository {
    * List all activities for a track, projected for the Activities tab.
    * Includes computed counts (`prereqCount`, `libraryRefCount`, …) and
    * the `partKindSequence` icon strip so the SPA renders rows without
-   * decoding the full envelope per item. Hidden access states are
-   * filtered out by the adapter — the route never sees a row the
-   * viewer is not allowed to see.
+   * decoding the full envelope per item. Returns the internal `Row`
+   * shape carrying the full `audience` envelope so the use case can
+   * apply `canSeeActivity` + access-state filtering; the use case
+   * projects to the wire `LearningActivityListItem` (reducing audience
+   * to its `kind`) before the API boundary so the subset roster never
+   * crosses the wire.
    */
-  byTrack(trackId: LearningTrackId): Promise<readonly LearningActivityListItem[]>;
+  byTrack(trackId: LearningTrackId): Promise<readonly LearningActivityListRow[]>;
 
   /**
    * Apply a patch with the id-preserving merge for Parts: any Part in

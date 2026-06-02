@@ -2,7 +2,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { KNOWN_PROBLEM_CODES } from "./problem.ts";
+import { assertOk, KNOWN_PROBLEM_CODES, shouldRetry } from "./problem.ts";
 
 /**
  * Source-text scan that pairs the server-side reason emitters with the
@@ -31,6 +31,7 @@ const SCAN_ROOTS: readonly string[] = [
   resolve(REPO_ROOT, "packages", "core", "src"),
   resolve(REPO_ROOT, "packages", "auth", "src"),
   resolve(REPO_ROOT, "packages", "api", "src"),
+  resolve(REPO_ROOT, "packages", "adapters", "cloudflare", "src"),
 ];
 
 function* walkTs(dir: string): Generator<string> {
@@ -43,15 +44,53 @@ function* walkTs(dir: string): Generator<string> {
 }
 
 const POLICY_DENY_RE = /policyDeny\(\s*"([a-z_]+)"/g;
-// `,?\s*\)` lets the regex consume the trailing comma biome inserts
-// before the closing paren on multi-line calls — without it, the
-// dominant `new DomainError(\n  "CODE",\n  "msg",\n  "reason",\n)`
-// shape escapes the scan.
-const DOMAIN_ERROR_RE = /new\s+DomainError\([^)]*?,\s*"([a-z_]+)"\s*,?\s*\)/gs;
 const FAIL_HELPER_RE = /\bfail\(\s*"([a-z_]+)"/g;
+const DOMAIN_ERROR_OPEN_RE = /new\s+DomainError\(/g;
+const CODE_LITERAL_RE = /"([a-z_]+)"/g;
 
 function stripComments(source: string): string {
   return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+}
+
+/**
+ * Walk a `new DomainError(…)` call by tracking string state + paren
+ * depth so template-literal interpolations like
+ * `${(err as Error).message}` don't terminate the argument list early.
+ * The reason code is the third positional argument and the only
+ * lowercase-snake-case string literal in a canonical call, so we
+ * capture the last `"[a-z_]+"` literal inside the balanced body.
+ */
+function findDomainErrorReason(src: string, openEnd: number): string | null {
+  let depth = 1;
+  let i = openEnd;
+  let inString: '"' | "'" | "`" | null = null;
+  let escaped = false;
+  while (i < src.length && depth > 0) {
+    const ch = src[i];
+    if (escaped) {
+      escaped = false;
+      i++;
+      continue;
+    }
+    if (inString !== null) {
+      if (ch === "\\") escaped = true;
+      else if (ch === inString) inString = null;
+    } else if (ch === '"' || ch === "'" || ch === "`") {
+      inString = ch;
+    } else if (ch === "(") {
+      depth++;
+    } else if (ch === ")") {
+      depth--;
+    }
+    i++;
+  }
+  if (depth !== 0) return null;
+  const argsText = src.substring(openEnd, i - 1);
+  let last: string | null = null;
+  for (const match of argsText.matchAll(CODE_LITERAL_RE)) {
+    last = match[1] ?? last;
+  }
+  return last;
 }
 
 function collectCodes(): { readonly emitted: ReadonlySet<string>; readonly visited: number } {
@@ -61,11 +100,19 @@ function collectCodes(): { readonly emitted: ReadonlySet<string>; readonly visit
     for (const file of walkTs(root)) {
       const src = stripComments(readFileSync(file, "utf8"));
       visited++;
-      for (const re of [POLICY_DENY_RE, DOMAIN_ERROR_RE, FAIL_HELPER_RE]) {
+      for (const re of [POLICY_DENY_RE, FAIL_HELPER_RE]) {
         for (const match of src.matchAll(re)) {
           const code = match[1];
           if (code !== undefined) codes.add(code);
         }
+      }
+      // DomainError calls need balanced-paren walking — message args
+      // commonly carry `${(err as Error).message}` template-literal
+      // interpolations whose parens defeat a `[^)]*?` exclusion class.
+      for (const match of src.matchAll(DOMAIN_ERROR_OPEN_RE)) {
+        const openEnd = (match.index ?? 0) + match[0].length;
+        const reason = findDomainErrorReason(src, openEnd);
+        if (reason !== null) codes.add(reason);
       }
     }
   }
@@ -76,7 +123,65 @@ const ALLOWED_INTERNAL_CODES = new Set<string>([
   // Surfaces that are server-internal — the API layer maps them to
   // generic copy via `problem.detail`, never to a user toast.
   "not_found",
+  // Corrupted-row invariant raised by adapter envelope parsers. The
+  // detail string ("Activity X has invalid partsJson at …") is an
+  // internal diagnosis; the API boundary maps it to the generic 500
+  // problem before it reaches the wire. Per RFC 7807 § 5, exposing
+  // implementation-detail strings to the client is the anti-pattern
+  // we deliberately avoid here — keep this code off `KNOWN_PROBLEM_CODES`.
+  "envelope_invalid",
+  // Same shape as `envelope_invalid` — an `INVARIANT_VIOLATION` raised
+  // when an adapter-side insert/read race fails an assertion. The
+  // detail string is internal diagnosis; the API maps it to 500.
+  "steward_insert_failed",
 ]);
+
+describe("shouldRetry", () => {
+  function mkApiError(status: number): unknown {
+    // Build a real `ApiError` via the public `assertOk` path so the
+    // test doesn't depend on the class being exported. The body has
+    // to be a problem+json envelope with a `code`; `assertOk` rejects
+    // otherwise.
+    const res = new Response(
+      JSON.stringify({ code: "x", status, detail: "x", title: "x", type: "x" }),
+      {
+        status,
+        headers: { "content-type": "application/problem+json" },
+      },
+    );
+    return assertOk(res).then(
+      () => undefined,
+      (err) => err,
+    );
+  }
+
+  it("does not retry on 404 (permanent — audience exclusion, post-close hidden, bad id)", async () => {
+    const err = await mkApiError(404);
+    expect(shouldRetry(0, err)).toBe(false);
+  });
+
+  it("does not retry on 403 (authoritative authorization rejection)", async () => {
+    const err = await mkApiError(403);
+    expect(shouldRetry(0, err)).toBe(false);
+  });
+
+  it("does not retry on 401 (unauthenticated — needs sign-in, not a retry)", async () => {
+    const err = await mkApiError(401);
+    expect(shouldRetry(0, err)).toBe(false);
+  });
+
+  it("retries once on 5xx (transient backend)", async () => {
+    const err = await mkApiError(500);
+    expect(shouldRetry(0, err)).toBe(true);
+    expect(shouldRetry(1, err)).toBe(false);
+  });
+
+  it("retries once on a non-ApiError (network failure)", () => {
+    const err = new Error("fetch failed");
+    expect(shouldRetry(0, err)).toBe(true);
+    expect(shouldRetry(1, err)).toBe(false);
+  });
+});
 
 describe("problem code coverage", () => {
   const { emitted, visited } = collectCodes();

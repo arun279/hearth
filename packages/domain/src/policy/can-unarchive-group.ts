@@ -8,14 +8,12 @@ import type { User } from "../user.ts";
  * idempotence lives in the `unarchive-group` use case.
  */
 export function canUnarchiveGroup(
-  actor: User,
-  group: StudyGroup,
+  _actor: User,
+  _group: StudyGroup,
   membership: GroupMembership | null,
 ): PolicyResult {
-  void group;
   if (!membership || membership.removedAt !== null || membership.role !== "admin") {
     return policyDeny("not_group_admin", "Only a Group Admin may unarchive a Study Group.");
   }
-  void actor;
   return policyAllow();
 }

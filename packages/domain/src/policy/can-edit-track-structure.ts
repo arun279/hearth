@@ -12,7 +12,7 @@ import { isAuthorityOverTrack } from "./is-authority-over-track.ts";
  * are mid-activity.
  */
 export function canEditTrackStructure(
-  actor: User,
+  _actor: User,
   group: StudyGroup,
   track: LearningTrack,
   groupMembership: GroupMembership | null,
@@ -30,6 +30,5 @@ export function canEditTrackStructure(
       "Only a Group Admin or Track Facilitator may edit Track Structure.",
     );
   }
-  void actor;
   return policyAllow();
 }

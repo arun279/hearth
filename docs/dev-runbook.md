@@ -52,16 +52,14 @@ A fresh deploy of Hearth needs three R2-side configuration steps before avatars 
 
 3. **Enable public read** so the SPA can render `<img src="${R2_PUBLIC_ORIGIN}/avatars/…">` without authentication. In the bucket → Settings → **Public access** → enable the **R2.dev subdomain** (or attach a custom domain). Copy the resulting URL (no trailing slash) into `R2_PUBLIC_ORIGIN`.
 
-4. **Set the bucket CORS policy** so the SPA can `PUT` directly to the presigned URL the worker mints. Save this as `r2-cors.json`:
+4. **Set the bucket CORS policy** so the SPA can `PUT` directly to the presigned URL the worker mints. The Activity Player landing in § 8c adds `Range` + media expose-headers — once you ship that, use the recipes in § 8c instead. For initial bring-up keep the two environments split:
+
+   `r2-cors-dev.json` (apply to your dev bucket only):
 
    ```json
    [
      {
-       "AllowedOrigins": [
-         "https://hearth.wiki",
-         "http://localhost:5173",
-         "http://localhost:8787"
-       ],
+       "AllowedOrigins": ["http://localhost:5173", "http://localhost:8787"],
        "AllowedMethods": ["PUT", "GET"],
        "AllowedHeaders": ["Content-Type"],
        "ExposeHeaders": [],
@@ -70,11 +68,27 @@ A fresh deploy of Hearth needs three R2-side configuration steps before avatars 
    ]
    ```
 
-   Then apply it (idempotent — safe to re-run on every deploy):
+   `r2-cors-prod.json` (apply to the production bucket only, after signing wrangler in to the prod account):
+
+   ```json
+   [
+     {
+       "AllowedOrigins": ["https://hearth.wiki"],
+       "AllowedMethods": ["PUT", "GET"],
+       "AllowedHeaders": ["Content-Type"],
+       "ExposeHeaders": [],
+       "MaxAgeSeconds": 3600
+     }
+   ]
+   ```
+
+   Apply each against the right account:
 
    ```bash
-   pnpm exec wrangler r2 bucket cors put hearth-storage --file r2-cors.json
+   pnpm exec wrangler r2 bucket cors put hearth-storage --file r2-cors-<env>.json
    ```
+
+   Both recipes are idempotent.
 
 5. **In production**, set the four secrets via `wrangler secret put` from `apps/worker/`:
 
@@ -218,6 +232,67 @@ Once a Study Group, a Learning Track, and at least one enrolled facilitator exis
 10. **Delete**: in edit mode, click `Delete` (left side of the footer) and confirm with the type-to-confirm phrase. The mutation refuses if any other activity holds this one as a hard prerequisite — the deny code (`activity_has_dependents`) names the offending titles.
 
 The Library Item detail (`/g/<groupId>/library`, click an item) shows a "Used in N activities" list — useful when a steward wants to check what would block a hard-delete before they retire an item.
+
+## 8c. Working on the Activity Player
+
+The Activity Player is the read/listen/watch surface that renders a composed activity. Clicking any activity row on the Activities tab navigates to `/g/<groupId>/t/<trackId>/a/<activityId>`, replacing the full viewport (no sidebar / tab bar / breadcrumb chrome — it's a reading surface, not a dashboard). Authority users see an explicit Edit pencil on each row that opens the composer dialog without leaving the tab.
+
+To exercise it locally:
+
+1. Compose an activity that mixes at least one PDF reading Part (drop a small PDF into the Library first; see § 8.5 "Testing the library upload pipeline") and one Embed Part (paste a `https://www.youtube.com/watch?v=…` URL — the player normalises it to the `youtube.com/embed/<id>` form).
+2. From the Activities tab, click the row to open the player. The desktop layout renders a 240px FlowSidebar on the left with one row per Part; the mobile layout (≤md) renders a sticky pill bar at the top instead.
+3. Use the sidebar / pill bar to flip Parts; the active Part id rides in `?part=<partId>`, so a browser refresh preserves position. Pasting an unknown part id falls back to the first Part with a single-line toast.
+4. The PDF renderer is loaded behind `React.lazy(() => import("./parts/read-part"))` — the first time you open a PDF Part, the browser fetches a separate ~400 KB chunk; subsequent opens are instant from cache. `pnpm --filter @hearth/web test:bundle` is the gate that keeps that chunk dynamic.
+5. `Mark complete` renders as a placeholder with `aria-disabled="true"` and a "coming soon" tooltip — per-Part completion state lands in a later milestone alongside Activity Records.
+6. `Previous` / `Next` chevrons navigate through `flow.displayOrder`. The bottom edge always shows where the participant is and where they can go.
+
+### R2 CORS for media + PDF playback
+
+The Activity Player fetches PDFs via XHR (pdf.js issues `Range` requests for partial loads) and streams audio / video via HTML5 elements (the browser issues `Range` for seek + progressive playback). For both to work over the signed-GET URLs the worker mints, the bucket's CORS policy needs to permit `GET` with the `Range` header and expose `Content-Range`, `Accept-Ranges`, and `Content-Length`.
+
+The recipes below replace the basic CORS in § 2. **The dev recipe must NEVER be applied to the production bucket** — `http://localhost` origins on the prod bucket would let a page running on any user's localhost fetch signed content from prod via `fetch`. Keep the two recipes in separate files and apply each against the right account.
+
+**Dev bucket** (`r2-cors-dev.json`):
+
+```json
+[
+  {
+    "AllowedOrigins": ["http://localhost:5173", "http://localhost:8787"],
+    "AllowedMethods": ["PUT", "GET"],
+    "AllowedHeaders": ["Content-Type", "Range"],
+    "ExposeHeaders": ["Content-Range", "Content-Length", "Accept-Ranges", "ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+Apply against the dev account:
+
+```bash
+pnpm exec wrangler r2 bucket cors put hearth-storage --file r2-cors-dev.json
+```
+
+**Production bucket** (`r2-cors-prod.json`):
+
+```json
+[
+  {
+    "AllowedOrigins": ["https://hearth.wiki"],
+    "AllowedMethods": ["PUT", "GET"],
+    "AllowedHeaders": ["Content-Type", "Range"],
+    "ExposeHeaders": ["Content-Range", "Content-Length", "Accept-Ranges", "ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+Apply by signing in to `wrangler` with the production account first, then:
+
+```bash
+pnpm exec wrangler r2 bucket cors put hearth-storage --file r2-cors-prod.json
+```
+
+Both recipes are idempotent — safe to re-run on every deploy. If you have a custom prod domain other than `hearth.wiki`, swap it in `r2-cors-prod.json`.
 
 ## 9. Inspecting R2 (avatars and library uploads)
 

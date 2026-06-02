@@ -2,12 +2,13 @@ import type {
   LearningActivity,
   LearningActivityDraft,
   LearningActivityId,
-  LearningActivityListItem,
+  LearningActivityListRow,
   LearningTrack,
   LearningTrackId,
   LibraryItem,
   LibraryItemId,
   LibraryRevision,
+  UserId,
 } from "@hearth/domain";
 import { describe, expect, it, vi } from "vitest";
 import { createActivity } from "../src/use-cases/create-activity.ts";
@@ -523,7 +524,7 @@ describe("update-activity", () => {
   // reloads the assembled aggregate. Each child path is exercised here
   // so the orchestration coverage stays load-bearing.
   it("orchestrates body + children writes and reloads via byId", async () => {
-    const sibling: LearningActivityListItem = {
+    const sibling: LearningActivityListRow = {
       id: "a_sibling" as never,
       trackId: TRACK_ID,
       title: "sibling",
@@ -533,11 +534,10 @@ describe("update-activity", () => {
       libraryRefCount: 0,
       prereqCount: 0,
       suggestedNextCount: 0,
-      audienceKind: "everyone_enrolled",
+      audience: { kind: "everyone_enrolled" },
       window: null,
       postClosePolicy: null,
       completionRuleKind: "manual_mark",
-      accessState: "open",
       createdAt: TEST_NOW,
       updatedAt: TEST_NOW,
     };
@@ -688,7 +688,7 @@ describe("update-activity", () => {
   });
 
   it("rejects a prereq that closes a cross-activity cycle", async () => {
-    const sibling: LearningActivityListItem = {
+    const sibling: LearningActivityListRow = {
       id: "a_sibling" as never,
       trackId: TRACK_ID,
       title: "sibling",
@@ -698,11 +698,10 @@ describe("update-activity", () => {
       libraryRefCount: 0,
       prereqCount: 1,
       suggestedNextCount: 0,
-      audienceKind: "everyone_enrolled",
+      audience: { kind: "everyone_enrolled" },
       window: null,
       postClosePolicy: null,
       completionRuleKind: "manual_mark",
-      accessState: "open",
       createdAt: TEST_NOW,
       updatedAt: TEST_NOW,
     };
@@ -883,9 +882,166 @@ describe("get-activity / list-track-activities", () => {
         tracks: facilitatorTracks(),
         policy: basePolicy(),
         activities: makeActivities({ byTrack: vi.fn(async () => []) }),
+        clock: { now: () => TEST_NOW },
       },
     );
     expect(result).toEqual([]);
+  });
+
+  it("filters_post_close_hidden — list omits rows whose accessState is hidden", async () => {
+    // Two rows with identical shape except the post-close policy. The
+    // second's `closesAt` has already passed AND its policy is
+    // `hidden` — the use case must drop it so a viewer who once had
+    // access cannot enumerate it by listing the track.
+    const past = new Date(TEST_NOW.getTime() - 24 * 60 * 60 * 1000);
+    const baseRow = {
+      trackId: TRACK_ID,
+      description: null,
+      partCount: 1,
+      partKindSequence: ["write_reflection"],
+      libraryRefCount: 0,
+      prereqCount: 0,
+      suggestedNextCount: 0,
+      audience: { kind: "everyone_enrolled" as const },
+      completionRuleKind: "manual_mark" as const,
+      createdAt: TEST_NOW,
+      updatedAt: TEST_NOW,
+    };
+    const visible: LearningActivityListRow = {
+      ...baseRow,
+      id: "a_visible" as LearningActivityId,
+      title: "visible",
+      window: null,
+      postClosePolicy: null,
+    };
+    const hidden: LearningActivityListRow = {
+      ...baseRow,
+      id: "a_hidden" as LearningActivityId,
+      title: "hidden",
+      window: { opensAt: null, dueAt: null, closesAt: past.getTime() },
+      postClosePolicy: { kind: "hidden" },
+    };
+    const result = await listTrackActivities(
+      { actor: ACTOR_ID, trackId: TRACK_ID },
+      {
+        users: makeUsers(ACTOR),
+        groups: baseGroups(),
+        tracks: facilitatorTracks(),
+        policy: basePolicy(),
+        activities: makeActivities({ byTrack: vi.fn(async () => [visible, hidden]) }),
+        clock: { now: () => TEST_NOW },
+      },
+    );
+    expect(result.map((r) => r.id)).toEqual(["a_visible"]);
+  });
+
+  it("filters_audience_subset_exclusion — list omits subset rows that exclude the actor", async () => {
+    // ACTOR is a plain participant (not a facilitator, not an operator).
+    // Two subset-audience rows: one lists ACTOR, one doesn't. Only the
+    // first survives the list. Without this filter, the excluded row
+    // would advertise its title to a non-audience member who clicks
+    // and 404s at /player — an enumeration oracle on the audience axis.
+    const baseRow = {
+      trackId: TRACK_ID,
+      description: null,
+      partCount: 1,
+      partKindSequence: ["write_reflection"],
+      libraryRefCount: 0,
+      prereqCount: 0,
+      suggestedNextCount: 0,
+      window: null,
+      postClosePolicy: null,
+      completionRuleKind: "manual_mark" as const,
+      createdAt: TEST_NOW,
+      updatedAt: TEST_NOW,
+    };
+    const inAudience: LearningActivityListRow = {
+      ...baseRow,
+      id: "a_in_audience" as LearningActivityId,
+      title: "actor listed",
+      audience: { kind: "subset", userIds: [ACTOR_ID] },
+    };
+    const excluded: LearningActivityListRow = {
+      ...baseRow,
+      id: "a_excluded" as LearningActivityId,
+      title: "actor not listed",
+      audience: { kind: "subset", userIds: ["u_someone_else" as UserId] },
+    };
+    // Override the default facilitator enrollment with a plain
+    // participant — facilitators bypass audience filtering by design
+    // (track authority can QA any subset). Filtering only fires for
+    // non-authority members.
+    const participantTracks = makeTracks({
+      byId: vi.fn(async () => ACTIVE_TRACK),
+      enrollment: vi.fn(async () => ({
+        trackId: TRACK_ID,
+        userId: ACTOR_ID,
+        role: "participant" as const,
+        enrolledAt: TEST_NOW,
+        leftAt: null,
+      })),
+    });
+    const result = await listTrackActivities(
+      { actor: ACTOR_ID, trackId: TRACK_ID },
+      {
+        users: makeUsers(ACTOR),
+        groups: baseGroups(),
+        tracks: participantTracks,
+        policy: basePolicy(),
+        activities: makeActivities({ byTrack: vi.fn(async () => [inAudience, excluded]) }),
+        clock: { now: () => TEST_NOW },
+      },
+    );
+    expect(result.map((r) => r.id)).toEqual(["a_in_audience"]);
+  });
+
+  it("authority_sees_subset_through_list — facilitator sees subset rows they're not listed in", async () => {
+    // Mirror of the participant-exclusion case for the authority branch
+    // of `canSeeActivity`: a facilitator (track authority) must be able
+    // to see narrowed activities for QA purposes even when they aren't
+    // in `audience.userIds`. Without this branch, the composer surfaces
+    // and the list would diverge for the very role that needs to
+    // author + spot-check those activities.
+    //
+    // ACTOR is the default facilitator-enrolled actor; both rows surface.
+    const baseRow = {
+      trackId: TRACK_ID,
+      description: null,
+      partCount: 1,
+      partKindSequence: ["write_reflection"],
+      libraryRefCount: 0,
+      prereqCount: 0,
+      suggestedNextCount: 0,
+      window: null,
+      postClosePolicy: null,
+      completionRuleKind: "manual_mark" as const,
+      createdAt: TEST_NOW,
+      updatedAt: TEST_NOW,
+    };
+    const inAudience: LearningActivityListRow = {
+      ...baseRow,
+      id: "a_in_audience" as LearningActivityId,
+      title: "actor listed",
+      audience: { kind: "subset", userIds: [ACTOR_ID] },
+    };
+    const excluded: LearningActivityListRow = {
+      ...baseRow,
+      id: "a_excluded" as LearningActivityId,
+      title: "actor not listed",
+      audience: { kind: "subset", userIds: ["u_someone_else" as UserId] },
+    };
+    const result = await listTrackActivities(
+      { actor: ACTOR_ID, trackId: TRACK_ID },
+      {
+        users: makeUsers(ACTOR),
+        groups: baseGroups(),
+        tracks: facilitatorTracks(),
+        policy: basePolicy(),
+        activities: makeActivities({ byTrack: vi.fn(async () => [inAudience, excluded]) }),
+        clock: { now: () => TEST_NOW },
+      },
+    );
+    expect(result.map((r) => r.id)).toEqual(["a_in_audience", "a_excluded"]);
   });
 });
 
@@ -1201,11 +1357,10 @@ describe("set-activity-prerequisites / suggested-sequences", () => {
               libraryRefCount: 0,
               prereqCount: 0,
               suggestedNextCount: 0,
-              audienceKind: "everyone_enrolled" as const,
+              audience: { kind: "everyone_enrolled" as const },
               window: null,
               postClosePolicy: null,
               completionRuleKind: "manual_mark" as const,
-              accessState: "open" as const,
               createdAt: TEST_NOW,
               updatedAt: TEST_NOW,
             })),
@@ -1267,11 +1422,10 @@ describe("set-activity-prerequisites / suggested-sequences", () => {
               libraryRefCount: 0,
               prereqCount: 0,
               suggestedNextCount: 0,
-              audienceKind: "everyone_enrolled" as const,
+              audience: { kind: "everyone_enrolled" as const },
               window: null,
               postClosePolicy: null,
               completionRuleKind: "manual_mark" as const,
-              accessState: "open" as const,
               createdAt: TEST_NOW,
               updatedAt: TEST_NOW,
             })),

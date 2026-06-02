@@ -15,7 +15,7 @@ import { isAuthorityOverTrack } from "./is-authority-over-track.ts";
  * would muddy the audit trail).
  */
 export function canArchiveTrack(
-  actor: User,
+  _actor: User,
   group: StudyGroup,
   track: LearningTrack,
   groupMembership: GroupMembership | null,
@@ -38,6 +38,5 @@ export function canArchiveTrack(
       "Only a Group Admin or Track Facilitator may archive a Learning Track.",
     );
   }
-  void actor;
   return policyAllow();
 }

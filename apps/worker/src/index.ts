@@ -124,9 +124,12 @@ app.use("*", async (c, next) => {
       accessKeyId: env.R2_ACCESS_KEY_ID,
       secretAccessKey: env.R2_SECRET_ACCESS_KEY,
       bucket: "hearth-storage",
-      // 15-minute ceiling for presigned PUTs. R2/S3 caps at 7 days; we
-      // pick lower to limit blast radius if a URL leaks.
-      maxExpirySeconds: 900,
+      // 1-hour ceiling covers both presigned PUTs (callers ask for
+      // 15 min) and Activity Player signed GETs (1 h is the cadence the
+      // player uses to keep a media element backed by one URL for the
+      // duration of a typical viewing session). R2/S3 caps at 7 days; a
+      // tighter ceiling limits blast radius if a URL leaks.
+      maxExpirySeconds: 3600,
       ...(env.R2_DEV_PROXY
         ? {
             devProxy: {

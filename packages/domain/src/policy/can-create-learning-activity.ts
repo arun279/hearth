@@ -12,7 +12,7 @@ import { isAuthorityOverTrack } from "./is-authority-over-track.ts";
  * can rely on this predicate alone for the happy path.
  */
 export function canCreateLearningActivity(
-  actor: User,
+  _actor: User,
   group: StudyGroup,
   track: LearningTrack,
   groupMembership: GroupMembership | null,
@@ -36,6 +36,5 @@ export function canCreateLearningActivity(
       "Only a Group Admin or Track Facilitator may compose a Learning Activity.",
     );
   }
-  void actor;
   return policyAllow();
 }

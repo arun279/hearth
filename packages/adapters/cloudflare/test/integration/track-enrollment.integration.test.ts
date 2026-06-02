@@ -464,13 +464,15 @@ describe("track-enrollment adapter (real D1)", () => {
         owner: s.owner,
         group: s.group,
       }));
-      const trackB = await repos.tracksRepo.create({
+      // Side-effect: create a second track so the owner is facilitator
+      // on both via the create's first-enrollment path. The list assertion
+      // below proves it landed without needing the returned object.
+      await repos.tracksRepo.create({
         groupId: group.id,
         name: "B",
         description: null,
         createdBy: owner,
       });
-      // Owner is facilitator on both via create's first enrollment.
       const list = await repos.tracksRepo.enrollmentsForUser(owner);
       expect(list.length).toBe(2);
       // Demote one and then mark this enrollment left.
@@ -482,7 +484,6 @@ describe("track-enrollment adapter (real D1)", () => {
       });
       const after = await repos.tracksRepo.enrollmentsForUser(owner);
       expect(after).toEqual([]);
-      void trackB;
     });
   });
 });

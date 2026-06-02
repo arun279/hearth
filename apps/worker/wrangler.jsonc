@@ -69,13 +69,6 @@
 
   "observability": { "enabled": true },
 
-  // Environment-specific bindings. The `e2e` env isolates Playwright
-  // suites from the dev D1 so e2e teardown (`apps/web/e2e/auth.ts`
-  // `resetInstanceState`) can never collide with a developer's local
-  // state — separate `database_id` produces a separate Miniflare
-  // sqlite file. Migrations apply per-env, so playwright's
-  // globalSetup runs `wrangler d1 migrations apply --env e2e` before
-  // any spec.
   "env": {
     "e2e": {
       "d1_databases": [
@@ -111,10 +104,7 @@
         }
       ],
       "analytics_engine_datasets": [{ "binding": "ANALYTICS", "dataset": "hearth_e2e_telemetry" }],
-      "vars": {
-        "BETTER_AUTH_URL": "http://localhost:8788",
-        "BETTER_AUTH_TRUSTED_ORIGINS": "http://localhost:5174,http://localhost:8788"
-      }
+      "vars": {}
     }
   }
 }

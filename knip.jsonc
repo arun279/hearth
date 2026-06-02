@@ -32,9 +32,7 @@
   // actually imports the dep, remove its entry here.
   "ignoreDependencies": [
     "better-auth",
-    "react-dom",
     "tailwindcss",
-    "@types/react-dom",
     "@hono-rate-limiter/cloudflare",
     "@tanstack/react-query-devtools",
     "@tanstack/router-devtools"
