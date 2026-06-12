@@ -1,14 +1,15 @@
-import type {
-  LearningActivity,
-  LearningActivityDraft,
-  LearningActivityId,
-  LearningActivityListRow,
-  LearningTrack,
-  LearningTrackId,
-  LibraryItem,
-  LibraryItemId,
-  LibraryRevision,
-  UserId,
+import {
+  DomainError,
+  type LearningActivity,
+  type LearningActivityDraft,
+  type LearningActivityId,
+  type LearningActivityListRow,
+  type LearningTrack,
+  type LearningTrackId,
+  type LibraryItem,
+  type LibraryItemId,
+  type LibraryRevision,
+  type UserId,
 } from "@hearth/domain";
 import { describe, expect, it, vi } from "vitest";
 import { createActivity } from "../src/use-cases/create-activity.ts";
@@ -565,23 +566,23 @@ describe("update-activity", () => {
       uploadedBy: ACTOR_ID,
       uploadedAt: TEST_NOW,
     };
-    const update = vi.fn(async () => baseActivity);
-    const setLibraryRefs = vi.fn(async () => []);
-    const setPrerequisites = vi.fn(async () => []);
-    const setSuggestedSequences = vi.fn(async () => []);
     const finalState: LearningActivity = {
       ...baseActivity,
       title: "Final",
       prerequisiteActivityIds: [sibling.id],
       suggestedNextActivityIds: [sibling.id],
     };
+    // `update` writes body + every patched child collection in one batch
+    // and returns the assembled post-write aggregate.
+    const update = vi.fn(async () => finalState);
+    const setLibraryRefs = vi.fn(async () => []);
+    const setPrerequisites = vi.fn(async () => []);
+    const setSuggestedSequences = vi.fn(async () => []);
     const byId = vi.fn(async () => baseActivity);
-    // The use case calls byId twice: once for the initial viewability
-    // check + cycle context, and a second time for the post-orchestration
-    // reload that returns the assembled aggregate.
+    // byId fires for the viewability load and the cross-activity trackId
+    // lookup; persistence is the single `update` call.
     byId.mockResolvedValueOnce(baseActivity); // load-viewable
     byId.mockResolvedValueOnce(baseActivity); // cross-activity lookup of trackId
-    byId.mockResolvedValueOnce(finalState); // post-write reload
     const result = await updateActivity(
       {
         actor: ACTOR_ID,
@@ -615,10 +616,23 @@ describe("update-activity", () => {
       },
     );
     expect(result.title).toBe("Final");
-    expect(update).toHaveBeenCalled();
-    expect(setLibraryRefs).toHaveBeenCalled();
-    expect(setPrerequisites).toHaveBeenCalled();
-    expect(setSuggestedSequences).toHaveBeenCalled();
+    expect(update).toHaveBeenCalledTimes(1);
+    // The patched children ride in the single `update` call, not the
+    // standalone per-collection setters.
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: ACTIVITY_ID,
+        patch: expect.objectContaining({ title: "Final" }),
+        children: {
+          libraryRefs: [{ libraryItemId: ITEM_ID, pinnedRevisionId: null }],
+          prerequisites: [sibling.id],
+          suggestedSequences: [sibling.id],
+        },
+      }),
+    );
+    expect(setLibraryRefs).not.toHaveBeenCalled();
+    expect(setPrerequisites).not.toHaveBeenCalled();
+    expect(setSuggestedSequences).not.toHaveBeenCalled();
   });
 
   it("rejects a prereq pointing at the activity itself", async () => {
@@ -763,14 +777,12 @@ describe("update-activity", () => {
     ).rejects.toThrow(/not found/i);
   });
 
-  it("throws NOT_FOUND when the post-write reload sees the activity vanished", async () => {
-    // The orchestrated children writes succeed, then byId is called
-    // again to assemble the final aggregate. A concurrent delete in
-    // that gap means the reload returns null.
-    let calls = 0;
-    const byId = vi.fn(async () => {
-      calls += 1;
-      return calls === 1 ? baseActivity : null;
+  it("propagates NOT_FOUND when the atomic write sees the activity vanished", async () => {
+    // A concurrent delete between the viewability load and the write
+    // means the batch's post-write read finds no body row; the adapter
+    // surfaces NOT_FOUND, which the use case propagates unchanged.
+    const update = vi.fn(async () => {
+      throw new DomainError("NOT_FOUND", "Activity not found.", "not_found");
     });
     await expect(
       updateActivity(
@@ -786,8 +798,8 @@ describe("update-activity", () => {
           policy: basePolicy(),
           library: makeLibrary(),
           activities: makeActivities({
-            byId,
-            setLibraryRefs: vi.fn(async () => []),
+            byId: vi.fn(async () => baseActivity),
+            update,
           }),
         },
       ),
@@ -871,6 +883,85 @@ describe("get-activity / list-track-activities", () => {
       },
     );
     expect(result.id).toBe(ACTIVITY_ID);
+  });
+
+  const quizActivity: LearningActivity = {
+    ...baseActivity,
+    parts: [
+      {
+        kind: "quiz",
+        id: "p_quiz",
+        questions: [
+          {
+            id: "q1",
+            prompt: "MC",
+            shape: { kind: "multiple_choice", options: ["a", "b"], answerKeyIndex: 1 },
+          },
+          {
+            id: "q2",
+            prompt: "SA",
+            shape: {
+              kind: "short_answer",
+              correctAnswer: "yes",
+              alsoAccept: [],
+              exactMatch: false,
+            },
+          },
+        ],
+      },
+    ],
+  };
+
+  it("get returns unredacted quiz answer keys to an edit-authority caller", async () => {
+    const result = await getActivity(
+      { actor: ACTOR_ID, id: ACTIVITY_ID },
+      {
+        users: makeUsers(ACTOR),
+        groups: baseGroups(),
+        tracks: facilitatorTracks(),
+        policy: basePolicy(),
+        activities: makeActivities({ byId: vi.fn(async () => quizActivity) }),
+      },
+    );
+    const quiz = result.parts.find((p) => p.kind === "quiz");
+    expect(quiz?.kind).toBe("quiz");
+    if (quiz?.kind === "quiz") {
+      expect((quiz.questions[0]?.shape as { answerKeyIndex?: number }).answerKeyIndex).toBe(1);
+      expect((quiz.questions[1]?.shape as { correctAnswer?: string }).correctAnswer).toBe("yes");
+    }
+  });
+
+  it("get strips quiz answer keys for a non-editor viewer (no key leak via the detail route)", async () => {
+    const participantTracks = makeTracks({
+      byId: vi.fn(async () => ACTIVE_TRACK),
+      enrollment: vi.fn(async () => ({
+        trackId: TRACK_ID,
+        userId: ACTOR_ID,
+        role: "participant" as const,
+        enrolledAt: TEST_NOW,
+        leftAt: null,
+      })),
+    });
+    const result = await getActivity(
+      { actor: ACTOR_ID, id: ACTIVITY_ID },
+      {
+        users: makeUsers(ACTOR),
+        groups: baseGroups(),
+        tracks: participantTracks,
+        policy: basePolicy(),
+        activities: makeActivities({ byId: vi.fn(async () => quizActivity) }),
+      },
+    );
+    const quiz = result.parts.find((p) => p.kind === "quiz");
+    expect(quiz?.kind).toBe("quiz");
+    if (quiz?.kind === "quiz") {
+      expect(
+        (quiz.questions[0]?.shape as { answerKeyIndex?: number }).answerKeyIndex,
+      ).toBeUndefined();
+      expect(
+        (quiz.questions[1]?.shape as { correctAnswer?: string }).correctAnswer,
+      ).toBeUndefined();
+    }
   });
 
   it("list returns the projection", async () => {

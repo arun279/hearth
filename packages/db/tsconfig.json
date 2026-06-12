@@ -1,5 +1,5 @@
 {
   "extends": "@hearth/tsconfig/base.json",
-  "include": ["src/**/*.ts", "drizzle.config.ts"],
+  "include": ["src/**/*.ts", "drizzle.config.ts", "test/**/*.ts"],
   "exclude": ["node_modules", "dist", "migrations", ".ci"]
 }

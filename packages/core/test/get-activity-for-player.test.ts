@@ -275,4 +275,47 @@ describe("getActivityForPlayer", () => {
     const result = await getActivityForPlayer({ actor: ACTOR_ID, id: ACTIVITY_ID }, deps);
     expect(result.viewer.enrollmentStatus).toBe("not_enrolled");
   });
+
+  it("strips quiz answer keys from the projection so they never reach the client", async () => {
+    const activity = makeActivity({
+      parts: [
+        {
+          kind: "quiz",
+          id: "p_quiz",
+          questions: [
+            {
+              id: "q1",
+              prompt: "MC",
+              shape: { kind: "multiple_choice", options: ["a", "b"], answerKeyIndex: 1 },
+            },
+            {
+              id: "q2",
+              prompt: "SA",
+              shape: {
+                kind: "short_answer",
+                correctAnswer: "yes",
+                alsoAccept: [],
+                exactMatch: false,
+              },
+            },
+          ],
+        },
+      ],
+      flow: { prereqs: [], displayOrder: ["p_quiz"] },
+      libraryRefs: [],
+    });
+    const deps = depsOk({ activity });
+    const result = await getActivityForPlayer({ actor: ACTOR_ID, id: ACTIVITY_ID }, deps);
+    const quiz = result.activity.parts.find((p) => p.kind === "quiz");
+    expect(quiz?.kind).toBe("quiz");
+    if (quiz?.kind === "quiz") {
+      expect(
+        (quiz.questions[0]?.shape as { answerKeyIndex?: number }).answerKeyIndex,
+      ).toBeUndefined();
+      expect(
+        (quiz.questions[1]?.shape as { correctAnswer?: string }).correctAnswer,
+      ).toBeUndefined();
+      expect(quiz.questions[0]?.shape.kind).toBe("multiple_choice");
+    }
+  });
 });

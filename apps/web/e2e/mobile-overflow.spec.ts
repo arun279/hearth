@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { attachSession, resetInstanceState, seedOperator } from "./auth.ts";
+import { attachSession, resetInstanceState, seedGroupWithTrack, seedOperator } from "./auth.ts";
 
 const BOOTSTRAP_USER = {
   userId: "u_e2e_op_overflow",
@@ -232,6 +232,58 @@ test.describe("Mobile (375px) overflow regression guard", () => {
     await expect(page.getByRole("dialog", { name: /Upload to Library/i })).toBeVisible();
     await expectNoOverflow(page, "Library upload dialog");
     await page.keyboard.press("Escape");
+
+    await context.close();
+  });
+
+  // The visibility popover sits low on the reflection Part. On a short
+  // viewport its panel would clip off the bottom edge if it always opened
+  // downward — the Popover primitive's collision-aware vertical flip is what
+  // keeps every option reachable. A 1280×680 desktop-but-short window puts
+  // the trigger far enough down the player to force the flip.
+  test("Activity Player visibility popover keeps every option in view on a short viewport", async ({
+    browser,
+  }) => {
+    const op = await seedOperator(BOOTSTRAP_USER);
+    const context = await browser.newContext({ viewport: { width: 1280, height: 680 } });
+    await attachSession(context, op.cookie);
+    const page = await context.newPage();
+
+    const { groupId, trackId } = await seedGroupWithTrack(context, {
+      groupName: "Tuesday Night Learners",
+      trackName: "Beginner Spanish",
+    });
+
+    const activityRes = await context.request.post(`/api/v1/tracks/${trackId}/activities`, {
+      data: {
+        trackId,
+        title: "Greetings & introductions",
+        parts: [
+          { kind: "write_reflection", id: "p_reflect", prompt: "What's your favorite phrase?" },
+        ],
+        flow: { prereqs: [], displayOrder: ["p_reflect"] },
+        audience: { kind: "everyone_enrolled" },
+        completionRule: { kind: "manual_mark" },
+        libraryRefs: [],
+        prerequisiteActivityIds: [],
+        suggestedNextActivityIds: [],
+      },
+      headers: { "content-type": "application/json" },
+    });
+    expect(activityRes.status()).toBe(201);
+    const { id: activityId } = (await activityRes.json()) as { id: string };
+
+    await page.goto(`/g/${groupId}/t/${trackId}/a/${activityId}`);
+    await expect(page.getByRole("heading", { name: /Greetings & introductions/i })).toBeVisible();
+
+    await page.getByRole("button", { name: /Visibility:/i }).click();
+    // The radios carry "<label> <description>" as their accessible name; match
+    // on a unique description fragment. The chooser offers the two concrete
+    // override scopes — "Track only" and "Just me" — while inheriting the
+    // account default is a separate clear action, not a radio.
+    for (const fragment of [/Only this track/i, /Hidden from the group/i]) {
+      await expect(page.getByRole("radio", { name: fragment })).toBeInViewport();
+    }
 
     await context.close();
   });

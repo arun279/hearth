@@ -55,13 +55,14 @@ export type UpdateActivityDeps = {
  * invariant via `validateActivityDraft`, so a "title only" or "audience
  * only" patch still gets full-shape validation against the activity's
  * current state. Cross-activity prereq cycles are pre-checked here; the
- * adapter re-runs the same check inside its transaction (defense in
- * depth — concurrent edits cannot slip through the gap).
+ * adapter re-runs the same check inside its batch (defense in depth —
+ * concurrent edits cannot slip through the gap).
  *
- * Persistence is sequenced: body row first, then library refs, prereqs,
- * suggested-sequences. Each port call is atomic. A mid-sequence failure
- * leaves the body updated but children stale; the user retries and the
- * idempotent wholesale-replace converges.
+ * Persistence is a single `update` call: the body row and whichever
+ * child collections (library refs, prereqs, suggested-sequences) the
+ * patch touched land in one D1 batch, so a mid-sequence failure rolls
+ * the whole save back rather than leaving the body updated with stale
+ * children. The call returns the assembled post-write aggregate.
  */
 export async function updateActivity(
   input: UpdateActivityInput,
@@ -116,69 +117,48 @@ export async function updateActivity(
     );
   }
 
-  const hasBodyPatch =
-    input.patch.title !== undefined ||
-    input.patch.description !== undefined ||
-    input.patch.parts !== undefined ||
-    input.patch.flow !== undefined ||
-    input.patch.audience !== undefined ||
-    input.patch.window !== undefined ||
-    input.patch.postClosePolicy !== undefined ||
-    input.patch.completionRule !== undefined;
+  const bodyPatch = {
+    ...(input.patch.title !== undefined ? { title: merged.title } : {}),
+    ...(input.patch.description !== undefined ? { description: merged.description } : {}),
+    ...(input.patch.parts !== undefined ? { parts: merged.parts } : {}),
+    ...(input.patch.flow !== undefined ? { flow: merged.flow } : {}),
+    ...(input.patch.audience !== undefined ? { audience: merged.audience } : {}),
+    ...(input.patch.window !== undefined ? { window: merged.window } : {}),
+    ...(input.patch.postClosePolicy !== undefined
+      ? { postClosePolicy: merged.postClosePolicy }
+      : {}),
+    ...(input.patch.completionRule !== undefined ? { completionRule: merged.completionRule } : {}),
+  };
 
-  let updated: LearningActivity | null = null;
-  if (hasBodyPatch) {
-    updated = await deps.activities.update({
-      id: input.id,
-      patch: {
-        title: merged.title,
-        description: merged.description,
-        parts: merged.parts,
-        flow: merged.flow,
-        audience: merged.audience,
-        window: merged.window,
-        postClosePolicy: merged.postClosePolicy,
-        completionRule: merged.completionRule,
-      },
-      by: input.actor,
-    });
-  }
+  const children = {
+    ...(input.patch.libraryRefs !== undefined ? { libraryRefs: input.patch.libraryRefs } : {}),
+    ...(input.patch.prerequisiteActivityIds !== undefined
+      ? { prerequisites: input.patch.prerequisiteActivityIds }
+      : {}),
+    ...(input.patch.suggestedNextActivityIds !== undefined
+      ? { suggestedSequences: input.patch.suggestedNextActivityIds }
+      : {}),
+  };
 
-  let touchedChildren = false;
-  if (input.patch.libraryRefs !== undefined) {
-    await deps.activities.setLibraryRefs({
-      activityId: input.id,
-      refs: input.patch.libraryRefs,
-    });
-    touchedChildren = true;
-  }
-  if (input.patch.prerequisiteActivityIds !== undefined) {
-    await deps.activities.setPrerequisites({
-      activityId: input.id,
-      prerequisiteActivityIds: input.patch.prerequisiteActivityIds,
-    });
-    touchedChildren = true;
-  }
-  if (input.patch.suggestedNextActivityIds !== undefined) {
-    await deps.activities.setSuggestedSequences({
-      activityId: input.id,
-      nextActivityIds: input.patch.suggestedNextActivityIds,
-    });
-    touchedChildren = true;
+  // Nothing to persist (the patch carried no body field and no child
+  // collection): hand back the current aggregate rather than issuing an
+  // empty write.
+  if (Object.keys(bodyPatch).length === 0 && Object.keys(children).length === 0) {
+    const current = await deps.activities.byId(input.id);
+    if (!current) {
+      throw new DomainError("NOT_FOUND", "Activity not found.", "not_found");
+    }
+    return current;
   }
 
-  // The body update returns the freshly-read aggregate; if no children
-  // changed we hand it back directly. Children writes mutate other
-  // tables (refs / prereqs / suggested) without re-reading the parent,
-  // so a final composite read assembles the post-write shape.
-  if (!touchedChildren && updated) {
-    return updated;
-  }
-  const final = await deps.activities.byId(input.id);
-  if (!final) {
-    throw new DomainError("NOT_FOUND", "Activity not found.", "not_found");
-  }
-  return final;
+  // One atomic write: body + every patched child collection land in a
+  // single D1 batch and `update` returns the assembled post-write shape.
+  return deps.activities.update({
+    id: input.id,
+    patch: bodyPatch,
+    children,
+    by: input.actor,
+  });
 }
 
 async function validateCrossActivityPrereqs(

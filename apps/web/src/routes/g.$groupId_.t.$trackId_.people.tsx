@@ -300,6 +300,9 @@ function TrackPeopleBody({
         confirmLabel={promote.isPending ? "Promoting…" : "Promote"}
         tone="primary"
         pending={promote.isPending}
+        errorMessage={
+          promote.isError ? asUserMessage(promote.error, "Couldn't promote.") : undefined
+        }
         onClose={() => setConfirming(null)}
         onConfirm={async () => {
           if (confirming?.kind !== "promote") return;
@@ -324,6 +327,7 @@ function TrackPeopleBody({
         confirmLabel={demote.isPending ? "Demoting…" : "Demote"}
         tone="primary"
         pending={demote.isPending}
+        errorMessage={demote.isError ? asUserMessage(demote.error, "Couldn't demote.") : undefined}
         onClose={() => setConfirming(null)}
         onConfirm={async () => {
           if (confirming?.kind !== "demote") return;
@@ -348,6 +352,7 @@ function TrackPeopleBody({
         confirmLabel={remove.isPending ? "Removing…" : "Remove"}
         tone="destructive"
         pending={remove.isPending}
+        errorMessage={remove.isError ? asUserMessage(remove.error, "Couldn't remove.") : undefined}
         onClose={() => setConfirming(null)}
         onConfirm={async () => {
           if (confirming?.kind !== "remove") return;

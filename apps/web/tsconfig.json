@@ -1,5 +1,5 @@
 {
   "extends": "@hearth/tsconfig/web.json",
-  "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts", "test/**/*.ts"],
   "exclude": ["node_modules", "dist", "e2e", "playwright.config.ts"]
 }

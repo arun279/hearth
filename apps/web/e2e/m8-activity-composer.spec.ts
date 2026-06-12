@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { attachSession, resetInstanceState, seedOperator } from "./auth.ts";
+import { attachSession, resetInstanceState, seedGroupWithTrack, seedOperator } from "./auth.ts";
 
 const BOOTSTRAP_USER = {
   userId: "u_e2e_op_m8",
@@ -21,19 +21,11 @@ test.describe("M8 — Activity composer", () => {
     // Seed a group + track via API so the test stays focused on the
     // composer surface rather than the upstream creation flows already
     // exercised by m2/m4.
-    const groupRes = await context.request.post("/api/v1/g", {
-      data: { name: "Tuesday Night Learners" },
-      headers: { "content-type": "application/json" },
+    const { groupId, trackId } = await seedGroupWithTrack(context, {
+      groupName: "Tuesday Night Learners",
+      trackName: "Beginner Spanish",
+      description: "A patient pace through the basics.",
     });
-    expect(groupRes.status()).toBe(201);
-    const { id: groupId } = (await groupRes.json()) as { id: string };
-
-    const trackRes = await context.request.post(`/api/v1/g/${groupId}/tracks`, {
-      data: { name: "Beginner Spanish", description: "A patient pace through the basics." },
-      headers: { "content-type": "application/json" },
-    });
-    expect(trackRes.status()).toBe(201);
-    const { id: trackId } = (await trackRes.json()) as { id: string };
 
     await page.goto(`/g/${groupId}/t/${trackId}`);
     await expect(page.getByRole("heading", { name: "Beginner Spanish" })).toBeVisible();
@@ -97,16 +89,10 @@ test.describe("M8 — Activity composer", () => {
     await attachSession(context, op.cookie);
     const page = await context.newPage();
 
-    const groupRes = await context.request.post("/api/v1/g", {
-      data: { name: "Tuesday Night Learners" },
-      headers: { "content-type": "application/json" },
+    const { groupId, trackId } = await seedGroupWithTrack(context, {
+      groupName: "Tuesday Night Learners",
+      trackName: "Beginner Spanish",
     });
-    const { id: groupId } = (await groupRes.json()) as { id: string };
-    const trackRes = await context.request.post(`/api/v1/g/${groupId}/tracks`, {
-      data: { name: "Beginner Spanish" },
-      headers: { "content-type": "application/json" },
-    });
-    const { id: trackId } = (await trackRes.json()) as { id: string };
 
     await page.goto(`/g/${groupId}/t/${trackId}`);
     await page.getByRole("button", { name: /New activity/i }).click();
@@ -138,16 +124,10 @@ test.describe("M8 — Activity composer", () => {
     await attachSession(context, op.cookie);
     const page = await context.newPage();
 
-    const groupRes = await context.request.post("/api/v1/g", {
-      data: { name: "Tuesday Night Learners" },
-      headers: { "content-type": "application/json" },
+    const { groupId, trackId } = await seedGroupWithTrack(context, {
+      groupName: "Tuesday Night Learners",
+      trackName: "Beginner Spanish",
     });
-    const { id: groupId } = (await groupRes.json()) as { id: string };
-    const trackRes = await context.request.post(`/api/v1/g/${groupId}/tracks`, {
-      data: { name: "Beginner Spanish" },
-      headers: { "content-type": "application/json" },
-    });
-    const { id: trackId } = (await trackRes.json()) as { id: string };
 
     await page.goto(`/g/${groupId}/t/${trackId}`);
     await page.getByRole("button", { name: /New activity/i }).click();

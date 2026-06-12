@@ -4,6 +4,7 @@ import type { ActivityPart, LearningActivityDraft, StudyGroupId, UserId } from "
 import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
 import { describe, expect, it } from "vitest";
+import { createActivityRecordRepository } from "../../src/activity-record-repository.ts";
 import { createKillswitchGate } from "../../src/killswitch.ts";
 import { createLearningActivityRepository } from "../../src/learning-activity-repository.ts";
 import { createLearningTrackRepository } from "../../src/learning-track-repository.ts";
@@ -25,6 +26,9 @@ import { createSystemFlagRepository } from "../../src/system-flag-repository.ts"
  *     `library_items` row is FK-blocked at the DB layer.
  *   - `setPrerequisites` re-runs the cross-activity acyclic invariant
  *     inside the transaction; the post-write graph cannot land a cycle.
+ *   - `update` writes the body row + every patched child collection in
+ *     ONE batch: a child FK violation rolls the body write back too, so
+ *     no partial state lands.
  */
 describe("learning-activity adapter (real D1)", () => {
   function buildRepos() {
@@ -37,6 +41,7 @@ describe("learning-activity adapter (real D1)", () => {
       tracksRepo: createLearningTrackRepository({ db, gate }),
       library: createLibraryItemRepository({ db, gate }),
       activities: createLearningActivityRepository({ db, gate }),
+      records: createActivityRecordRepository({ db, gate }),
     };
   }
 
@@ -278,6 +283,67 @@ describe("learning-activity adapter (real D1)", () => {
     });
   });
 
+  describe("delete cascades participant Activity Records", () => {
+    it("deletes an activity a participant has worked, clearing record + progress + signals", async () => {
+      const repos = buildRepos();
+      const { creator, track } = await setupTrack(repos, "ac_del_rec");
+      const activity = await repos.activities.create({
+        draft: baseDraft(track.id),
+        createdBy: creator,
+      });
+
+      // A participant touches the activity: a record + part_progress (which
+      // also produces part_history) and an evidence_signals row keyed to the
+      // activity. activity_records / evidence_signals carry a non-cascading FK
+      // to learning_activities, so before the cascade fix this delete tripped
+      // FK RESTRICT with a 500.
+      const record = await repos.records.upsert({
+        activityId: activity.id,
+        participantId: creator,
+      });
+      await repos.records.savePartProgress({
+        activityRecordId: record.id,
+        partId: "p1" as never,
+        state: { kind: "write_reflection", completed: true, text: "done" },
+      });
+      const now = new Date();
+      await repos.db.insert(schema.evidenceSignals).values({
+        id: `es_${Math.random().toString(36).slice(2, 10)}`,
+        activityId: activity.id,
+        participantId: creator,
+        partId: "p1",
+        signalType: "word_count",
+        valueJson: JSON.stringify({ value: 1 }),
+        updatedAt: now,
+      });
+
+      await expect(
+        repos.activities.delete({ id: activity.id, by: creator }),
+      ).resolves.toBeUndefined();
+
+      expect(await repos.activities.byId(activity.id)).toBeNull();
+      expect(
+        await repos.db
+          .select({ id: schema.activityRecords.id })
+          .from(schema.activityRecords)
+          .where(eq(schema.activityRecords.activityId, activity.id)),
+      ).toEqual([]);
+      // part_progress / part_history cascade from the deleted record.
+      expect(
+        await repos.db
+          .select({ id: schema.partProgress.id })
+          .from(schema.partProgress)
+          .where(eq(schema.partProgress.activityRecordId, record.id)),
+      ).toEqual([]);
+      expect(
+        await repos.db
+          .select({ id: schema.evidenceSignals.id })
+          .from(schema.evidenceSignals)
+          .where(eq(schema.evidenceSignals.activityId, activity.id)),
+      ).toEqual([]);
+    });
+  });
+
   describe("setLibraryRefs is wholesale replace", () => {
     it("replacing refs deletes the prior set", async () => {
       const repos = buildRepos();
@@ -361,9 +427,22 @@ describe("learning-activity adapter (real D1)", () => {
   describe("concurrent track-archive vs activity-delete race", () => {
     it("the loser sees CONFLICT track_archived; the row never ends in a torn state", async () => {
       const repos = buildRepos();
-      const { creator, track } = await setupTrack(repos, "ac_race_del");
+      const { creator, group, track } = await setupTrack(repos, "ac_race_del");
+      const item = await seedPdfItem(repos, group.id, creator);
+      // A suggested-sequence target — deleting an activity that is held as
+      // a prerequisite is FK-blocked, but suggested edges and library refs
+      // are safe to seed and let the "children stripped while parent
+      // stays" torn write be detectable on a refused delete.
+      const nextTarget = await repos.activities.create({
+        draft: { ...baseDraft(track.id), title: "Next" },
+        createdBy: creator,
+      });
       const created = await repos.activities.create({
-        draft: baseDraft(track.id),
+        draft: {
+          ...baseDraft(track.id),
+          libraryRefs: [{ libraryItemId: item.item.id, pinnedRevisionId: null }],
+          suggestedNextActivityIds: [nextTarget.id],
+        },
         createdBy: creator,
       });
 
@@ -372,7 +451,9 @@ describe("learning-activity adapter (real D1)", () => {
       // child rows in activity_library_refs / activity_prerequisites
       // / activity_suggested_sequences); a refused delete must leave
       // the parent + children intact and surface as CONFLICT
-      // track_archived.
+      // track_archived — every child delete is archived-gated, so it
+      // cannot strip the collections while the gated parent delete is
+      // refused.
       const results = await Promise.allSettled([
         repos.activities.delete({ id: created.id, by: creator }),
         repos.tracksRepo.updateStatus({
@@ -406,11 +487,360 @@ describe("learning-activity adapter (real D1)", () => {
         // Successful delete — children must also be gone. byId would
         // have returned the assembled aggregate including children,
         // so a null aggregate already implies children are gone.
+        expect(
+          await repos.db
+            .select({ id: schema.activityLibraryRefs.id })
+            .from(schema.activityLibraryRefs)
+            .where(eq(schema.activityLibraryRefs.activityId, created.id)),
+        ).toEqual([]);
+        expect(
+          await repos.db
+            .select({ id: schema.activitySuggestedSequences.id })
+            .from(schema.activitySuggestedSequences)
+            .where(eq(schema.activitySuggestedSequences.activityId, created.id)),
+        ).toEqual([]);
         return;
       }
-      // Refused delete — every child set is intact (an empty draft, so
-      // the assertion is "the activity is still readable").
+      // Refused delete — the parent stayed, so every child set the delete
+      // would have stripped is still present (no torn delete).
       expect(after.id).toBe(created.id);
+      expect(after.libraryRefs.map((r) => r.libraryItemId)).toEqual([item.item.id]);
+      expect(after.suggestedNextActivityIds).toEqual([nextTarget.id]);
+    });
+
+    it("a delete against an already-archived track refuses with CONFLICT and strips no child set", async () => {
+      // Deterministic counterpart to the race above: archiving first puts
+      // the delete's gated batch in the exact state a losing delete
+      // observes (the local harness otherwise resolves the race with the
+      // delete winning, so the torn-delete path goes unexercised). Every
+      // child delete carries the same archived gate as the parent, so the
+      // whole batch no-ops together — children are NOT stripped while the
+      // parent stays.
+      const repos = buildRepos();
+      const { creator, group, track } = await setupTrack(repos, "ac_del_frozen");
+      const item = await seedPdfItem(repos, group.id, creator);
+      const nextTarget = await repos.activities.create({
+        draft: { ...baseDraft(track.id), title: "Next" },
+        createdBy: creator,
+      });
+      const created = await repos.activities.create({
+        draft: {
+          ...baseDraft(track.id),
+          libraryRefs: [{ libraryItemId: item.item.id, pinnedRevisionId: null }],
+          suggestedNextActivityIds: [nextTarget.id],
+        },
+        createdBy: creator,
+      });
+
+      await repos.tracksRepo.updateStatus({
+        id: track.id,
+        to: "archived",
+        expectedFromStatus: "active",
+        by: creator,
+      });
+
+      await expect(repos.activities.delete({ id: created.id, by: creator })).rejects.toMatchObject({
+        code: "CONFLICT",
+        reason: "track_archived",
+      });
+
+      const after = await repos.activities.byId(created.id);
+      expect(after?.id).toBe(created.id);
+      expect(after?.libraryRefs.map((r) => r.libraryItemId)).toEqual([item.item.id]);
+      expect(after?.suggestedNextActivityIds).toEqual([nextTarget.id]);
+    });
+  });
+
+  describe("update batches body + children atomically", () => {
+    it("a child FK violation rolls back the body UPDATE — no partial state lands", async () => {
+      const repos = buildRepos();
+      const { creator, track } = await setupTrack(repos, "ac_atomic");
+      const created = await repos.activities.create({
+        draft: { ...baseDraft(track.id), title: "Original title" },
+        createdBy: creator,
+      });
+
+      // Drive a combined save: a real body patch (new title) AND a
+      // library-ref child patch pointing at a library_items id that does
+      // not exist. The ref INSERT trips the FK on
+      // activity_library_refs.library_item_id, so the whole batch rejects.
+      //
+      // Pre-fix, this same save was a body `update` (auto-committed) THEN a
+      // separate `setLibraryRefs` (FK-fails): the title would have persisted
+      // while the ref write failed — exactly the torn state this proves is
+      // gone. With the combined batch, the failing INSERT rolls the body
+      // UPDATE back too.
+      await expect(
+        repos.activities.update({
+          id: created.id,
+          patch: { title: "Renamed in a doomed save" },
+          children: {
+            libraryRefs: [{ libraryItemId: "li_does_not_exist", pinnedRevisionId: null }],
+          },
+          by: creator,
+        }),
+      ).rejects.toThrow();
+
+      // The body row is untouched: title is still the original, and no
+      // library-ref row leaked from the rejected batch.
+      const after = await repos.activities.byId(created.id);
+      expect(after?.title).toBe("Original title");
+      expect(after?.libraryRefs).toEqual([]);
+      expect(
+        await repos.db
+          .select({ id: schema.activityLibraryRefs.id })
+          .from(schema.activityLibraryRefs)
+          .where(eq(schema.activityLibraryRefs.activityId, created.id)),
+      ).toEqual([]);
+    });
+
+    it("a valid combined save lands the body patch and every child set in one batch", async () => {
+      const repos = buildRepos();
+      const { creator, group, track } = await setupTrack(repos, "ac_atomic_ok");
+      const item = await seedPdfItem(repos, group.id, creator);
+      const created = await repos.activities.create({
+        draft: { ...baseDraft(track.id), title: "Before" },
+        createdBy: creator,
+      });
+      const sibling = await repos.activities.create({
+        draft: { ...baseDraft(track.id), title: "Sibling" },
+        createdBy: creator,
+      });
+
+      const updated = await repos.activities.update({
+        id: created.id,
+        patch: { title: "After" },
+        children: {
+          libraryRefs: [{ libraryItemId: item.item.id, pinnedRevisionId: null }],
+          prerequisites: [sibling.id],
+          suggestedSequences: [sibling.id],
+        },
+        by: creator,
+      });
+
+      expect(updated.title).toBe("After");
+      expect(updated.libraryRefs.map((r) => r.libraryItemId)).toEqual([item.item.id]);
+      expect(updated.prerequisiteActivityIds).toEqual([sibling.id]);
+      expect(updated.suggestedNextActivityIds).toEqual([sibling.id]);
+
+      const round = await repos.activities.byId(created.id);
+      expect(round?.title).toBe("After");
+      expect(round?.libraryRefs.map((r) => r.libraryItemId)).toEqual([item.item.id]);
+      expect(round?.prerequisiteActivityIds).toEqual([sibling.id]);
+      expect(round?.suggestedNextActivityIds).toEqual([sibling.id]);
+    });
+
+    it("a children-only save leaves the body row untouched and rejects a cross-activity cycle", async () => {
+      const repos = buildRepos();
+      const { creator, track } = await setupTrack(repos, "ac_atomic_cycle");
+      const a = await repos.activities.create({
+        draft: { ...baseDraft(track.id), title: "A" },
+        createdBy: creator,
+      });
+      const b = await repos.activities.create({
+        draft: { ...baseDraft(track.id), title: "B" },
+        createdBy: creator,
+      });
+
+      // a → b via the combined update's children-only path (empty body patch).
+      const aUpdated = await repos.activities.update({
+        id: a.id,
+        patch: {},
+        children: { prerequisites: [b.id] },
+        by: creator,
+      });
+      expect(aUpdated.prerequisiteActivityIds).toEqual([b.id]);
+
+      // Proposing b → a closes a 2-node cycle — the in-batch acyclic
+      // re-check must reject before any edge lands.
+      await expect(
+        repos.activities.update({
+          id: b.id,
+          patch: {},
+          children: { prerequisites: [a.id] },
+          by: creator,
+        }),
+      ).rejects.toThrow(/cycle/i);
+      // The rejected save left b with no prereq edges.
+      expect((await repos.activities.byId(b.id))?.prerequisiteActivityIds).toEqual([]);
+    });
+
+    it("a combined body+children save racing an archive leaves BOTH the body and every child set unchanged on CONFLICT", async () => {
+      const repos = buildRepos();
+      const { creator, group, track } = await setupTrack(repos, "ac_atomic_race");
+      const item1 = await seedPdfItem(repos, group.id, creator);
+      const item2 = await seedPdfItem(repos, group.id, creator);
+      // Two siblings give the seed and the proposed save DISTINCT child
+      // sets, so "unchanged on CONFLICT" is observable rather than a
+      // coincidental match.
+      const seedSibling = await repos.activities.create({
+        draft: { ...baseDraft(track.id), title: "Seed sibling" },
+        createdBy: creator,
+      });
+      const nextSibling = await repos.activities.create({
+        draft: { ...baseDraft(track.id), title: "Next sibling" },
+        createdBy: creator,
+      });
+      const created = await repos.activities.create({
+        draft: {
+          ...baseDraft(track.id),
+          title: "Original title",
+          libraryRefs: [{ libraryItemId: item1.item.id, pinnedRevisionId: null }],
+          prerequisiteActivityIds: [seedSibling.id],
+          suggestedNextActivityIds: [seedSibling.id],
+        },
+        createdBy: creator,
+      });
+
+      // Race a combined body+children save against the parent track's
+      // archive. Every write in the update batch is archived-gated, so
+      // the loser must no-op every collection together: a CONFLICT must
+      // NOT leave the children replaced while the body stayed stale (the
+      // torn write a children-first / gated-body-last batch would land if
+      // the child writes were ungated).
+      const results = await Promise.allSettled([
+        repos.activities.update({
+          id: created.id,
+          patch: { title: "Renamed during race" },
+          children: {
+            libraryRefs: [{ libraryItemId: item2.item.id, pinnedRevisionId: null }],
+            prerequisites: [nextSibling.id],
+            suggestedSequences: [nextSibling.id],
+          },
+          by: creator,
+        }),
+        repos.tracksRepo.updateStatus({
+          id: track.id,
+          to: "archived",
+          expectedFromStatus: "active",
+          by: creator,
+        }),
+      ]);
+
+      const updateResult = results[0];
+      const after = await repos.activities.byId(created.id);
+      expect(after).not.toBeNull();
+      if (updateResult.status === "rejected") {
+        const err = updateResult.reason as { code?: string; reason?: string };
+        expect(err.code).toBe("CONFLICT");
+        expect(err.reason).toBe("track_archived");
+        // No torn write: the body and ALL THREE child collections are
+        // exactly the seed, never the proposed-but-refused values.
+        expect(after?.title).toBe("Original title");
+        expect(after?.libraryRefs.map((r) => r.libraryItemId)).toEqual([item1.item.id]);
+        expect(after?.prerequisiteActivityIds).toEqual([seedSibling.id]);
+        expect(after?.suggestedNextActivityIds).toEqual([seedSibling.id]);
+      } else {
+        // The save won the race: body and every child set reflect the
+        // proposed values, consistently.
+        expect(after?.title).toBe("Renamed during race");
+        expect(after?.libraryRefs.map((r) => r.libraryItemId)).toEqual([item2.item.id]);
+        expect(after?.prerequisiteActivityIds).toEqual([nextSibling.id]);
+        expect(after?.suggestedNextActivityIds).toEqual([nextSibling.id]);
+      }
+    });
+
+    it("a combined body+children save against an already-archived track refuses with CONFLICT and lands no write", async () => {
+      // Deterministic counterpart to the race above: archiving first puts
+      // the activity in the exact state a losing combined save observes
+      // (its gated batch runs against an archived track). This guarantees
+      // the loser path is exercised regardless of scheduling — the race
+      // alone may resolve with the save winning. Every gated write in the
+      // batch must no-op together: a refused conditional write matches
+      // zero rows, which does NOT roll a D1 batch back, so an ungated
+      // child write here would replace the collections off the frozen row.
+      const repos = buildRepos();
+      const { creator, group, track } = await setupTrack(repos, "ac_atomic_frozen");
+      const item1 = await seedPdfItem(repos, group.id, creator);
+      const item2 = await seedPdfItem(repos, group.id, creator);
+      const seedSibling = await repos.activities.create({
+        draft: { ...baseDraft(track.id), title: "Seed sibling" },
+        createdBy: creator,
+      });
+      const nextSibling = await repos.activities.create({
+        draft: { ...baseDraft(track.id), title: "Next sibling" },
+        createdBy: creator,
+      });
+      const created = await repos.activities.create({
+        draft: {
+          ...baseDraft(track.id),
+          title: "Original title",
+          libraryRefs: [{ libraryItemId: item1.item.id, pinnedRevisionId: null }],
+          prerequisiteActivityIds: [seedSibling.id],
+          suggestedNextActivityIds: [seedSibling.id],
+        },
+        createdBy: creator,
+      });
+
+      await repos.tracksRepo.updateStatus({
+        id: track.id,
+        to: "archived",
+        expectedFromStatus: "active",
+        by: creator,
+      });
+
+      await expect(
+        repos.activities.update({
+          id: created.id,
+          patch: { title: "Renamed onto a frozen track" },
+          children: {
+            libraryRefs: [{ libraryItemId: item2.item.id, pinnedRevisionId: null }],
+            prerequisites: [nextSibling.id],
+            suggestedSequences: [nextSibling.id],
+          },
+          by: creator,
+        }),
+      ).rejects.toMatchObject({ code: "CONFLICT", reason: "track_archived" });
+
+      const after = await repos.activities.byId(created.id);
+      expect(after?.title).toBe("Original title");
+      expect(after?.libraryRefs.map((r) => r.libraryItemId)).toEqual([item1.item.id]);
+      expect(after?.prerequisiteActivityIds).toEqual([seedSibling.id]);
+      expect(after?.suggestedNextActivityIds).toEqual([seedSibling.id]);
+    });
+
+    it("a children-only save against an already-archived track refuses with CONFLICT and lands no write", async () => {
+      // The children-only path replaces the body UPDATE with a gated no-op
+      // touch; without it a refused children save would return a silent
+      // success while the gated child writes no-op'd. The frozen-track
+      // save must surface CONFLICT and leave the seeded children intact.
+      const repos = buildRepos();
+      const { creator, track } = await setupTrack(repos, "ac_children_frozen");
+      const seedSibling = await repos.activities.create({
+        draft: { ...baseDraft(track.id), title: "Seed sibling" },
+        createdBy: creator,
+      });
+      const nextSibling = await repos.activities.create({
+        draft: { ...baseDraft(track.id), title: "Next sibling" },
+        createdBy: creator,
+      });
+      const created = await repos.activities.create({
+        draft: {
+          ...baseDraft(track.id),
+          prerequisiteActivityIds: [seedSibling.id],
+        },
+        createdBy: creator,
+      });
+
+      await repos.tracksRepo.updateStatus({
+        id: track.id,
+        to: "archived",
+        expectedFromStatus: "active",
+        by: creator,
+      });
+
+      await expect(
+        repos.activities.update({
+          id: created.id,
+          patch: {},
+          children: { prerequisites: [nextSibling.id] },
+          by: creator,
+        }),
+      ).rejects.toMatchObject({ code: "CONFLICT", reason: "track_archived" });
+
+      expect((await repos.activities.byId(created.id))?.prerequisiteActivityIds).toEqual([
+        seedSibling.id,
+      ]);
     });
   });
 });

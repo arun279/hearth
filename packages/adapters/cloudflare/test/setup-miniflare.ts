@@ -1,15 +1,20 @@
-import { applyD1Migrations, env } from "cloudflare:test";
+import { applyD1Migrations, type D1Migration, env } from "cloudflare:test";
 import { beforeEach } from "vitest";
 
 /**
- * Augment the `cloudflare:test` module with the bindings we declare in
+ * Augment `Cloudflare.Env` with the bindings we declare in
  * `wrangler.test.jsonc` so `env.DB` and friends are typed in every suite.
+ * `cloudflare:test` types `env` as `Cloudflare.Env`; the workers-types
+ * `Cloudflare` namespace is the documented extension point (`wrangler types`
+ * generates the same declaration-merge target).
  */
-declare module "cloudflare:test" {
-  interface ProvidedEnv {
-    readonly DB: D1Database;
-    readonly STORAGE: R2Bucket;
-    readonly TEST_MIGRATIONS: D1Migration[];
+declare global {
+  namespace Cloudflare {
+    interface Env {
+      readonly DB: D1Database;
+      readonly STORAGE: R2Bucket;
+      readonly TEST_MIGRATIONS: D1Migration[];
+    }
   }
 }
 
@@ -44,6 +49,13 @@ beforeEach(async () => {
     env.DB.prepare("DELETE FROM activity_prerequisites"),
     env.DB.prepare("DELETE FROM activity_suggested_sequences"),
     env.DB.prepare("DELETE FROM activity_library_refs"),
+    // Participant state: part_progress + part_history have NOT-NULL FKs into
+    // activity_records with onDelete cascade, so the activity_records delete
+    // clears them. activity_records + evidence_signals reference
+    // learning_activities under FK no-action, so both must be cleared before
+    // the learning_activities delete below.
+    env.DB.prepare("DELETE FROM evidence_signals"),
+    env.DB.prepare("DELETE FROM activity_records"),
     env.DB.prepare("DELETE FROM learning_activities"),
     env.DB.prepare("DELETE FROM library_revisions"),
     env.DB.prepare("DELETE FROM library_stewards"),

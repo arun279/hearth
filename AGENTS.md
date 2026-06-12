@@ -24,18 +24,19 @@ All of these must pass locally before merge. Most run automatically via `lefthoo
 1. `pnpm install --resolution-only`
 2. `pnpm biome check .`
 3. `pnpm check:md` (dprint markdown formatting)
-4. `pnpm typecheck`
-5. `pnpm check:arch`
-6. `pnpm check:knip`
-7. `pnpm check:types:boundaries`
-8. `pnpm check:conventions`
-9. `pnpm check:env-example`
-10. `pnpm db:check-auth`
-11. `pnpm test`
-12. `pnpm test:integration`
-13. `pnpm check:coverage`
-14. `pnpm check:licenses`
-15. `pnpm audit --audit-level=high`
+4. `pnpm check:typos` (crate-ci/typos spell-check, via a pinned local binary)
+5. `pnpm typecheck`
+6. `pnpm check:arch`
+7. `pnpm check:knip`
+8. `pnpm check:types:boundaries`
+9. `pnpm check:conventions`
+10. `pnpm check:env-example`
+11. `pnpm db:check-auth`
+12. `pnpm test`
+13. `pnpm test:integration`
+14. `pnpm check:coverage`
+15. `pnpm check:licenses`
+16. `pnpm audit --audit-level=high`
 
 `pnpm check` runs all of the above in one pass.
 
@@ -76,10 +77,14 @@ Additional:
 - **Disabled primary CTAs are an anti-pattern; prefer enabled-CTA + on-submit inline errors.** A silently-disabled "Save" / "Create" / "Submit" button gives the user no signal about which field is gating the action — first-time users read it as "the system is broken." When a form has required fields, render the primary CTA enabled and let the submit handler set a specific inline error naming the gating field. Pair with a visible "required" mark on the gating field via `<Field required>`. The disabled pattern is appropriate ONLY for in-flight states (`disabled={submitting}`) and for genuine no-op cases where the next state would be identical to the current (e.g., a Save button on a pristine form). The composer in `apps/web/src/components/activities/activity-composer.tsx` is the canonical reference.
 - **Authoring dialogs MUST confirm-on-discard when dirty.** Any dialog that takes more than 30 seconds of user input (composer, upload, multi-field settings) MUST intercept Esc / overlay-click / Cancel and show a confirm prompt when the in-flight draft has diverged from the initial seed. Pristine dialogs still close instantly so friction stays proportional to consequence. The dirty-check shape is in `apps/web/src/components/activities/activity-composer.tsx` (`serializeDraftForDirtyCheck` + `discardConfirmOpen`). Trivial dialogs (single-field rename, type-to-confirm dialogs) skip the gate.
 - **e2e teardown FK ordering: scope by activity_id (not library_item_id) when cascading from activities into refs.** When extending `apps/web/e2e/auth.ts` `resetInstanceState()` with a new e2e cascade that touches `activity_library_refs`, the delete MUST be scoped by `activity_id IN (orphan-activity-ids)`, not by `library_item_id IN (e2e-uploaded-items)`. The latter leaves orphan refs whenever an e2e activity attaches to a non-e2e (developer-uploaded) library item, and the next `DELETE FROM learning_activities` trips FK RESTRICT. The activity-side cascade is the primary cleanup; the library-side scoped delete catches the inverse case (non-e2e activities pointing at e2e-uploaded items so the items themselves can be dropped). The canonical shape is the M8 block in `apps/web/e2e/auth.ts`.
+- **Every test file is type-checked; tests are routed by config, never per-file.** Plain tests live flat under a package's `test/` and are typed by its main `tsconfig.json` via a recursive `test/**/*.ts` (`.tsx` for `packages/ui`) include — no separate test config. Workers-runtime tests live under `packages/adapters/cloudflare/test/integration/**` and are typed by a sibling `tsconfig.integration.json` (it pins `@cloudflare/vitest-pool-workers/types` for the `cloudflare:test` module) chained off the main one with `tsc --noEmit && tsc --noEmit -p tsconfig.integration.json`; the main config stops at `test/*.test.ts` (single level) so it never sees the Workers-runtime sources. A new test kind adds one sibling `tsconfig.<kind>.json` chained the same way — never a per-file include or exclude.
 
 ## Authoring discipline
 
 - **Default to no comments. When you do write one, make it self-contained.** Add a comment only when the WHY is non-obvious (a hidden constraint, a workaround for a specific bug, behavior that would surprise a reader); never narrate WHAT — well-named identifiers do that. Comments must read as standalone context for a future reader, not as a reply to a PR review, prior conversation, or earlier version of the code: never define the code by what it _isn't_, _used to be_, or _doesn't need_ ("no external X doc," "we don't have a Y," "without needing a Z," "no longer uses Q," "moved from A to B," "instead of citing R" all rot the moment the prior conversation ages out). If a comment only makes sense to someone who saw the previous version, rewrite it.
+- **Disabled-state styling lives on the primitive, not the call site.** An interactive primitive's disabled affordance (`disabled:opacity-*`, `disabled:pointer-events-none`, etc.) belongs in its base classes — never patched per-`className` at each call site. If a shared primitive lacks a disabled affordance, fix the primitive (`Button` / `IconButton` are the reference); per-site patches drift and miss sites.
+- **`aria-haspopup` takes only `menu` / `listbox` / `tree` / `grid` / `dialog`, and the popup's role must match.** A disclosure (a panel that just shows/hides content, not one of those six roles) uses `aria-expanded` + `aria-controls`, not `aria-haspopup`.
+- **Don't ship an optional UI prop ahead of a real consumer.** Add a component prop when the second variant that needs it actually exists; knip can't see unused pass-through props on internal components, so a speculative one rots silently.
 - **Never add TODO comments unless the user asks.** Finish or delete; don't narrate.
 - **Existing `TODO(...)` comments are load-bearing.** Do NOT remove a TODO, rename it, or rewrite the comment to lose its `TODO(` prefix unless you actually completed the work or the user confirmed it's obsolete. A "cosmetic" rewrite that loses `TODO(` disappears from `grep` / PR sweeps and from the § Scaffolding-temporary exceptions table — that's a regression in tracking, not a cleanup. When in doubt, ask.
 - **Don't bypass hooks.** Lefthook's pre-commit and pre-push run the DoD gates; if you bypass them you must run the gates manually. Checks that sit and rot are worse than no checks — if a check is ever noise you can't fix, remove the check or fix the code. Do not silently `|| true` past it.
@@ -120,6 +125,7 @@ Implementation lives at `scripts/lib/auth-session.mjs` (shared module, JSDoc-typ
 | `pnpm install --resolution-only` | —                  | —                                | ✓                               | (part of `pnpm install --frozen-lockfile`) |
 | Biome lint + format              | ✓                  | staged files only                | —                               | all files                                  |
 | dprint markdown format           | —                  | staged files only                | full repo (belt-and-suspenders) | ✓                                          |
+| `pnpm check:typos`               | —                  | staged files only                | full repo (belt-and-suspenders) | ✓                                          |
 | `pnpm typecheck`                 | ✓ (via tsc server) | changed packages only            | —                               | all packages                               |
 | `pnpm check:types:boundaries`    | —                  | —                                | —                               | ✓                                          |
 | `pnpm check:arch`                | —                  | —                                | ✓                               | ✓                                          |
@@ -132,7 +138,7 @@ Implementation lives at `scripts/lib/auth-session.mjs` (shared module, JSDoc-typ
 | `pnpm test:integration`          | —                  | —                                | ✓                               | ✓                                          |
 | `pnpm check:coverage`            | —                  | —                                | ✓                               | ✓                                          |
 | `pnpm check:licenses`            | —                  | —                                | ✓                               | (mirrored by dep-review action)            |
-| Policy-purity test               | —                  | —                                | when policy/visibility changes  | (part of `pnpm test`)                      |
+| Policy-purity test               | —                  | —                                | when SPA-pure dirs change       | (part of `pnpm test`)                      |
 | `pnpm audit --audit-level=high`  | —                  | —                                | ✓                               | daily + per-PR                             |
 | TruffleHog secrets scan          | —                  | staged files only                | —                               | daily + per-PR                             |
 
@@ -142,9 +148,9 @@ Implementation lives at `scripts/lib/auth-session.mjs` (shared module, JSDoc-typ
 
 These exist because the scaffold is skeletal. **Remove each when its trigger fires.**
 
-| Exception                                                                                                                                                                 | Location                                                                                                                                                                        | Trigger to remove                                                     |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `knip.ignoreDependencies` for v1-expected-but-unused deps (`tailwindcss`, `@hono-rate-limiter/cloudflare`, `@tanstack/react-query-devtools`, `@tanstack/router-devtools`) | `knip.jsonc`                                                                                                                                                                    | the first real import of each dep — remove that dep's entry           |
-| Skeleton stubs throwing `"Not implemented"` in repository adapters                                                                                                        | `activity-record-repository.ts` (`TODO(m11)`), `study-session-repository.ts` (`TODO(m13)`), `user-repository.ts` `deleteIdentity` (`TODO(m18)`), `stub.ts` helper (`TODO(m18)`) | the first use case calling that method (M11 / M13 / M18 respectively) |
+| Exception                                                                                                                                                                 | Location                                                                                                                         | Trigger to remove                                               |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `knip.ignoreDependencies` for v1-expected-but-unused deps (`tailwindcss`, `@hono-rate-limiter/cloudflare`, `@tanstack/react-query-devtools`, `@tanstack/router-devtools`) | `knip.jsonc`                                                                                                                     | the first real import of each dep — remove that dep's entry     |
+| Skeleton stubs throwing `"Not implemented"` in repository adapters                                                                                                        | `study-session-repository.ts` (`TODO(m13)`), `user-repository.ts` `deleteIdentity` (`TODO(m18)`), `stub.ts` helper (`TODO(m18)`) | the first use case calling that method (M13 / M18 respectively) |
 
 New exceptions should be added to this table and the maintainer should be told before merging.

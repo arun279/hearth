@@ -59,6 +59,7 @@ export function problemResponse(c: Context, problem: Problem) {
 const INTERNAL_REASON_CODES: ReadonlySet<string> = new Set([
   "envelope_invalid",
   "steward_insert_failed",
+  "record_upsert_failed",
 ]);
 
 export function problemFromDomainError(err: DomainError): Problem {

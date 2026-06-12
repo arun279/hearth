@@ -97,11 +97,6 @@ export function LibraryItemDetail({ groupId, itemId, open, onClose, archived }: 
         }
       >
         {query.isLoading || !data ? <DetailSkeleton /> : <DetailBody data={data} itemId={itemId} />}
-        {error ? (
-          <Callout tone="warn" title="Action failed">
-            {error}
-          </Callout>
-        ) : null}
       </Modal>
 
       <UploadDialog
@@ -121,6 +116,7 @@ export function LibraryItemDetail({ groupId, itemId, open, onClose, archived }: 
         tone="destructive"
         confirmationPhrase="retire"
         pending={retire.isPending}
+        errorMessage={error ?? undefined}
       />
     </>
   );
@@ -279,13 +275,15 @@ function DetailBody({
               {`Used in ${usedIn.length} ${usedIn.length === 1 ? "activity" : "activities"} — retiring is allowed; hard-deleting is blocked while any reference remains.`}
             </p>
             {/*
-             * TODO(m10): link each activity title to its viewable URL
+             * TODO(m19): link each activity title to its viewable URL
              * so a steward can navigate to the consumer (to swap the
-             * library reference) before retiring this item. Today
-             * activities are modal-only on the Activities tab — no
-             * dedicated URL surface to link to. M10 ships the player,
-             * which IS a real activity URL; that's the natural link
-             * target. Until then, plain `<li>` text is honest.
+             * library reference) before retiring this item. The player
+             * URL now exists (the Activity Player route is a real
+             * activity URL), but the `usedIn` projection carries only
+             * `{ id, title }` — it lacks the groupId/trackId route
+             * params a link needs. Adding those is Library-item-detail
+             * polish owned by M19. Until then, plain `<li>` text is
+             * honest.
              */}
             <ul className="space-y-1 rounded-[var(--radius-sm)] border border-[var(--color-rule)] px-3 py-2 text-[12px] text-[var(--color-ink)]">
               {usedIn.map((entry) => (

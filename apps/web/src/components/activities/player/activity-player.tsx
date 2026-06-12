@@ -1,7 +1,8 @@
-import type { ActivityPart, ActivityPlayerProjection } from "@hearth/domain";
+import type { ActivityPart, ActivityPlayerProjection, PartProgressState } from "@hearth/domain";
 import { Button, Callout } from "@hearth/ui";
 import { useEffect, useMemo } from "react";
 import { toast } from "sonner";
+import { useActivityRecord, useSetPartCompleted } from "../../../hooks/use-activity-record.ts";
 import { formatRelative, formatShortDate } from "../../../lib/format.ts";
 import { asUserMessage, errorStatus } from "../../../lib/problem.ts";
 import { ActivityHeader } from "./activity-header.tsx";
@@ -18,10 +19,15 @@ type QueryShape = {
   readonly refetch: () => unknown;
 };
 
+type ChangeActivePartId = (partId: string | null, options?: { replace?: boolean }) => void;
+
 type Props = {
   readonly query: QueryShape;
   readonly requestedPartId: string | null;
-  readonly onChangeActivePartId: (partId: string | null) => void;
+  readonly onChangeActivePartId: ChangeActivePartId;
+  /** For the last-Part "Back to track" closure link in the footer. */
+  readonly groupId: string;
+  readonly trackId: string;
 };
 
 const FALLBACK_TOAST_KEY = "activity-player-bad-part";
@@ -41,7 +47,13 @@ const FALLBACK_TOAST_KEY = "activity-player-bad-part";
  * first Part with a one-line toast so the user understands their URL
  * was stale — silently rewriting would hide the drift.
  */
-export function ActivityPlayer({ query, requestedPartId, onChangeActivePartId }: Props) {
+export function ActivityPlayer({
+  query,
+  requestedPartId,
+  onChangeActivePartId,
+  groupId,
+  trackId,
+}: Props) {
   if (query.isLoading) return <LoadingState />;
   if (query.isError || !query.data) {
     return <ErrorState error={query.error} onRetry={() => void query.refetch()} />;
@@ -51,6 +63,8 @@ export function ActivityPlayer({ query, requestedPartId, onChangeActivePartId }:
       projection={query.data}
       requestedPartId={requestedPartId}
       onChangeActivePartId={onChangeActivePartId}
+      groupId={groupId}
+      trackId={trackId}
     />
   );
 }
@@ -59,10 +73,14 @@ function PlayerBody({
   projection,
   requestedPartId,
   onChangeActivePartId,
+  groupId,
+  trackId,
 }: {
   readonly projection: ActivityPlayerProjection;
   readonly requestedPartId: string | null;
-  readonly onChangeActivePartId: (partId: string | null) => void;
+  readonly onChangeActivePartId: ChangeActivePartId;
+  readonly groupId: string;
+  readonly trackId: string;
 }) {
   const { activity, resolvedRefs, accessState } = projection;
   const orderedPartIds = useMemo(
@@ -75,18 +93,39 @@ function PlayerBody({
     [resolvedRefs],
   );
 
+  // The participant's own per-Part state for the interactive Parts. Fetched
+  // only for windows where work is viewable; pre-open renders chrome alone.
+  // Reads never create a row — the record is created lazily on first write.
+  const recordQuery = useActivityRecord(
+    activity.id,
+    accessState === "open" || accessState === "locked",
+  );
+  const record = recordQuery.data;
+  const partStateById = useMemo(
+    () => new Map<string, PartProgressState>((record?.parts ?? []).map((p) => [p.partId, p.state])),
+    [record],
+  );
+  const completedPartIds = useMemo(
+    () =>
+      new Set<string>((record?.parts ?? []).filter((p) => p.state.completed).map((p) => p.partId)),
+    [record],
+  );
+  const setCompleted = useSetPartCompleted(activity.id);
+
   const requestedExists = requestedPartId !== null && orderedPartIds.includes(requestedPartId);
   const activePartId = requestedExists ? (requestedPartId as string) : (orderedPartIds[0] ?? "");
 
   // If the URL named a Part id that doesn't exist on this activity,
   // surface a tiny toast and snap to the canonical first Part. The
-  // toast is keyed so successive bad pings don't pile up.
+  // toast is keyed so successive bad pings don't pile up. The snap
+  // replaces history (it's error correction, not user intent) so Back
+  // doesn't return to the invalid `?part=` and re-fire this effect.
   useEffect(() => {
     if (requestedPartId !== null && !requestedExists && activePartId !== "") {
       toast.message("Couldn't find that part — showing the first one instead.", {
         id: FALLBACK_TOAST_KEY,
       });
-      onChangeActivePartId(activePartId);
+      onChangeActivePartId(activePartId, { replace: true });
     }
   }, [requestedExists, requestedPartId, activePartId, onChangeActivePartId]);
 
@@ -111,6 +150,7 @@ function PlayerBody({
           accessState={accessState}
           currentPartIndex={0}
           totalParts={orderedPartIds.length}
+          completedCount={0}
         />
         <div className="px-4 py-5 md:px-8 md:py-7">
           <AccessStateNotice tone="neutral" title="This activity isn't open yet" body={body} />
@@ -125,6 +165,13 @@ function PlayerBody({
       ? `Closed ${formatRelative(new Date(closesAt))} · ${formatShortDate(new Date(closesAt))}. You can still view what's here, but completion is no longer being tracked.`
       : "The window has passed. You can still view what's here, but completion is no longer being tracked.";
 
+  const activePartCompleted = completedPartIds.has(activePartId);
+  // The participant may author state only when they're a participant, the
+  // window is open, and their own record actually loaded — a record-query
+  // failure must read as "couldn't load," never as a silent read-only surface.
+  const canAuthor =
+    (record?.canParticipate ?? false) && accessState === "open" && recordQuery.isSuccess;
+
   return (
     <FullViewport>
       <ActivityHeader
@@ -132,12 +179,14 @@ function PlayerBody({
         accessState={accessState}
         currentPartIndex={Math.max(activeIndex, 0)}
         totalParts={orderedPartIds.length}
+        completedCount={completedPartIds.size}
       />
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         <FlowSidebar
           parts={activity.parts}
           orderedPartIds={orderedPartIds}
           activePartId={activePartId}
+          completedPartIds={completedPartIds}
           onSelectPart={onChangeActivePartId}
         />
         <div className="flex min-w-0 flex-1 flex-col">
@@ -145,18 +194,30 @@ function PlayerBody({
             parts={activity.parts}
             orderedPartIds={orderedPartIds}
             activePartId={activePartId}
+            completedPartIds={completedPartIds}
             onSelectPart={onChangeActivePartId}
           />
           <div className="flex-1 px-4 py-5 md:px-8 md:py-7">
             {accessState === "locked" ? (
               <AccessStateNotice tone="warn" title="This activity is closed" body={lockedBody} />
             ) : null}
-            {activePart ? (
+            {recordQuery.isError ? (
+              <RecordErrorState
+                error={recordQuery.error}
+                onRetry={() => void recordQuery.refetch()}
+              />
+            ) : activePart ? (
               <div key={activePart.id}>
                 <PartViewport
                   activityId={activity.id}
                   part={activePart}
                   resolvedRef={refByPartId.get(activePart.id) ?? null}
+                  record={{
+                    loaded: recordQuery.isSuccess,
+                    canParticipate: canAuthor,
+                    visibilityOverride: record?.visibilityOverride ?? null,
+                    partState: partStateById.get(activePart.id) ?? null,
+                  }}
                 />
               </div>
             ) : (
@@ -169,6 +230,31 @@ function PlayerBody({
             previousPartId={orderedPartIds[activeIndex - 1] ?? null}
             nextPartId={orderedPartIds[activeIndex + 1] ?? null}
             onNavigate={onChangeActivePartId}
+            groupId={groupId}
+            trackId={trackId}
+            allPartsComplete={
+              orderedPartIds.length > 0 && completedPartIds.size === orderedPartIds.length
+            }
+            completion={
+              activePart
+                ? {
+                    completed: activePartCompleted,
+                    canMark: canAuthor,
+                    pending: setCompleted.isPending,
+                    onToggle: () =>
+                      setCompleted.mutate(
+                        {
+                          partId: activePartId,
+                          completed: !activePartCompleted,
+                        },
+                        {
+                          onError: (err) =>
+                            toast.error(asUserMessage(err, "Couldn't update completion.")),
+                        },
+                      ),
+                  }
+                : null
+            }
           />
         </div>
       </div>
@@ -230,6 +316,47 @@ export function ErrorState({
         </div>
       </Callout>
     </div>
+  );
+}
+
+/**
+ * Inline error surface for the participant's own-record query. The activity
+ * chrome (header, nav, content) has already rendered from the content
+ * projection; only the interactive own-record layer failed, so this replaces
+ * the Part body rather than the whole page. A 404 here means the viewer is no
+ * longer in the audience — permanent, so no retry; any other failure is
+ * transient and keeps the retry path. Without this branch a 5xx silently
+ * collapsed to a read-only surface, misreporting an outage as a permission
+ * denial.
+ */
+function RecordErrorState({
+  error,
+  onRetry,
+}: {
+  readonly error: unknown;
+  readonly onRetry: () => void;
+}) {
+  if (errorStatus(error) === 404) {
+    return (
+      <Callout tone="neutral" title="Your work here isn't available">
+        <p>This activity may have been scoped to a different audience, or the link is stale.</p>
+      </Callout>
+    );
+  }
+  return (
+    <Callout tone="danger" title="Couldn't load your work">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <span>
+          {asUserMessage(
+            error,
+            "We couldn't load your progress for this activity — check your connection and try again.",
+          )}
+        </span>
+        <Button size="sm" variant="secondary" onClick={onRetry}>
+          Try again
+        </Button>
+      </div>
+    </Callout>
   );
 }
 

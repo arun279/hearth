@@ -8,6 +8,7 @@ import type {
   UserId,
 } from "@hearth/domain";
 import type {
+  ActivityRecordRepository,
   IdGenerator,
   InstanceAccessPolicyRepository,
   LearningActivityRepository,
@@ -17,8 +18,17 @@ import type {
   StudyGroupRepository,
   UploadCoordinationRepository,
   UserRepository,
+  Write,
 } from "@hearth/ports";
 import { vi } from "vitest";
+
+/**
+ * Override map for a mocked port: `Partial<T>` with the `Write<F>` brand
+ * stripped from mutating methods, so a test can pass a plain `vi.fn()` for a
+ * branded method. The brand is an adapter killswitch-coverage concern, not a
+ * use-case-test one; the `make*` helpers re-apply it at the cast boundary.
+ */
+type MockOverrides<T> = Partial<{ [K in keyof T]: T[K] extends Write<infer F> ? F : T[K] }>;
 
 /**
  * Shared fixtures + repository fakes for the M3 use-case tests. Each
@@ -232,7 +242,7 @@ export function makeIds(values: ReadonlyArray<string>): IdGenerator {
 }
 
 export function makeActivities(
-  overrides: Partial<LearningActivityRepository> = {},
+  overrides: MockOverrides<LearningActivityRepository> = {},
 ): LearningActivityRepository {
   return {
     create: vi.fn(),
@@ -252,7 +262,23 @@ export function makeActivities(
   } as LearningActivityRepository;
 }
 
-export function makeLibrary(overrides: Partial<LibraryItemRepository> = {}): LibraryItemRepository {
+export function makeRecords(
+  overrides: MockOverrides<ActivityRecordRepository> = {},
+): ActivityRecordRepository {
+  return {
+    upsert: vi.fn(),
+    byParticipantAndActivity: vi.fn(async () => null),
+    setVisibilityOverride: vi.fn(),
+    getPartProgress: vi.fn(async () => null),
+    listPartProgress: vi.fn(async () => []),
+    savePartProgress: vi.fn(),
+    ...overrides,
+  } as ActivityRecordRepository;
+}
+
+export function makeLibrary(
+  overrides: MockOverrides<LibraryItemRepository> = {},
+): LibraryItemRepository {
   return {
     create: vi.fn(),
     byId: vi.fn(async () => null),

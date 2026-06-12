@@ -52,6 +52,10 @@ const adminMembership: GroupMembership = {
   role: "admin",
   joinedAt: now,
   removedAt: null,
+  removedBy: null,
+  attributionOnLeave: null,
+  displayNameSnapshot: null,
+  profile: { nickname: null, avatarUrl: null, bio: null, updatedAt: null },
 };
 
 describe("canCreateStudyGroup", () => {

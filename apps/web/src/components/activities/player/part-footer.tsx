@@ -1,66 +1,174 @@
-import { Button } from "@hearth/ui";
+import { Button, buttonClasses, Callout } from "@hearth/ui";
+import { Link } from "@tanstack/react-router";
 import { Check, ChevronLeft, ChevronRight } from "lucide-react";
+
+/**
+ * The active Part's honor-system completion state, plus the toggle. Absent
+ * (`null`) when there is no active Part to mark. `canMark` is false for a
+ * read-only viewer or a closed window — the control is then hidden entirely
+ * rather than shown disabled, so no dead, focusable tab stop is left behind.
+ */
+type Completion = {
+  readonly completed: boolean;
+  readonly canMark: boolean;
+  readonly pending: boolean;
+  readonly onToggle: () => void;
+};
 
 type Props = {
   readonly previousPartId: string | null;
   readonly nextPartId: string | null;
   readonly onNavigate: (partId: string) => void;
+  readonly groupId: string;
+  readonly trackId: string;
+  readonly completion: Completion | null;
+  /**
+   * True once every Part carries the participant's completion mark. Drives the
+   * "all parts complete" closure note. Honest scope: this is per-Part marking
+   * only — the activity-level completion record arrives in M11, so the copy
+   * never claims the activity itself is complete.
+   */
+  readonly allPartsComplete: boolean;
 };
 
-const MARK_COMPLETE_HINT_ID = "mark-complete-placeholder-hint";
+/**
+ * Sticky footer for the Activity Player: Previous on the left, the
+ * mark-complete toggle in the middle (when the viewer may mark), and a
+ * forward affordance on the right — Next mid-flow, or a "Back to track"
+ * closure link on the last (or only) Part.
+ *
+ * Completion is honor-system: the toggle is always enabled regardless of a
+ * reflection's `minWords` or a quiz's score — it stays live so the
+ * participant decides when a Part is done. A completed Part flips the button
+ * to a "Completed" state that un-marks on click, so the action is reversible.
+ * "Back to track" navigates without claiming completion; the two are separate
+ * affordances.
+ *
+ * The Previous/Next labels collapse to icon-only below `sm` (their accessible
+ * name stays via `aria-label`) and the control row wraps if it still can't
+ * fit, so nothing overflows down to a 320px viewport. At most one
+ * filled-primary button per state: while the active Part is still markable and
+ * incomplete, Mark-complete is primary and the forward affordance steps down;
+ * once the Part is complete (or the viewer can't mark), the forward affordance
+ * (Next, or "Back to track" on the last Part) takes primary.
+ */
+export function PartFooter({
+  previousPartId,
+  nextPartId,
+  onNavigate,
+  groupId,
+  trackId,
+  completion,
+  allPartsComplete,
+}: Props) {
+  const isLastPart = nextPartId === null;
+  const activePartComplete = completion?.completed ?? false;
+  // The forward affordance ("Back to track" on the last Part, "Next" otherwise)
+  // claims primary emphasis only once there's nothing left to mark here — while
+  // the active Part is still incomplete (and the viewer may mark it),
+  // Mark-complete owns the single primary slot so the two never render
+  // filled-blue at once (one primary per footer; visual-hierarchy rule). Once
+  // the Part is complete, Mark-complete steps down and the forward action leads.
+  const forwardIsPrimary = activePartComplete || !(completion?.canMark ?? false);
+  const finishIsPrimary = isLastPart && forwardIsPrimary;
+  return (
+    <footer className="sticky bottom-0 z-10 flex flex-col gap-2 border-[var(--color-rule)] border-t bg-[var(--color-surface)] px-4 py-3 md:px-8">
+      {allPartsComplete ? (
+        // The strongest closure signal carries the strongest onward action so
+        // it's reachable from any Part. On the last Part the footer's own
+        // "Back to track" already covers it, so the in-banner link only shows
+        // mid-flow (avoids two identical links side by side at the end).
+        <Callout tone="good" className="py-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <span>All parts complete — you've marked every part of this activity done.</span>
+            {isLastPart ? null : (
+              <Link
+                to="/g/$groupId/t/$trackId"
+                params={{ groupId, trackId }}
+                className={buttonClasses("secondary", "sm")}
+              >
+                Back to track
+              </Link>
+            )}
+          </div>
+        </Callout>
+      ) : null}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => previousPartId && onNavigate(previousPartId)}
+          disabled={previousPartId === null}
+          size="sm"
+          aria-label="Previous part"
+        >
+          <ChevronLeft size={14} strokeWidth={1.5} aria-hidden="true" />
+          <span className="hidden sm:inline">Previous</span>
+        </Button>
+        {completion?.canMark ? (
+          <MarkCompleteButton completion={completion} demoteToSecondary={forwardIsPrimary} />
+        ) : null}
+        {isLastPart ? (
+          <Link
+            to="/g/$groupId/t/$trackId"
+            params={{ groupId, trackId }}
+            className={buttonClasses(finishIsPrimary ? "primary" : "secondary", "sm")}
+          >
+            Back to track
+          </Link>
+        ) : (
+          <Button
+            type="button"
+            variant={forwardIsPrimary ? "primary" : "secondary"}
+            onClick={() => nextPartId && onNavigate(nextPartId)}
+            size="sm"
+            aria-label="Next part"
+          >
+            <span className="hidden sm:inline">Next</span>
+            <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" />
+          </Button>
+        )}
+      </div>
+    </footer>
+  );
+}
 
 /**
- * Sticky footer with prev / next / Mark Complete. The Mark-Complete
- * affordance is intentionally NOT a real action yet — it renders as a
- * non-interactive placeholder (`aria-disabled` + no click handler) so
- * the layout stays final and signals to the participant that completion
- * is part of the model, even though the action isn't wired yet.
+ * The honor-system toggle. A single stable `<button>` whose label, icon tone,
+ * `variant`, and `aria-pressed` all update in place — never conditionally
+ * remounted, no changing React key. It also stays ENABLED while the toggle is
+ * in flight: disabling a focused button moves focus to `<body>`, so an in-flight
+ * `disabled` would drop the keyboard user after Enter/Space. Instead `aria-busy`
+ * announces the pending state and the handler short-circuits a re-entrant click,
+ * so focus and the focus ring stay on the control (WCAG 2.4.7).
  *
- * Accessibility: the button stays in tab order so keyboard + screen-
- * reader users can land on it and hear `aria-describedby`'s visually-
- * hidden hint announce why it's dimmed. A native `title` attribute
- * works for hovering mouse users but is unreliable for screen readers,
- * so the `<span class="sr-only">` is the load-bearing copy.
- *
- * Prev / next operate on the canonical Part display order; the parent
- * passes `null` at the start / end so the chevrons collapse to
- * disabled buttons rather than wrap-around.
+ * `demoteToSecondary` forces the button to render secondary whenever the
+ * forward affordance (Next / Back to track) owns the footer's single primary
+ * slot — once the Part is complete; otherwise the incomplete Mark-complete is
+ * the footer's primary call to action.
  */
-export function PartFooter({ previousPartId, nextPartId, onNavigate }: Props) {
+function MarkCompleteButton({
+  completion,
+  demoteToSecondary,
+}: {
+  readonly completion: Completion;
+  readonly demoteToSecondary: boolean;
+}) {
+  const { completed, pending, onToggle } = completion;
+  const variant = completed || demoteToSecondary ? "secondary" : "primary";
   return (
-    <footer className="sticky bottom-0 z-10 flex items-center justify-between gap-2 border-[var(--color-rule)] border-t bg-[var(--color-surface)] px-4 py-3 md:px-8">
-      <Button
-        type="button"
-        variant="secondary"
-        onClick={() => previousPartId && onNavigate(previousPartId)}
-        disabled={previousPartId === null}
-        size="sm"
-      >
-        <ChevronLeft size={14} strokeWidth={1.5} aria-hidden="true" />
-        Previous
-      </Button>
-      <button
-        type="button"
-        aria-disabled="true"
-        aria-describedby={MARK_COMPLETE_HINT_ID}
-        className="inline-flex cursor-not-allowed items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--color-rule)] bg-[var(--color-surface-2)] px-3 py-1.5 font-medium text-[12px] text-[var(--color-ink-2)] opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
-      >
-        <Check size={13} strokeWidth={1.75} aria-hidden="true" />
-        Mark complete
-      </button>
-      <span id={MARK_COMPLETE_HINT_ID} className="sr-only">
-        Marking parts complete arrives in a later milestone.
-      </span>
-      <Button
-        type="button"
-        variant="primary"
-        onClick={() => nextPartId && onNavigate(nextPartId)}
-        disabled={nextPartId === null}
-        size="sm"
-      >
-        Next
-        <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" />
-      </Button>
-    </footer>
+    <Button
+      type="button"
+      variant={variant}
+      onClick={() => {
+        if (!pending) onToggle();
+      }}
+      aria-busy={pending}
+      size="sm"
+      aria-pressed={completed}
+    >
+      <Check size={14} strokeWidth={1.75} aria-hidden="true" />
+      {completed ? "Completed" : "Mark complete"}
+    </Button>
   );
 }

@@ -10,7 +10,7 @@
     "#*": "./src/*"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.integration.json",
     "test": "vitest run --project unit",
     "test:integration": "vitest run --project integration"
   },

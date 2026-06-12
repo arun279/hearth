@@ -162,6 +162,7 @@ export function InvitationsPanel({ group, enabled, onInvite }: Props) {
         }
         confirmLabel="Revoke"
         pending={revoke.isPending}
+        errorMessage={revoke.isError ? asUserMessage(revoke.error, "Couldn't revoke.") : undefined}
         onClose={() => setConfirming(null)}
         onConfirm={async () => {
           if (!confirming) return;

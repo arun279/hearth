@@ -32,6 +32,20 @@ const variants: Record<ButtonVariant, string> = {
   danger: "bg-[var(--color-danger)] text-white hover:bg-[var(--color-danger)]/90",
 };
 
+/**
+ * The Button's class string, factored out so a non-`<button>` element that
+ * must look like a button (e.g. a router `<Link>` used as a primary CTA) can
+ * reuse the exact tokens instead of hand-copying them and drifting. Button
+ * itself composes through here so the two never diverge.
+ */
+export function buttonClasses(
+  variant: ButtonVariant = "primary",
+  size: ButtonSize = "md",
+  className?: string,
+): string {
+  return cn(base, sizes[size], variants[variant], className);
+}
+
 export function Button({
   variant = "primary",
   size = "md",
@@ -41,11 +55,7 @@ export function Button({
   ...props
 }: ButtonProps) {
   return (
-    <button
-      type={type ?? "button"}
-      className={cn(base, sizes[size], variants[variant], className)}
-      {...props}
-    >
+    <button type={type ?? "button"} className={buttonClasses(variant, size, className)} {...props}>
       {children}
     </button>
   );

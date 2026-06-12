@@ -198,6 +198,7 @@ export function GroupSettingsDialog({ open, onClose, group, caps }: Props) {
         description="New activities, tracks, and contributions will be paused. History stays readable. You can unarchive later from this same panel."
         confirmLabel="Archive group"
         pending={archive.isPending}
+        errorMessage={archive.isError ? asUserMessage(archive.error, "Archive failed.") : undefined}
         onClose={() => setConfirmingArchive(false)}
         onConfirm={async () => {
           try {
@@ -217,6 +218,9 @@ export function GroupSettingsDialog({ open, onClose, group, caps }: Props) {
         description="Members will be able to resume creating tracks, activities, and contributions."
         confirmLabel="Unarchive group"
         pending={unarchive.isPending}
+        errorMessage={
+          unarchive.isError ? asUserMessage(unarchive.error, "Unarchive failed.") : undefined
+        }
         onClose={() => setConfirmingUnarchive(false)}
         onConfirm={async () => {
           try {

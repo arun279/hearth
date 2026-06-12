@@ -2,6 +2,7 @@ import { type RefObject, useEffect, useRef, useState } from "react";
 
 type Entry = {
   readonly onEscapeRef: { current: () => void };
+  readonly panelRef: RefObject<HTMLElement | null>;
 };
 
 const stack: Entry[] = [];
@@ -26,6 +27,22 @@ function ensureInstalled(): void {
 
 const FOCUSABLE_SELECTOR =
   'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/**
+ * Run `fn` after React has flushed the pending re-render, so a parent panel's
+ * `inert` attribute (removed when this dialog leaves the stack) is gone before
+ * we focus into it. React commits DOM mutations before the next paint, so a
+ * single `requestAnimationFrame` lands after the `inert` removal; focusing an
+ * element inside a still-inert subtree is otherwise a no-op that drops focus
+ * to <body>.
+ */
+function restoreFocusAfterFlush(fn: () => void): void {
+  if (typeof requestAnimationFrame !== "function") {
+    fn();
+    return;
+  }
+  requestAnimationFrame(fn);
+}
 
 /**
  * Stack-aware keyboard contract for a dialog: while open, the dialog joins
@@ -63,7 +80,7 @@ export function useDialogPanel({
     ensureInstalled();
     triggerRef.current = document.activeElement;
 
-    const entry: Entry = { onEscapeRef };
+    const entry: Entry = { onEscapeRef, panelRef };
     stack.push(entry);
 
     const sub = () => setIsTopmost(stack[stack.length - 1] === entry);
@@ -115,7 +132,28 @@ export function useDialogPanel({
       const idx = stack.indexOf(entry);
       if (idx >= 0) stack.splice(idx, 1);
       notify();
-      if (triggerRef.current instanceof HTMLElement) triggerRef.current.focus();
+
+      // Restore focus to the opener. `notify()` schedules the parent panel's
+      // `setIsTopmost(true)`, which removes its `inert` attribute — but that
+      // re-render is flushed *after* this synchronous cleanup. Focusing the
+      // trigger now (while it may still sit inside an inert subtree) is a
+      // no-op that drops focus to <body> and lets Tab escape behind the
+      // still-open parent. Defer past the flush so the trigger is focusable.
+      const trigger = triggerRef.current;
+      const parent = stack[stack.length - 1];
+      restoreFocusAfterFlush(() => {
+        if (trigger instanceof HTMLElement && trigger.isConnected) {
+          trigger.focus();
+          if (document.activeElement === trigger) return;
+        }
+        // Trigger gone (or still unfocusable) but a parent dialog remains:
+        // re-trap into it rather than leaving focus on <body> behind the
+        // open modal. WCAG 2.1.2 — focus must not leak out of a live dialog.
+        const heading =
+          parent?.panelRef.current?.querySelector<HTMLElement>("h2[tabindex='-1']") ??
+          parent?.panelRef.current?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
+        heading?.focus();
+      });
     };
   }, [open, panelRef]);
 

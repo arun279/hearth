@@ -30,10 +30,13 @@ import type { Write } from "./_brand.ts";
  * ids — there is no semantic-equality oracle for arbitrary Part bodies.
  *
  * Children (library refs, prereqs, suggested-sequences) live on
- * separate tables and are wholesale-replaced by their dedicated port
- * methods — the composer's atomic-save use case orchestrates the body
- * update and the three child writes in sequence so a single facilitator
- * action lands the full activity shape.
+ * separate tables. The composer's atomic-save use case folds whichever
+ * children it is replacing into the `children` field of the same
+ * `update` call so the body row and every patched child set land in one
+ * D1 batch — all commit or none does. The standalone `setLibraryRefs` /
+ * `setPrerequisites` / `setSuggestedSequences` methods remain the
+ * single-collection write behind the per-collection use cases (pin /
+ * unpin / set-*).
  */
 export type LearningActivityPatch = {
   readonly title?: string;
@@ -44,6 +47,23 @@ export type LearningActivityPatch = {
   readonly window?: ActivityWindow | null;
   readonly postClosePolicy?: PostClosePolicy | null;
   readonly completionRule?: CompletionRule;
+};
+
+/**
+ * Child collections an `update` may wholesale-replace in the same batch
+ * as the body patch. Each field is independently optional: a `undefined`
+ * field leaves that collection untouched; a present field replaces it
+ * (an empty array clears it). `prerequisites` re-runs the cross-activity
+ * acyclic invariant inside the batch over the post-write graph, exactly
+ * as the standalone `setPrerequisites` does.
+ */
+export type LearningActivityChildPatch = {
+  readonly libraryRefs?: ReadonlyArray<{
+    readonly libraryItemId: string;
+    readonly pinnedRevisionId: string | null;
+  }>;
+  readonly prerequisites?: readonly LearningActivityId[];
+  readonly suggestedSequences?: readonly LearningActivityId[];
 };
 
 export type ActivityLibraryRefRow = {
@@ -102,17 +122,30 @@ export interface LearningActivityRepository {
   byTrack(trackId: LearningTrackId): Promise<readonly LearningActivityListRow[]>;
 
   /**
-   * Apply a patch with the id-preserving merge for Parts: any Part in
-   * `patch.parts` whose `id` matches a Part in the prior version keeps
-   * that id; new Parts are stored with caller-supplied ids that the SPA
-   * mints at part-add time (so reorders during a session don't churn
-   * the ids future Part Progress rows will reference). The adapter
-   * re-runs cycle detection inside its D1 transaction.
+   * Apply a body patch and, optionally, wholesale-replace any of the
+   * activity's child collections — library refs, prerequisites,
+   * suggested-sequences — in ONE D1 batch so the composer's atomic save
+   * cannot leave the body updated while a child set stays stale.
+   *
+   * Part ids are id-preserving: any Part in `patch.parts` whose `id`
+   * matches a Part in the prior version keeps that id; new Parts are
+   * stored with caller-supplied ids that the SPA mints at part-add time
+   * (so reorders during a session don't churn the ids future Part
+   * Progress rows will reference).
+   *
+   * `patch` carrying no body fields (all `undefined`) omits the body
+   * UPDATE from the batch — a children-only save does not touch the
+   * activity row. When the body UPDATE is present it stays gated on
+   * `tracks.status != 'archived'` and surfaces `CONFLICT track_archived`
+   * if a concurrent archive zeroed the affected rows. The adapter
+   * re-runs flow-cycle detection on the persisted body and the
+   * cross-activity prereq-acyclic check inside the same batch.
    */
   update: Write<
     (input: {
       readonly id: LearningActivityId;
       readonly patch: LearningActivityPatch;
+      readonly children?: LearningActivityChildPatch;
       readonly by: import("@hearth/domain").UserId;
     }) => Promise<LearningActivity>
   >;

@@ -1,4 +1,10 @@
-import type { LearningActivity, LearningActivityId, UserId } from "@hearth/domain";
+import {
+  type LearningActivity,
+  type LearningActivityId,
+  redactQuizAnswerKeys,
+  type UserId,
+} from "@hearth/domain";
+import { canEditLearningActivity } from "@hearth/domain/policy/can-edit-learning-activity";
 import type {
   InstanceAccessPolicyRepository,
   LearningActivityRepository,
@@ -23,15 +29,31 @@ export type GetActivityDeps = {
 
 /**
  * Aggregate read for the activity-detail surface. Viewability is gated
- * through `loadViewableActivity`; full visibility-scope projection
- * (per-record `summary` vs `full`) is M12's responsibility — M8 ships
- * the full envelope to authority and enrolled viewers; non-viewers
- * receive `NOT_FOUND` from the loader.
+ * through `loadViewableActivity` (non-viewers receive `NOT_FOUND`); full
+ * visibility-scope projection (per-record `summary` vs `full`) is M12's
+ * responsibility.
+ *
+ * Quiz answer keys are authoring data: only a caller with edit authority
+ * (who composes the keys) receives the unredacted body. Every other viewer
+ * gets the same body with the grading keys stripped (`redactQuizAnswerKeys`),
+ * the same redaction the `/player` projection applies — otherwise an enrolled
+ * learner could read the keys off this route and bypass server-side grading.
  */
 export async function getActivity(
   input: GetActivityInput,
   deps: GetActivityDeps,
 ): Promise<LearningActivity> {
-  const { activity } = await loadViewableActivity(input.actor, input.id, deps);
-  return activity;
+  const ctx = await loadViewableActivity(input.actor, input.id, deps);
+  const canEdit = canEditLearningActivity(
+    ctx.actor,
+    ctx.group,
+    ctx.track,
+    ctx.groupMembership,
+    ctx.trackEnrollment,
+  );
+  if (canEdit.ok) return ctx.activity;
+  return {
+    ...ctx.activity,
+    parts: ctx.activity.parts.map((p) => (p.kind === "quiz" ? redactQuizAnswerKeys(p) : p)),
+  };
 }

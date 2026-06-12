@@ -44,10 +44,13 @@ function ActivityPlayerRoute() {
 
   useDocumentTitle([playerQuery.data?.activity.title, me.data?.data.instance.name]);
 
-  const onChangeActivePartId = (partId: string | null) => {
+  // User-initiated Part navigation pushes a history entry; correcting a stale
+  // `?part=` to the canonical first Part replaces it, so Back doesn't return to
+  // the invalid URL and re-fire the fallback effect.
+  const onChangeActivePartId = (partId: string | null, options?: { replace?: boolean }) => {
     void navigate({
       search: partId === null ? {} : { part: partId },
-      replace: false,
+      replace: options?.replace ?? false,
     });
   };
 
@@ -57,6 +60,8 @@ function ActivityPlayerRoute() {
         query={playerQuery}
         requestedPartId={search.part ?? null}
         onChangeActivePartId={onChangeActivePartId}
+        groupId={params.groupId}
+        trackId={params.trackId}
       />
     </ActivityShell>
   );

@@ -24,6 +24,7 @@ const pendingRow = {
   storageKey: PENDING_KEY,
   declaredSizeBytes: 1234,
   declaredMimeType: "image/png",
+  originalFilename: null,
   createdAt: TEST_NOW,
   expiresAt: new Date(TEST_NOW.getTime() + 900_000),
 };

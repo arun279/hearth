@@ -121,6 +121,17 @@ const rules = [
       '`<a href>` is GET-only. Use hc<AppType> for /api/v1/* and authClient for /api/auth/*. For legitimate GET uses (file download, external nav), add `download`, `target="_blank"`, or `data-external-nav`.',
   },
   {
+    name: "no-hardcoded-api-v1-literal",
+    regex: /["'`]\/api\/v1\b/,
+    // The two documented download-URL helpers in use-library.ts end in
+    // `/download`; everything else must go through the typed client.
+    exceptRegex: /\/download[`"']/,
+    includePathPrefixes: ["apps/web/src/", "packages/ui/src/"],
+    excludePathSuffixes: ["scripts/check-conventions.mjs", "apps/web/src/lib/api-client.ts"],
+    reason:
+      "Reach /api/v1/* through the typed hc<ApiRouter> client (apps/web/src/lib/api-client.ts), not a raw string — hardcoded paths bypass the type-checked route surface and silently drift when the API moves. The file-download URL helpers in use-library.ts (ending in /download) are the only exception.",
+  },
+  {
     name: "no-direct-group-byid-in-use-cases",
     regex: /\bgroups\.byId\(/,
     includePathPrefixes: ["packages/core/src/use-cases/"],
@@ -521,6 +532,45 @@ function findFictionalCheckScripts(files) {
 }
 
 /**
+ * Flags milestone TODOs whose milestone has already shipped. The "highest
+ * shipped milestone" is derived from the conventional-commit subjects in git
+ * history (`feat(mN)` / `fix(mN)` / …), not a hand-maintained list, so it
+ * self-updates as milestones land. A `TODO(mN)` with N at or below that high
+ * water mark is debt that *looks* tracked but points at done work — exactly
+ * what the M10 PR shipped a stale instance of. Fails open on a shallow clone
+ * (no history → high water mark 0 → no hits); the real enforcement is the
+ * full-history pre-push run.
+ *
+ * @param {string[]} files
+ */
+function findStaleMilestoneTodos(files) {
+  const log = spawnSync("git", ["log", "--format=%s"], { encoding: "utf8" });
+  if (log.status !== 0) return [];
+  let maxShipped = 0;
+  for (const subject of log.stdout.split("\n")) {
+    const m = /^\w+\(m(\d+)\)/.exec(subject);
+    if (m?.[1]) maxShipped = Math.max(maxShipped, Number(m[1]));
+  }
+  const hits = [];
+  for (const file of files) {
+    if (file.endsWith("scripts/check-conventions.mjs")) continue;
+    let text;
+    try {
+      text = readFileSync(file, "utf8");
+    } catch {
+      continue;
+    }
+    text.split("\n").forEach((line, i) => {
+      const m = /TODO\(m(\d+)\)/.exec(line);
+      if (m?.[1] && Number(m[1]) <= maxShipped) {
+        hits.push({ ref: m[0], location: `${file}:${i + 1}`, line: line.trim() });
+      }
+    });
+  }
+  return hits;
+}
+
+/**
  * Files that MUST contain a specific pattern. Complement to the
  * forbidden-pattern rules above — for load-bearing configuration where
  * absence of a directive is the bug.
@@ -678,6 +728,16 @@ if (fictionalScripts.length > 0) {
   for (const h of fictionalScripts) console.error(`  ${h.location}: ${h.line}    [${h.ref}]`);
   console.error(
     "  Why: prose that claims a `check:<name>` gate enforces a rule must point at a real script in the root package.json. Documenting an enforced rule that is in fact honor-system violates the project's real-gates principle (CLAUDE.md § Quality gates). Either wire the script or rephrase to drop the enforcement claim.\n",
+  );
+  fail = true;
+}
+
+const staleTodos = findStaleMilestoneTodos(files);
+if (staleTodos.length > 0) {
+  console.error('\nConvention violation — stale milestone TODO (rule "no-stale-milestone-todo"):');
+  for (const h of staleTodos) console.error(`  ${h.location}: ${h.line}    [${h.ref}]`);
+  console.error(
+    "  Why: a TODO tagged for a milestone that has already shipped (per git history) is debt that looks tracked but points at done work. Re-tag it to the milestone that actually owns the follow-up, or do the work and delete the TODO.\n",
   );
   fail = true;
 }

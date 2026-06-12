@@ -58,7 +58,12 @@ export const PARTS_FIXTURE_V1 = {
         {
           id: "q2",
           prompt: "Translate: 'how are you'",
-          shape: { kind: "short_answer" as const, answerKeyRegex: "(?i)como estas" },
+          shape: {
+            kind: "short_answer" as const,
+            correctAnswer: "cómo estás",
+            alsoAccept: ["como estas"],
+            exactMatch: false,
+          },
         },
       ],
     },

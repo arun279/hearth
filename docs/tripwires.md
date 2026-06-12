@@ -118,23 +118,12 @@ Each entry names the **pinned tool**, the **condition** that triggers a reassess
 
 ## Repository internals — opportunistic migrations
 
-### `Write<F>` brand on repository ports — opportunistic migration (currently applied to: `LibraryItemRepository`, `LearningActivityRepository`)
+### `Write<F>` brand on repository ports — opportunistic migration (currently applied to: `LibraryItemRepository`, `LearningActivityRepository`, `ActivityRecordRepository`)
 
-- **Trigger**: a future PR touches mutating methods on a repository port that hasn't yet adopted the brand. The remaining ports without it are: `UserRepository`, `InstanceAccessPolicyRepository`, `InstanceSettingsRepository`, `StudyGroupRepository`, `LearningTrackRepository`, `ActivityRecordRepository`, `StudySessionRepository`, `UploadCoordinationRepository`, `SystemFlagRepository`, `ObjectStorage`, `Scheduler`, plus three skeleton-stub repos.
-- **Action**: on that PR, brand the touched port's mutating methods with `Write<F>` (from `packages/ports/src/_brand.ts`). Update the implementation methods in `packages/adapters/cloudflare/src/<repo>.ts` to use `markWrite(...)`. Add a per-port `it("XRepository: every branded write method is in CASES", ...)` block in `packages/adapters/cloudflare/test/killswitch-coverage.test.ts` mirroring the existing `LibraryItemRepository` / `LearningActivityRepository` shape. Tsc will then enforce that every branded write method has a CASES entry. The migration is opportunistic — no need for a sweep PR — but DO migrate any port you're already editing rather than leaving the next session to find half-branded surfaces.
+- **Trigger**: a future PR touches mutating methods on a repository port that hasn't yet adopted the brand. The remaining ports without it are: `UserRepository`, `InstanceAccessPolicyRepository`, `InstanceSettingsRepository`, `StudyGroupRepository`, `LearningTrackRepository`, `StudySessionRepository`, `UploadCoordinationRepository`, `ObjectStorage`, `Scheduler`, plus three skeleton-stub repos.
+- **Do NOT brand `SystemFlagRepository.set`**: it is an intentional non-gated write — the factory takes no gate and `set` omits `gate.assertWritable()` because the killswitch persists its own mode through `system_flags`, so gating it would make the killswitch unable to flip or recover itself. It is correctly absent from the killswitch-coverage CASES and must stay un-branded and out of the registry.
+- **Action**: on that PR, brand the touched port's mutating methods with `Write<F>` (from `packages/ports/src/_brand.ts`). Update the implementation methods in `packages/adapters/cloudflare/src/<repo>.ts` to use `markWrite(...)`. Add a runtime entry per branded method to the `CASES` array in `packages/adapters/cloudflare/test/killswitch-coverage.test.ts`, and add ONE entry for the port to the `BrandedPorts` registry in that file (keyed by its CASES label-prefix). The single registry-driven `satisfies` check then enforces that every branded write method on a registered port has a CASES entry — adding a branded method without a CASES entry is a `tsc` error naming the missing label. The migration is opportunistic — no need for a sweep PR — but DO migrate any port you're already editing rather than leaving the next session to find half-branded surfaces.
 - **Location**: `packages/ports/src/_brand.ts` (the brand machinery + this rationale); `packages/adapters/cloudflare/test/killswitch-coverage.test.ts` (the type-level enforcement site).
-
-### `update-activity` use case is non-atomic across body + 3 child writes
-
-- **Trigger**: M11 ships `ActivityRecord` rows whose existence depends on the activity's children being internally consistent (e.g., a learner's progress against a Part the activity claims to have).
-- **Action**: re-evaluate the four-step orchestration in `packages/core/src/use-cases/update-activity.ts` (body update + `setLibraryRefs` + `setPrerequisites` + `setSuggestedSequences`). Each call is atomic on its own; a mid-sequence failure leaves the body updated but children stale, which the use case docstring concedes. The current "user retries → idempotent wholesale-replace converges" model is acceptable while no Records exist. Once Records exist, an inconsistent intermediate state during a retry could produce a Record against a Part that the activity no longer carries. Either compose the four writes into one D1 batch (requires a port-level rethink — children writes would need to surface from inside the parent UPDATE) or accept the eventual-consistency story explicitly with an integration test pinning the recovery shape.
-- **Location**: `packages/core/src/use-cases/update-activity.ts`.
-
-### Test files are not type-checked — `Write<F>` mock brand mismatches slip through
-
-- **Trigger**: a `Write<F>`-branded port method picks up a new signature change, OR a test mock is allowed to drift from a port's real shape because the test file isn't compiled. Symptom: editor / LSP flags `Mock<...>` not assignable to `Write<...>` in `packages/core/test/**` but `pnpm typecheck` is green.
-- **Action**: extend `packages/core/tsconfig.json` (and equivalent peer packages) to include `test/**/*.ts` so `tsc --noEmit` sees the test sources. Fix the resulting mock-vs-brand mismatches by wrapping mocks with `markWrite(...)` from `packages/ports/src/_brand.ts` (the same helper the adapter uses). Mirror the change to `packages/api`, `packages/auth`, `packages/adapters/cloudflare` if their tsconfigs have the same `src/`-only include. The cost is a one-off cleanup of existing mocks; the benefit is that `Write<F>` brand drift surfaces in `pnpm check` instead of leaking past lefthook + CI.
-- **Location**: `packages/core/tsconfig.json` (includes), `packages/core/test/activity-use-cases.test.ts` and siblings (mocks needing `markWrite`).
 
 ### List endpoints whose detail sibling can 404 MUST share the visibility predicate
 
@@ -142,11 +131,28 @@ Each entry names the **pinned tool**, the **condition** that triggers a reassess
 - **Action**: extract or reuse the existing shared helper (`packages/core/src/use-cases/_lib/load-visible-activities-for-track.ts` is the canonical M9 example) so the list and the detail surface run the SAME predicate. The list MUST omit rows whose detail route would 404 — otherwise the title leaks via the list and the click 404s, creating an enumeration oracle on whichever axis the list skipped (subset audience, prerequisite lock, etc.). M11 prerequisite-driven `locked` state and M12 visibility evolution will introduce new axes; the per-use-case half-fix pattern does not scale.
 - **Location**: `packages/core/src/use-cases/_lib/load-visible-activities-for-track.ts` (the existing shared helper); any new `list*` use case + its repository projection.
 
-### Quiz `answerKeyRegex` accepts user-supplied regex without a ReDoS guard
+## Activity records
 
-- **Trigger**: M9–M10 ships the quiz authoring UI (currently `quiz` is gated out of the M8 composer palette so no facilitator can author one). At that point the field becomes user-reachable.
-- **Action**: when wiring the quiz authoring surface, validate `answerKeyRegex` through a ReDoS-safe checker (`safe-regex2` is the standard option) at the wire boundary in `packages/domain/src/parts/quiz.ts`. Reject regexes whose worst-case backtracking is super-linear; surface as `INVARIANT_VIOLATION` with a precise `quiz_answer_key_regex_unsafe` deny code. The schema currently caps the string length at `MAX_QUIZ_OPTION_TEXT` (500) but length is not the same gate as complexity; a 50-char regex can still ReDoS.
-- **Location**: `packages/domain/src/parts/quiz.ts`.
+### Completion toggle clobbers an in-flight reflection (read-modify-write on part_progress)
+
+- **Trigger**: M11 implements the durable ActivityRecord/PartProgress model (M11 PRD § Records). M11 owns this surface; it is M11 work by design, not an M10 gap.
+- **Why deferred (not done in M10)**: `set-part-completed.ts` reads the existing PartProgress, flips `completed`, and re-writes the whole envelope; the adapter's `savePartProgress` replaces the full `stateJson`. In the player the reflection editor and the footer's Mark-complete button are uncoordinated siblings. A participant who types, then clicks Mark-complete before the 800ms autosave debounce persists, makes the completion write read the last-persisted (stale) text and write it back — losing the just-typed prose when the completion write lands after the final autosave (in-flight ordering, or remote D1 read-replica lag). A correct now-fix needs either a targeted `completed`-only write (impossible against a single JSON envelope without a port-level rethink) or cross-component flush coordination that risks the carefully-tuned autosave. The data-loss window is narrow and bounded to a manual completion race.
+- **Action**: M11 either folds completion into a targeted write surfaced from inside the PartProgress UPDATE, or has the player flush the pending reflection autosave before firing the completion toggle. The call site carries a `TODO(m11)` marker.
+- **Location**: `packages/core/src/use-cases/set-part-completed.ts` (`getPartProgress` → `savePartProgress` read-modify-write); `packages/adapters/cloudflare/src/activity-record-repository.ts` (`savePartProgress` whole-`stateJson` replace); `apps/web/src/components/activities/player/activity-player.tsx` (uncoordinated `setCompleted.mutate`).
+
+### Quiz grade verdict is not rehydrated on reload (only re-derivable via a fresh submit)
+
+- **Trigger**: M11 implements the durable ActivityRecord model. M11 owns persisting/rehydrating quiz grading.
+- **Why deferred (not done in M10)**: the record stores a quiz's `answers` but not the per-question verdict/score. The verdict is derived server-side from the answers + the answer key, which is deliberately redacted from the client (`redactQuizAnswerKeys`), so the SPA cannot re-grade on load — the grade is only available in the `submit` POST response. Persisting a verdict snapshot would duplicate derivable state and risk drift against a later answer-key edit. On reload the answers restore and the Part still reads "(completed)", but the score/feedback is gone until the learner re-submits.
+- **Action**: M11 decides whether the durable Record carries a graded-result projection (rehydrated on read) or whether the player re-POSTs to re-grade on mount. Either way it is coupled to the M11 durable-Record shape, not an M10 ephemeral-state bug.
+- **Location**: `packages/core/src/use-cases/submit-quiz-answers.ts` (returns the verdict; persists only answers); `apps/web/src/components/activities/player/parts/quiz-part.tsx` (`feedback` / `score` are mount-local state, seeded only by a submit response).
+
+### Evidence Signals are deferred to M11 (port + enqueue) and M17 (batcher + budget)
+
+- **Trigger**: M11 implements the `ActivityRecordRepository` / `EvidenceSignalRepository` surface (M11 PRD § Ports). This is M11/M17 work by design, not an M10 gap — see the dedicated note in the M11 and M17 PRDs.
+- **Why deferred (not done in M10)**: the five signals (`word_count` + `draft_saved_at` for reflection; `answers_submitted` + `last_answered_at` + `auto_score` for quiz) cannot be emitted safely until M17's throttled batcher + the ≤ 50-write/user/day write-limiter exist — persisting a signal per autosave/submit without batching would breach the write budget that backs the $0 guarantee. Emitting them is therefore coupled to M17, so M10 ships the values but not the writes.
+- **Action**: M11 declares the port + wires the enqueue at the two marked call sites; M17 adds the batcher + budget CI test. The values are already computed in both use cases, and each enqueue point carries a `TODO(m11)` marker, so M11 only adds the port dependency + one call per use case — no restructuring.
+- **Location**: `packages/core/src/use-cases/save-reflection-draft.ts`, `packages/core/src/use-cases/submit-quiz-answers.ts` (see the `TODO(m11)` markers).
 
 ## How to remove an entry
 

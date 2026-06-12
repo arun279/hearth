@@ -95,7 +95,7 @@ const activeOperator: InstanceOperator = {
   revokedBy: null,
 };
 
-const noStewards: ReadonlySet<UserId> = new Set();
+const noStewards: ReadonlySet<UserId> = new Set<UserId>();
 
 describe("isLibraryItemSteward", () => {
   it("accepts the original uploader without a row", () => {

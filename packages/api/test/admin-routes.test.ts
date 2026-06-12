@@ -36,6 +36,7 @@ function buildPorts(overrides: Partial<Ports>): Ports {
     records: throwingProxy<Ports["records"]>("records"),
     sessions: throwingProxy<Ports["sessions"]>("sessions"),
     storage: throwingProxy<Ports["storage"]>("storage"),
+    uploads: throwingProxy<Ports["uploads"]>("uploads"),
     flags: throwingProxy<SystemFlagRepository>("flags"),
     clock: { now: () => new Date(0) },
     ids: { generate: () => "id_test" },

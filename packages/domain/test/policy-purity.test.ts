@@ -32,6 +32,7 @@ const purityConfig = require(resolve(REPO_ROOT, "policy-pure-dirs.cjs")) as {
   readonly DIRS: readonly string[];
   readonly depCruiserFromPath: string;
   readonly scanDirs: readonly string[];
+  readonly lefthookGlob: string;
 };
 
 const PACKAGE_ROOT = resolve(__dirname, "..");
@@ -95,6 +96,20 @@ describe("policy purity — paired-gate drift assertion", () => {
     ).toBeDefined();
     expect(rule?.from.path, "dep-cruiser regex must match policy-pure-dirs.cjs").toBe(
       purityConfig.depCruiserFromPath,
+    );
+  });
+
+  it("lefthook pre-push policy-purity glob matches the SoT", () => {
+    // The lefthook glob is a static YAML string (lefthook can't require()
+    // the SoT module), so a stale glob silently under-triggers the
+    // accelerator on newly-protected dirs. Pin it the same way as the
+    // dep-cruiser regex: a regex extracts the glob line, and a mismatch
+    // fails here rather than rotting unnoticed.
+    const lefthook = readFileSync(resolve(REPO_ROOT, "lefthook.yml"), "utf8");
+    const match = lefthook.match(/^\s+glob:\s*"(packages\/domain\/src\/\([^"]*\)\/\*\*\/\*\.ts)"/m);
+    expect(match?.[1], "lefthook policy-purity glob must be present").toBeDefined();
+    expect(match?.[1], "lefthook glob must match policy-pure-dirs.cjs lefthookGlob").toBe(
+      purityConfig.lefthookGlob,
     );
   });
 });

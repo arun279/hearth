@@ -55,9 +55,12 @@ export type ActivityPart = z.infer<typeof activityPartSchema>;
 export type { AttendSessionPart } from "./attend-session.ts";
 export type { EmbedPart } from "./embed.ts";
 export type { ListenAudioPart } from "./listen-audio.ts";
-export type { QuizPart, QuizQuestion } from "./quiz.ts";
+export type { QuizAnswer, QuizPart, QuizQuestion } from "./quiz.ts";
+export { quizAnswerSchema, redactQuizAnswerKeys } from "./quiz.ts";
+export { evaluateQuizAnswer, type QuizVerdict } from "./quiz-evaluate.ts";
 export type { ReadLibraryItemPart } from "./read-library-item.ts";
 export type { WatchVideoPart } from "./watch-video.ts";
+export { countWords } from "./word-count.ts";
 export type { WriteReflectionPart } from "./write-reflection.ts";
 export {
   attendSessionPartSchema,

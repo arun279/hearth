@@ -43,6 +43,7 @@ function buildPorts(overrides: Partial<Ports>): Ports {
     records: throwingProxy<Ports["records"]>("records"),
     sessions: throwingProxy<Ports["sessions"]>("sessions"),
     storage: throwingProxy<Ports["storage"]>("storage"),
+    uploads: throwingProxy<Ports["uploads"]>("uploads"),
     flags: throwingProxy<SystemFlagRepository>("flags"),
     clock: { now: () => new Date("2026-04-22T00:00:00.000Z") },
     ids: { generate: () => "id_test" },
@@ -125,6 +126,10 @@ const adminMembership: GroupMembership = {
   role: "admin",
   joinedAt: now,
   removedAt: null,
+  removedBy: null,
+  attributionOnLeave: null,
+  displayNameSnapshot: null,
+  profile: { nickname: null, avatarUrl: null, bio: null, updatedAt: null },
 };
 
 function makeGroupsPort(overrides: Partial<StudyGroupRepository> = {}): StudyGroupRepository {
@@ -137,7 +142,19 @@ function makeGroupsPort(overrides: Partial<StudyGroupRepository> = {}): StudyGro
     updateMetadata: vi.fn(async () => group),
     membership: vi.fn(async () => adminMembership),
     membershipsForUser: vi.fn(async () => [adminMembership]),
+    listMemberships: vi.fn(async () => [adminMembership]),
+    listAdmins: vi.fn(async () => [adminMembership]),
     countAdmins: vi.fn(async () => 1),
+    addMembership: vi.fn(),
+    removeMembership: vi.fn(),
+    setMembershipRole: vi.fn(),
+    updateProfile: vi.fn(),
+    createInvitation: vi.fn(),
+    invitationByToken: vi.fn(),
+    invitationById: vi.fn(),
+    listPendingInvitations: vi.fn(async () => []),
+    revokeInvitation: vi.fn(),
+    consumeInvitation: vi.fn(),
     counts: vi.fn(async () => ({ memberCount: 1, trackCount: 0, libraryItemCount: 0 })),
     ...overrides,
   };

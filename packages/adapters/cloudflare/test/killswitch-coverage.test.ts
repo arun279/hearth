@@ -1,4 +1,6 @@
 import type {
+  ActivityPartId,
+  ActivityRecordId,
   AttributionPreference,
   ContributionPolicyEnvelope,
   InvitationId,
@@ -12,6 +14,7 @@ import type {
   UserId,
 } from "@hearth/domain";
 import type {
+  ActivityRecordRepository,
   LearningActivityRepository,
   LibraryItemRepository,
   SystemFlagRepository,
@@ -20,6 +23,7 @@ import type {
 import { describe, expect, it } from "vitest";
 import type { CloudflareAdapterDeps } from "../src/deps.ts";
 import {
+  createActivityRecordRepository,
   createInstanceAccessPolicyRepository,
   createInstanceSettingsRepository,
   createKillswitchGate,
@@ -96,6 +100,7 @@ describe("killswitch coverage (resilience invariant 2 + 3)", () => {
   const tracks = createLearningTrackRepository({ db, gate });
   const library = createLibraryItemRepository({ db, gate });
   const activities = createLearningActivityRepository({ db, gate });
+  const records = createActivityRecordRepository({ db, gate });
   const uploads = createUploadCoordinationRepository({ db, gate });
   const sweep = createPendingUploadsSweep({ db, storage, gate });
   const object = createObjectStorage(storage, gate, {
@@ -386,6 +391,24 @@ describe("killswitch coverage (resilience invariant 2 + 3)", () => {
         }),
     ],
 
+    [
+      "ActivityRecordRepository.upsert",
+      () => records.upsert({ activityId: "a_test" as LearningActivityId, participantId: uid }),
+    ],
+    [
+      "ActivityRecordRepository.savePartProgress",
+      () =>
+        records.savePartProgress({
+          activityRecordId: "ar_test" as ActivityRecordId,
+          partId: "p_test" as ActivityPartId,
+          state: { kind: "write_reflection", completed: false, text: "" },
+        }),
+    ],
+    [
+      "ActivityRecordRepository.setVisibilityOverride",
+      () => records.setVisibilityOverride("ar_test" as ActivityRecordId, "private"),
+    ],
+
     // The hourly cron-driven sweep is not a *port* method, but it
     // calls `gate.assertWritable()` on entry and is the only path
     // through which the killswitch can stop the cron from mutating
@@ -399,32 +422,38 @@ describe("killswitch coverage (resilience invariant 2 + 3)", () => {
     });
   }
 
-  // Type-level exhaustiveness for ports that have adopted the
-  // `Write<>` brand. If a new branded write method is added to a
-  // covered port without a corresponding entry in CASES, the type-
-  // level `Missing` union resolves to a non-`never` value and the
-  // string-literal assignment fails `tsc` with a message naming the
-  // missing label(s). The runtime `expect` is incidental — the
-  // compile-time check is what catches the regression.
+  // Type-level exhaustiveness for every port that has adopted the
+  // `Write<>` brand. `BrandedPorts` is the single registry — one entry
+  // per branded port, keyed by its CASES label-prefix. `ExpectedLabel`
+  // expands each entry to `${prefix}.${branded method}`; `Missing` is
+  // whatever the registry expects but CASES omits. When a new branded
+  // write method lands on any registered port without a CASES entry,
+  // `Missing` becomes non-`never`, so the `satisfies` target collapses
+  // to the `MISSING from CASES: …` template and `"ok"` no longer
+  // satisfies it — `tsc` fails naming the missing label. The runtime
+  // `expect` is incidental; the compile-time `satisfies` is the gate.
   //
-  // To extend coverage to another port: brand its mutating methods
-  // with `Write<>` in the port file and add a per-port block below.
-  // See `docs/tripwires.md` for the migration tracker.
+  // To cover another port: brand its mutating methods with `Write<>` in
+  // the port file and add ONE registry entry below. `SystemFlagRepository`
+  // is deliberately absent — its `set` is an intentional non-gated write
+  // (the killswitch persists its own mode through it), so it stays
+  // un-branded and out of this registry. See `docs/tripwires.md`.
   type CaseLabels = (typeof CASES)[number][0];
 
-  it("LibraryItemRepository: every branded write method is in CASES", () => {
-    type Expected = `LibraryItemRepository.${WriteMethods<LibraryItemRepository>}`;
-    type Missing = Exclude<Expected, CaseLabels>;
-    type ExhaustiveCheck = [Missing] extends [never] ? "ok" : `MISSING from CASES: ${Missing}`;
-    const check: ExhaustiveCheck = "ok";
-    expect(check).toBe("ok");
-  });
+  type BrandedPorts = {
+    LibraryItemRepository: LibraryItemRepository;
+    LearningActivityRepository: LearningActivityRepository;
+    ActivityRecordRepository: ActivityRecordRepository;
+  };
+  type ExpectedLabel = {
+    [P in keyof BrandedPorts & string]: `${P}.${WriteMethods<BrandedPorts[P]> & string}`;
+  }[keyof BrandedPorts & string];
+  type Missing = Exclude<ExpectedLabel, CaseLabels>;
 
-  it("LearningActivityRepository: every branded write method is in CASES", () => {
-    type Expected = `LearningActivityRepository.${WriteMethods<LearningActivityRepository>}`;
-    type Missing = Exclude<Expected, CaseLabels>;
-    type ExhaustiveCheck = [Missing] extends [never] ? "ok" : `MISSING from CASES: ${Missing}`;
-    const check: ExhaustiveCheck = "ok";
+  it("every branded write method on a registered port is in CASES", () => {
+    const check = "ok" satisfies [Missing] extends [never]
+      ? "ok"
+      : `MISSING from CASES: ${Missing}`;
     expect(check).toBe("ok");
   });
 });

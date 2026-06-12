@@ -1,4 +1,4 @@
-import type { BrowserContext } from "@playwright/test";
+import { type BrowserContext, expect } from "@playwright/test";
 import {
   BETTER_AUTH_SESSION_COOKIE,
   executeSql,
@@ -59,6 +59,15 @@ export function resetInstanceState(): void {
     // pointing at a non-e2e library item still releases the FK before
     // the parent learning_activities row is deleted on the next line.
     "DELETE FROM activity_library_refs WHERE activity_id IN (SELECT a.id FROM learning_activities a WHERE a.track_id IN (SELECT t.id FROM tracks t WHERE t.group_id IN (SELECT g.id FROM groups g WHERE NOT EXISTS (SELECT 1 FROM group_memberships m WHERE m.group_id = g.id))))",
+    // Participant state: part_progress + part_history CASCADE from
+    // activity_records, so deleting the records clears them. activity_records
+    // and evidence_signals both FK into learning_activities under RESTRICT,
+    // so both must go before the learning_activities delete below. Scope by
+    // the orphan-activity set (the activity-side cascade) OR by e2e
+    // participant (an e2e user's record against a non-orphan activity, so
+    // the user row can be dropped on the final users delete).
+    "DELETE FROM evidence_signals WHERE participant_id LIKE 'u_e2e_%' OR activity_id IN (SELECT a.id FROM learning_activities a WHERE a.track_id IN (SELECT t.id FROM tracks t WHERE t.group_id IN (SELECT g.id FROM groups g WHERE NOT EXISTS (SELECT 1 FROM group_memberships m WHERE m.group_id = g.id))))",
+    "DELETE FROM activity_records WHERE participant_id LIKE 'u_e2e_%' OR activity_id IN (SELECT a.id FROM learning_activities a WHERE a.track_id IN (SELECT t.id FROM tracks t WHERE t.group_id IN (SELECT g.id FROM groups g WHERE NOT EXISTS (SELECT 1 FROM group_memberships m WHERE m.group_id = g.id))))",
     "DELETE FROM learning_activities WHERE track_id IN (SELECT t.id FROM tracks t WHERE t.group_id IN (SELECT g.id FROM groups g WHERE NOT EXISTS (SELECT 1 FROM group_memberships m WHERE m.group_id = g.id)))",
     "DELETE FROM tracks WHERE group_id IN (SELECT g.id FROM groups g WHERE NOT EXISTS (SELECT 1 FROM group_memberships m WHERE m.group_id = g.id))",
     // M6 dependents: revisions / stewards / activity refs FK into
@@ -139,6 +148,36 @@ export function unapproveEmail(email: string): void {
   executeSql(
     `DELETE FROM approved_emails WHERE email = '${email.toLowerCase()}' AND email LIKE '%@e2e.example.com'`,
   );
+}
+
+/**
+ * Create a group + a track via the real API and return their ids — the
+ * scaffolding preamble most player/composer specs open with before
+ * exercising their actual subject. Uses the spec's own `context.request`
+ * (the same transport, relative URL, and attached cookie the spec's real
+ * assertions use), so setup fidelity matches the test. Scope to genuine
+ * scaffolding only: when group/track creation IS the thing under test (or
+ * a status code is being asserted), keep those calls inline in the spec.
+ */
+export async function seedGroupWithTrack(
+  context: BrowserContext,
+  args: { readonly groupName: string; readonly trackName: string; readonly description?: string },
+): Promise<{ readonly groupId: string; readonly trackId: string }> {
+  const groupRes = await context.request.post("/api/v1/g", {
+    data: { name: args.groupName },
+    headers: { "content-type": "application/json" },
+  });
+  expect(groupRes.status(), "seedGroupWithTrack: create group").toBe(201);
+  const { id: groupId } = (await groupRes.json()) as { id: string };
+
+  const trackRes = await context.request.post(`/api/v1/g/${groupId}/tracks`, {
+    data: { name: args.trackName, ...(args.description ? { description: args.description } : {}) },
+    headers: { "content-type": "application/json" },
+  });
+  expect(trackRes.status(), "seedGroupWithTrack: create track").toBe(201);
+  const { id: trackId } = (await trackRes.json()) as { id: string };
+
+  return { groupId, trackId };
 }
 
 /**

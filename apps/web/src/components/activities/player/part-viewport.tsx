@@ -1,8 +1,15 @@
-import type { ActivityPart, ResolvedLibraryRef } from "@hearth/domain";
+import type {
+  ActivityPart,
+  PartProgressState,
+  ResolvedLibraryRef,
+  VisibilityPreference,
+} from "@hearth/domain";
 import { lazy, Suspense } from "react";
 import { NotYetImplemented } from "./not-yet-implemented.tsx";
 import { EmbedPart } from "./parts/embed-part.tsx";
 import { ListenPart } from "./parts/listen-part.tsx";
+import { QuizPart } from "./parts/quiz-part.tsx";
+import { ReflectPart } from "./parts/reflect-part.tsx";
 import { WatchPart } from "./parts/watch-part.tsx";
 
 /**
@@ -14,10 +21,25 @@ import { WatchPart } from "./parts/watch-part.tsx";
  */
 const ReadPart = lazy(() => import("./parts/read-part.tsx"));
 
+/**
+ * The participant's own state for the active Part, plus whether they may
+ * edit it. `canParticipate` already folds in the window state (a closed
+ * activity renders the interactive Parts read-only); `loaded` gates the
+ * first render so the interactive components mount with their initial value
+ * known rather than flashing empty then hydrating.
+ */
+type RecordContext = {
+  readonly loaded: boolean;
+  readonly canParticipate: boolean;
+  readonly visibilityOverride: VisibilityPreference | null;
+  readonly partState: PartProgressState | null;
+};
+
 type Props = {
   readonly activityId: string;
   readonly part: ActivityPart;
   readonly resolvedRef: ResolvedLibraryRef | null;
+  readonly record: RecordContext;
 };
 
 /**
@@ -32,7 +54,7 @@ type Props = {
  * under a second, and a chunky placeholder competes with the surface
  * a participant is about to read.
  */
-export function PartViewport({ activityId, part, resolvedRef }: Props) {
+export function PartViewport({ activityId, part, resolvedRef, record }: Props) {
   switch (part.kind) {
     case "read_library_item":
       return (
@@ -62,7 +84,28 @@ export function PartViewport({ activityId, part, resolvedRef }: Props) {
     case "embed":
       return <EmbedPart activityId={activityId} part={part} />;
     case "write_reflection":
+      return record.loaded ? (
+        <ReflectPart
+          activityId={activityId}
+          part={part}
+          partState={record.partState}
+          canParticipate={record.canParticipate}
+          visibilityOverride={record.visibilityOverride}
+        />
+      ) : (
+        <PartLoading />
+      );
     case "quiz":
+      return record.loaded ? (
+        <QuizPart
+          activityId={activityId}
+          part={part}
+          partState={record.partState}
+          canParticipate={record.canParticipate}
+        />
+      ) : (
+        <PartLoading />
+      );
     case "attend_session":
       return <NotYetImplemented kind={part.kind} />;
     default:
@@ -72,4 +115,12 @@ export function PartViewport({ activityId, part, resolvedRef }: Props) {
       part satisfies never;
       return <NotYetImplemented kind={(part as { kind: string }).kind} />;
   }
+}
+
+function PartLoading() {
+  return (
+    <div className="flex h-24 items-center text-[12px] text-[var(--color-ink-2)]">
+      Loading your work…
+    </div>
+  );
 }

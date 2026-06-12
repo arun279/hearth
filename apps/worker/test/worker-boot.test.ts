@@ -44,7 +44,14 @@ const CTX = {
 
 async function fetchRoute(path: string): Promise<Response> {
   if (!worker.fetch) throw new Error("worker.fetch is not defined");
-  return await worker.fetch(new Request(`https://example.com${path}`), FAKE_ENV, CTX);
+  return await worker.fetch(
+    new Request(`https://example.com${path}`) as unknown as Request<
+      unknown,
+      IncomingRequestCfProperties
+    >,
+    FAKE_ENV,
+    CTX,
+  );
 }
 
 describe("worker boot", () => {

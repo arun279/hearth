@@ -1,7 +1,7 @@
-import { isValidElement, type ReactElement } from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { ActivityPlayer, ErrorState } from "./activity-player.tsx";
+import { findElement } from "./element-walk.test-helper.tsx";
 
 /**
  * Coverage for `<ActivityPlayer>`'s 5xx / network ErrorState branch.
@@ -28,20 +28,6 @@ function noop() {
   /* no-op */
 }
 
-function findElement(node: unknown, predicate: (el: ReactElement) => boolean): ReactElement | null {
-  if (Array.isArray(node)) {
-    for (const child of node) {
-      const found = findElement(child, predicate);
-      if (found) return found;
-    }
-    return null;
-  }
-  if (!isValidElement(node)) return null;
-  if (predicate(node)) return node;
-  const children = (node.props as { children?: unknown }).children;
-  return children === undefined ? null : findElement(children, predicate);
-}
-
 describe("<ActivityPlayer> ErrorState (5xx / network branch)", () => {
   it("renders the danger callout + Try again on a non-ApiError (network failure)", () => {
     const html = renderToString(
@@ -54,6 +40,8 @@ describe("<ActivityPlayer> ErrorState (5xx / network branch)", () => {
         }}
         requestedPartId={null}
         onChangeActivePartId={noop}
+        groupId="g_1"
+        trackId="t_1"
       />,
     );
     expect(html).toContain("Couldn&#x27;t open this activity");

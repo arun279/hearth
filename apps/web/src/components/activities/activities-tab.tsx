@@ -246,7 +246,7 @@ function EditActivityDialog({
         deleteSlot={
           <Button
             type="button"
-            variant="secondary"
+            variant="danger"
             onClick={() => setConfirmOpen(true)}
             disabled={remove.isPending}
           >
@@ -265,6 +265,9 @@ function EditActivityDialog({
         pending={remove.isPending}
         tone="destructive"
         confirmationPhrase="delete"
+        errorMessage={
+          remove.isError ? asUserMessage(remove.error, "Couldn't delete the activity.") : undefined
+        }
       />
     </>
   );
