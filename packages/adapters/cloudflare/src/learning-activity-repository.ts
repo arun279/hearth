@@ -39,7 +39,7 @@ import {
   type LearningActivityRepository,
   markWrite,
 } from "@hearth/ports";
-import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, ne, type SQL, sql } from "drizzle-orm";
 import type { CloudflareAdapterDeps } from "./deps.ts";
 import { createIdGenerator } from "./id-generator.ts";
 
@@ -50,16 +50,27 @@ import { createIdGenerator } from "./id-generator.ts";
  * - `create` writes the activity row + every library ref + every
  *   prereq edge + every suggested-sequence edge in one D1 batch — all
  *   commits or none does.
- * - `update` writes the conditional body UPDATE (gated on
- *   `tracks.status != 'archived'`, so a concurrent track archive
- *   surfaces as `CONFLICT track_archived`) plus the wholesale replace
- *   of every child collection the caller patched in ONE D1 batch — a
- *   mid-sequence failure (e.g. a child FK violation) rolls the body
- *   write back too. A children-only save omits the body UPDATE.
+ * - `update` writes the body UPDATE plus the wholesale replace of every
+ *   child collection the caller patched in ONE D1 batch. Every write in
+ *   that batch — the body UPDATE and each child delete/insert — is gated
+ *   on `tracks.status != 'archived'`, so a concurrent track archive makes
+ *   the whole batch no-op together and surfaces as `CONFLICT
+ *   track_archived` (a refused conditional write matches zero rows, which
+ *   does NOT roll a D1 batch back, so an ungated sibling would leak a
+ *   torn write onto the frozen row). A mid-sequence statement error (e.g.
+ *   a child FK violation) rolls the body write back too. A children-only
+ *   save replaces the body UPDATE with a gated no-op touch so the gate is
+ *   still detectable, then assembles the otherwise-unchanged body row.
+ * - `delete` drops the activity row + its child collections + the
+ *   participant records keyed to it in ONE batch, every statement gated
+ *   on the same archived predicate so the batch no-ops together on a
+ *   concurrent archive instead of stripping children off a frozen row.
  * - `setLibraryRefs` / `setPrerequisites` / `setSuggestedSequences`
  *   each delete-then-batch-insert in one batch so the single-collection
  *   wholesale replace is atomic; they share their delete+insert
- *   construction with `update`'s combined batch.
+ *   construction with `update`'s combined batch but carry no track gate —
+ *   the gate is only load-bearing when sibling writes share a batch, and
+ *   each `set*` use case owns the archived check for its single write.
  * - Both `update` (when patching prereqs) and `setPrerequisites` re-run
  *   the cross-activity acyclic invariant over the post-write graph
  *   state before the batch commits — defense in depth against the use
@@ -263,53 +274,71 @@ export function createLearningActivityRepository(
         await assertPrereqGraphAcyclic(deps, id, children.prerequisites);
       }
 
-      // Conditional body UPDATE: refuse if the parent track is archived.
-      // The exists-clause walks tracks.status so a concurrent archive
-      // between the use case's read and this write surfaces as CONFLICT.
-      // A children-only save omits this statement — the activity row is
-      // untouched, mirroring the standalone `set*` writers which carry
-      // no track gate. `.returning()` makes the body UPDATE the batch's
-      // last statement so a zero-row result (archived race) is detectable.
-      const bodyUpdate = hasBodyPatch
-        ? deps.db
-            .update(learningActivities)
-            .set({ ...next, updatedAt: now })
-            .where(
-              and(
-                eq(learningActivities.id, id),
-                sql`EXISTS (SELECT 1 FROM ${tracks} WHERE ${tracks.id} = ${learningActivities.trackId} AND ${tracks.status} != 'archived')`,
-              ),
-            )
-            .returning()
-        : null;
+      // Every write in this batch is gated on the parent track staying
+      // active. A refused conditional write matches zero rows, which does
+      // NOT roll a D1 batch back (only a real statement error does), so an
+      // ungated sibling would commit on a now-frozen row. Sharing one gate
+      // across the body UPDATE and every child replace makes the whole
+      // save no-op together on a concurrent archive — no torn state.
+      const hasChildren =
+        children?.libraryRefs !== undefined ||
+        children?.prerequisites !== undefined ||
+        children?.suggestedSequences !== undefined;
+      const gate = trackNotArchived(id);
+
+      // The batch's anchor: a gated, `.returning()` write whose presence
+      // and zero-row result drive archived-race detection. With a body
+      // patch it carries the patch; a children-only save uses a no-op
+      // touch so the children's refusal still surfaces as CONFLICT rather
+      // than a silent success. `.returning()` makes it the last statement.
+      const anchorUpdate =
+        hasBodyPatch || hasChildren
+          ? deps.db
+              .update(learningActivities)
+              .set(
+                hasBodyPatch
+                  ? { ...next, updatedAt: now }
+                  : { updatedAt: learningActivities.updatedAt },
+              )
+              .where(and(eq(learningActivities.id, id), gate))
+              .returning()
+          : null;
 
       const childStatements = [
         ...(children?.libraryRefs !== undefined
-          ? refReplaceStatements(deps, id, mintRefRows(ids, id, children.libraryRefs))
+          ? refReplaceStatements(deps, id, mintRefRows(ids, id, children.libraryRefs), gate)
           : []),
         ...(children?.prerequisites !== undefined
-          ? prerequisiteReplaceStatements(deps, id, mintPrereqRows(ids, id, children.prerequisites))
+          ? prerequisiteReplaceStatements(
+              deps,
+              id,
+              mintPrereqRows(ids, id, children.prerequisites),
+              gate,
+            )
           : []),
         ...(children?.suggestedSequences !== undefined
           ? suggestedSequenceReplaceStatements(
               deps,
               id,
               mintSuggestedRows(ids, id, children.suggestedSequences),
+              gate,
             )
           : []),
       ];
 
-      const statements = [...childStatements, ...(bodyUpdate ? [bodyUpdate] : [])];
+      const statements = [...childStatements, ...(anchorUpdate ? [anchorUpdate] : [])];
       const results =
         statements.length > 0
           ? await deps.db.batch(statements as unknown as Parameters<typeof deps.db.batch>[0])
           : [];
 
-      // The body UPDATE's `.returning()` is authoritative for a body
-      // patch; a children-only save reads the (untouched) body row to
-      // assemble the aggregate.
+      // The anchor UPDATE's `.returning()` is authoritative whenever any
+      // write was issued: a non-empty result means the gate held and the
+      // whole batch (body + children) committed; an empty result means a
+      // concurrent archive refused every gated write, so nothing landed.
+      // A pure no-op (no body patch, no children) reads the body row.
       let bodyRow: typeof learningActivities.$inferSelect | undefined;
-      if (bodyUpdate) {
+      if (anchorUpdate) {
         const updatedRows = results[results.length - 1] as ReadonlyArray<
           typeof learningActivities.$inferSelect
         >;
@@ -330,16 +359,19 @@ export function createLearningActivityRepository(
           );
         }
 
-        // Re-run the flow cycle invariant on the persisted shape (defense
-        // in depth — the use case ran the same check, but a concurrent
-        // mutation between the policy check and the UPDATE could have
-        // raced through). The persisted row is authoritative; if its
-        // parsed flow has a cycle now, abort with INVARIANT_VIOLATION so
-        // the operator sees the failure rather than corrupted data.
-        const persistedFlow = parseFlowEnvelope(bodyRow.flowJson, id);
-        const flowCheck = assertActivityFlowAcyclic(persistedFlow);
-        if (!flowCheck.ok) {
-          throw new DomainError("INVARIANT_VIOLATION", flowCheck.message, flowCheck.code);
+        // Re-run the flow cycle invariant on the persisted shape after a
+        // body patch (defense in depth — the use case ran the same check,
+        // but a concurrent mutation between the policy check and the
+        // UPDATE could have raced through). The persisted row is
+        // authoritative; if its parsed flow has a cycle now, abort with
+        // INVARIANT_VIOLATION so the operator sees the failure rather than
+        // corrupted data. A children-only save leaves flow untouched.
+        if (hasBodyPatch) {
+          const persistedFlow = parseFlowEnvelope(bodyRow.flowJson, id);
+          const flowCheck = assertActivityFlowAcyclic(persistedFlow);
+          if (!flowCheck.ok) {
+            throw new DomainError("INVARIANT_VIOLATION", flowCheck.message, flowCheck.code);
+          }
         }
       } else {
         const rows = await deps.db
@@ -374,10 +406,13 @@ export function createLearningActivityRepository(
       // archived. The exists-clause walks tracks.status so a concurrent
       // archive between the use case's read and this write surfaces as
       // CONFLICT — the same race-resilience guarantee `update` carries.
-      // The child deletes batch with the parent so all either commit or
-      // none does; if the parent's `.returning()` comes back empty we
-      // know the row vanished or the track flipped archived, and the
-      // child cleanups are no-ops on a vanished id.
+      // Every child delete carries the same archived gate as the parent:
+      // a refused conditional delete matches zero rows, which does NOT
+      // roll a D1 batch back, so an ungated child delete would otherwise
+      // strip the collections while the parent stayed put on a frozen
+      // track. Sharing the gate makes the whole batch no-op together on
+      // the archived race; on a clean delete the gate holds and the
+      // child cleanups run as no-ops against an id that is also vanishing.
       //
       // Participant Activity Records (and the evidence_signals keyed to the
       // activity) carry a non-cascading FK to learning_activities, so they
@@ -385,23 +420,23 @@ export function createLearningActivityRepository(
       // participant has touched trips FK RESTRICT. part_progress / part_history
       // cascade from activity_records (FK onDelete: cascade), so removing the
       // record rows clears them transitively.
+      const gate = trackNotArchived(id);
       const childDeletes = [
-        deps.db.delete(activityLibraryRefs).where(eq(activityLibraryRefs.activityId, id)),
-        deps.db.delete(activityPrerequisites).where(eq(activityPrerequisites.activityId, id)),
+        deps.db
+          .delete(activityLibraryRefs)
+          .where(and(eq(activityLibraryRefs.activityId, id), gate)),
+        deps.db
+          .delete(activityPrerequisites)
+          .where(and(eq(activityPrerequisites.activityId, id), gate)),
         deps.db
           .delete(activitySuggestedSequences)
-          .where(eq(activitySuggestedSequences.activityId, id)),
-        deps.db.delete(evidenceSignals).where(eq(evidenceSignals.activityId, id)),
-        deps.db.delete(activityRecords).where(eq(activityRecords.activityId, id)),
+          .where(and(eq(activitySuggestedSequences.activityId, id), gate)),
+        deps.db.delete(evidenceSignals).where(and(eq(evidenceSignals.activityId, id), gate)),
+        deps.db.delete(activityRecords).where(and(eq(activityRecords.activityId, id), gate)),
       ] as const;
       const parentDelete = deps.db
         .delete(learningActivities)
-        .where(
-          and(
-            eq(learningActivities.id, id),
-            sql`EXISTS (SELECT 1 FROM ${tracks} WHERE ${tracks.id} = ${learningActivities.trackId} AND ${tracks.status} != 'archived')`,
-          ),
-        )
+        .where(and(eq(learningActivities.id, id), gate))
         .returning({ id: learningActivities.id });
       const results = (await deps.db.batch([...childDeletes, parentDelete] as unknown as Parameters<
         typeof deps.db.batch
@@ -564,6 +599,46 @@ function mapCounts(rows: ReadonlyArray<{ activityId: string; count: number }>) {
 // methods and the combined `update` batch both compose these statement
 // builders so a child replace has exactly one construction site;
 // `update` folds them into the body batch so the whole save is atomic.
+//
+// `update` passes a `gate` (the same `trackNotArchived` predicate that
+// gates its body UPDATE) so every write in that batch is conditional on
+// the parent track still being active. The standalone `set*` methods
+// pass no gate — their use cases own the archived check, and gating is
+// only load-bearing when sibling writes share a batch (a refused
+// conditional write returns zero rows, which does NOT roll a D1 batch
+// back, so an ungated sibling would otherwise commit on a frozen row).
+
+/**
+ * `EXISTS` predicate that holds while the activity's parent track is not
+ * archived. Keyed by a literal activity id so it can gate writes against
+ * tables that don't have `learning_activities` in scope (the child
+ * delete/insert statements), as well as the body UPDATE itself.
+ */
+function trackNotArchived(activityId: LearningActivityId): SQL {
+  return sql`EXISTS (SELECT 1 FROM ${learningActivities} INNER JOIN ${tracks} ON ${tracks.id} = ${learningActivities.trackId} WHERE ${learningActivities.id} = ${activityId} AND ${tracks.status} != 'archived')`;
+}
+
+/**
+ * Builds the `SELECT … WHERE EXISTS(gate)` body for a gated
+ * `INSERT … SELECT` child write: one branch per row, value tuples in the
+ * target table's column-definition order, each branch carrying the same
+ * archived gate. When the gate is false every branch yields zero rows,
+ * so the insert is a no-op on a frozen-track row — keeping the whole
+ * `update` batch all-or-nothing on the archived race.
+ */
+function gatedInsertSelect(
+  valueTuples: ReadonlyArray<ReadonlyArray<string | null>>,
+  gate: SQL,
+): SQL {
+  const branches = valueTuples.map(
+    (tuple) =>
+      sql`SELECT ${sql.join(
+        tuple.map((v) => sql`${v}`),
+        sql`, `,
+      )} WHERE ${gate}`,
+  );
+  return sql.join(branches, sql` UNION ALL `);
+}
 
 function mintRefRows(
   ids: IdGenerator,
@@ -582,10 +657,23 @@ function refReplaceStatements(
   deps: Pick<CloudflareAdapterDeps, "db">,
   activityId: LearningActivityId,
   rows: ReturnType<typeof mintRefRows>,
+  gate?: SQL,
 ) {
+  const idMatch = eq(activityLibraryRefs.activityId, activityId);
   return [
-    deps.db.delete(activityLibraryRefs).where(eq(activityLibraryRefs.activityId, activityId)),
-    ...(rows.length > 0 ? [deps.db.insert(activityLibraryRefs).values(rows)] : []),
+    deps.db.delete(activityLibraryRefs).where(gate ? and(idMatch, gate) : idMatch),
+    ...(rows.length > 0
+      ? [
+          gate
+            ? deps.db.insert(activityLibraryRefs).select(
+                gatedInsertSelect(
+                  rows.map((r) => [r.id, r.activityId, r.libraryItemId, r.pinnedRevisionId]),
+                  gate,
+                ),
+              )
+            : deps.db.insert(activityLibraryRefs).values(rows),
+        ]
+      : []),
   ];
 }
 
@@ -605,10 +693,23 @@ function prerequisiteReplaceStatements(
   deps: Pick<CloudflareAdapterDeps, "db">,
   activityId: LearningActivityId,
   rows: ReturnType<typeof mintPrereqRows>,
+  gate?: SQL,
 ) {
+  const idMatch = eq(activityPrerequisites.activityId, activityId);
   return [
-    deps.db.delete(activityPrerequisites).where(eq(activityPrerequisites.activityId, activityId)),
-    ...(rows.length > 0 ? [deps.db.insert(activityPrerequisites).values(rows)] : []),
+    deps.db.delete(activityPrerequisites).where(gate ? and(idMatch, gate) : idMatch),
+    ...(rows.length > 0
+      ? [
+          gate
+            ? deps.db.insert(activityPrerequisites).select(
+                gatedInsertSelect(
+                  rows.map((r) => [r.id, r.activityId, r.prerequisiteActivityId]),
+                  gate,
+                ),
+              )
+            : deps.db.insert(activityPrerequisites).values(rows),
+        ]
+      : []),
   ];
 }
 
@@ -628,12 +729,23 @@ function suggestedSequenceReplaceStatements(
   deps: Pick<CloudflareAdapterDeps, "db">,
   activityId: LearningActivityId,
   rows: ReturnType<typeof mintSuggestedRows>,
+  gate?: SQL,
 ) {
+  const idMatch = eq(activitySuggestedSequences.activityId, activityId);
   return [
-    deps.db
-      .delete(activitySuggestedSequences)
-      .where(eq(activitySuggestedSequences.activityId, activityId)),
-    ...(rows.length > 0 ? [deps.db.insert(activitySuggestedSequences).values(rows)] : []),
+    deps.db.delete(activitySuggestedSequences).where(gate ? and(idMatch, gate) : idMatch),
+    ...(rows.length > 0
+      ? [
+          gate
+            ? deps.db.insert(activitySuggestedSequences).select(
+                gatedInsertSelect(
+                  rows.map((r) => [r.id, r.activityId, r.nextActivityId]),
+                  gate,
+                ),
+              )
+            : deps.db.insert(activitySuggestedSequences).values(rows),
+        ]
+      : []),
   ];
 }
 
