@@ -51,6 +51,11 @@ export function QuizPart({ activityId, part, partState, canParticipate }: Props)
   const [answers, setAnswers] = useState<Record<string, QuizAnswer>>(() =>
     initialAnswers(part, partState),
   );
+  // TODO(m11): `feedback` and `score` are mount-local, seeded only by a submit
+  // response, so the graded verdict goes blank on reload. M11's durable-Record
+  // read path must rehydrate it — carry a graded-result projection on read, or
+  // re-grade on mount from the persisted answers — mirroring the completion
+  // rehydration owned by `packages/core/src/use-cases/set-part-completed.ts`.
   const [feedback, setFeedback] = useState<Map<string, Verdict> | null>(null);
   const [score, setScore] = useState<QuizSubmitResult["autoScore"] | null>(null);
   // Set when the learner attempts an all-blank submit. Grading nothing would
