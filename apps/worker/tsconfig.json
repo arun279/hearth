@@ -1,8 +1,5 @@
 {
   "extends": "@hearth/tsconfig/worker.json",
-  "compilerOptions": {
-    "types": ["@cloudflare/workers-types", "node"]
-  },
-  "include": ["src/**/*.ts", "test/**/*.ts"],
+  "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }
