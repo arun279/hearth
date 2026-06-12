@@ -34,6 +34,7 @@ import {
 } from "@hearth/domain";
 import {
   type ActivityLibraryRefRow,
+  type IdGenerator,
   type LearningActivityPatch,
   type LearningActivityRepository,
   markWrite,
@@ -49,17 +50,21 @@ import { createIdGenerator } from "./id-generator.ts";
  * - `create` writes the activity row + every library ref + every
  *   prereq edge + every suggested-sequence edge in one D1 batch — all
  *   commits or none does.
- * - `update` is a single conditional UPDATE on `learning_activities`
- *   gated on `tracks.status != 'archived'`, so a concurrent track
- *   archive between the use case's read and the write surfaces as
- *   `CONFLICT track_archived` rather than an orphan envelope write.
+ * - `update` writes the conditional body UPDATE (gated on
+ *   `tracks.status != 'archived'`, so a concurrent track archive
+ *   surfaces as `CONFLICT track_archived`) plus the wholesale replace
+ *   of every child collection the caller patched in ONE D1 batch — a
+ *   mid-sequence failure (e.g. a child FK violation) rolls the body
+ *   write back too. A children-only save omits the body UPDATE.
  * - `setLibraryRefs` / `setPrerequisites` / `setSuggestedSequences`
- *   each delete-then-batch-insert in one batch so the wholesale
- *   replace is atomic.
- * - `setPrerequisites` re-runs the cross-activity acyclic invariant
- *   inside the same batch over the post-write graph state — defense
- *   in depth against the use case's pre-write check racing with a
- *   concurrent edge write from another facilitator.
+ *   each delete-then-batch-insert in one batch so the single-collection
+ *   wholesale replace is atomic; they share their delete+insert
+ *   construction with `update`'s combined batch.
+ * - Both `update` (when patching prereqs) and `setPrerequisites` re-run
+ *   the cross-activity acyclic invariant over the post-write graph
+ *   state before the batch commits — defense in depth against the use
+ *   case's pre-write check racing with a concurrent edge write from
+ *   another facilitator.
  *
  * Envelope parsing on read uses the same Zod schemas the API
  * boundary uses for write validation; an unknown `v` throws
@@ -241,53 +246,112 @@ export function createLearningActivityRepository(
       });
     },
 
-    update: markWrite(async ({ id, patch, by: _by }) => {
+    update: markWrite(async ({ id, patch, children, by: _by }) => {
       await deps.gate.assertWritable();
       const now = new Date();
       const next = encodePatch(patch);
+      const hasBodyPatch = Object.keys(next).length > 0;
 
-      // Conditional UPDATE: refuse if the parent track is archived.
+      // Cross-activity cycle re-check runs against the post-write graph
+      // BEFORE the batch commits: the batch is the only writer of this
+      // activity's prereq edges, so the proposed set plus every other
+      // activity's existing edges is the exact graph the batch lands. A
+      // concurrent edit on a sibling could close a cycle the use case's
+      // pre-check did not see; aborting here keeps the corrupt edge out
+      // of the batch entirely.
+      if (children?.prerequisites !== undefined) {
+        await assertPrereqGraphAcyclic(deps, id, children.prerequisites);
+      }
+
+      // Conditional body UPDATE: refuse if the parent track is archived.
       // The exists-clause walks tracks.status so a concurrent archive
       // between the use case's read and this write surfaces as CONFLICT.
-      const updated = await deps.db
-        .update(learningActivities)
-        .set({ ...next, updatedAt: now })
-        .where(
-          and(
-            eq(learningActivities.id, id),
-            sql`EXISTS (SELECT 1 FROM ${tracks} WHERE ${tracks.id} = ${learningActivities.trackId} AND ${tracks.status} != 'archived')`,
-          ),
-        )
-        .returning();
-      const updatedRow = updated[0];
-      if (!updatedRow) {
+      // A children-only save omits this statement — the activity row is
+      // untouched, mirroring the standalone `set*` writers which carry
+      // no track gate. `.returning()` makes the body UPDATE the batch's
+      // last statement so a zero-row result (archived race) is detectable.
+      const bodyUpdate = hasBodyPatch
+        ? deps.db
+            .update(learningActivities)
+            .set({ ...next, updatedAt: now })
+            .where(
+              and(
+                eq(learningActivities.id, id),
+                sql`EXISTS (SELECT 1 FROM ${tracks} WHERE ${tracks.id} = ${learningActivities.trackId} AND ${tracks.status} != 'archived')`,
+              ),
+            )
+            .returning()
+        : null;
+
+      const childStatements = [
+        ...(children?.libraryRefs !== undefined
+          ? refReplaceStatements(deps, id, mintRefRows(ids, id, children.libraryRefs))
+          : []),
+        ...(children?.prerequisites !== undefined
+          ? prerequisiteReplaceStatements(deps, id, mintPrereqRows(ids, id, children.prerequisites))
+          : []),
+        ...(children?.suggestedSequences !== undefined
+          ? suggestedSequenceReplaceStatements(
+              deps,
+              id,
+              mintSuggestedRows(ids, id, children.suggestedSequences),
+            )
+          : []),
+      ];
+
+      const statements = [...childStatements, ...(bodyUpdate ? [bodyUpdate] : [])];
+      const results =
+        statements.length > 0
+          ? await deps.db.batch(statements as unknown as Parameters<typeof deps.db.batch>[0])
+          : [];
+
+      // The body UPDATE's `.returning()` is authoritative for a body
+      // patch; a children-only save reads the (untouched) body row to
+      // assemble the aggregate.
+      let bodyRow: typeof learningActivities.$inferSelect | undefined;
+      if (bodyUpdate) {
+        const updatedRows = results[results.length - 1] as ReadonlyArray<
+          typeof learningActivities.$inferSelect
+        >;
+        bodyRow = updatedRows[0];
+        if (!bodyRow) {
+          const rows = await deps.db
+            .select()
+            .from(learningActivities)
+            .where(eq(learningActivities.id, id))
+            .limit(1);
+          if (!rows[0]) {
+            throw new DomainError("NOT_FOUND", "Activity not found.", "not_found");
+          }
+          throw new DomainError(
+            "CONFLICT",
+            "Archived tracks do not allow Learning Activity edits.",
+            "track_archived",
+          );
+        }
+
+        // Re-run the flow cycle invariant on the persisted shape (defense
+        // in depth — the use case ran the same check, but a concurrent
+        // mutation between the policy check and the UPDATE could have
+        // raced through). The persisted row is authoritative; if its
+        // parsed flow has a cycle now, abort with INVARIANT_VIOLATION so
+        // the operator sees the failure rather than corrupted data.
+        const persistedFlow = parseFlowEnvelope(bodyRow.flowJson, id);
+        const flowCheck = assertActivityFlowAcyclic(persistedFlow);
+        if (!flowCheck.ok) {
+          throw new DomainError("INVARIANT_VIOLATION", flowCheck.message, flowCheck.code);
+        }
+      } else {
         const rows = await deps.db
           .select()
           .from(learningActivities)
           .where(eq(learningActivities.id, id))
           .limit(1);
-        if (!rows[0]) {
-          throw new DomainError("NOT_FOUND", "Activity not found.", "not_found");
-        }
-        throw new DomainError(
-          "CONFLICT",
-          "Archived tracks do not allow Learning Activity edits.",
-          "track_archived",
-        );
+        bodyRow = rows[0];
       }
-
-      // Re-run the flow cycle invariant on the persisted shape (defense
-      // in depth — the use case ran the same check, but a concurrent
-      // mutation between the policy check and the UPDATE could have
-      // raced through). The persisted row is authoritative; if its
-      // parsed flow has a cycle now, abort with INVARIANT_VIOLATION so
-      // the operator sees the failure rather than corrupted data.
-      const persistedFlow = parseFlowEnvelope(updatedRow.flowJson, id);
-      const flowCheck = assertActivityFlowAcyclic(persistedFlow);
-      if (!flowCheck.ok) {
-        throw new DomainError("INVARIANT_VIOLATION", flowCheck.message, flowCheck.code);
+      if (!bodyRow) {
+        throw new DomainError("NOT_FOUND", "Activity not found.", "not_found");
       }
-
       const refRows = await deps.db
         .select()
         .from(activityLibraryRefs)
@@ -301,7 +365,7 @@ export function createLearningActivityRepository(
         .select()
         .from(activitySuggestedSequences)
         .where(eq(activitySuggestedSequences.activityId, id));
-      return decodeActivity(updatedRow, refRows, prereqRows, suggestedRows);
+      return decodeActivity(bodyRow, refRows, prereqRows, suggestedRows);
     }),
 
     delete: markWrite(async ({ id, by: _by }) => {
@@ -369,20 +433,16 @@ export function createLearningActivityRepository(
 
     setLibraryRefs: markWrite(async ({ activityId, refs }) => {
       await deps.gate.assertWritable();
-      const refRows = refs.map((ref) => ({
-        id: ids.generate(),
-        activityId,
-        libraryItemId: ref.libraryItemId,
-        pinnedRevisionId: ref.pinnedRevisionId,
-      }));
-      await deps.db.batch([
-        deps.db.delete(activityLibraryRefs).where(eq(activityLibraryRefs.activityId, activityId)),
-        ...(refRows.length > 0 ? [deps.db.insert(activityLibraryRefs).values(refRows)] : []),
-      ] as unknown as Parameters<typeof deps.db.batch>[0]);
+      const refRows = mintRefRows(ids, activityId, refs);
+      await deps.db.batch(
+        refReplaceStatements(deps, activityId, refRows) as unknown as Parameters<
+          typeof deps.db.batch
+        >[0],
+      );
       return refRows.map(
         (r): ActivityLibraryRefRow => ({
           id: r.id,
-          activityId: r.activityId,
+          activityId: r.activityId as LearningActivityId,
           libraryItemId: r.libraryItemId,
           pinnedRevisionId: r.pinnedRevisionId,
         }),
@@ -413,55 +473,26 @@ export function createLearningActivityRepository(
 
     setPrerequisites: markWrite(async ({ activityId, prerequisiteActivityIds }) => {
       await deps.gate.assertWritable();
-
-      // Defense-in-depth cycle re-check: load every other prereq edge
-      // and verify the post-write graph is still acyclic. A concurrent
-      // edit on a sibling activity could close a cycle the use case's
-      // pre-check did not see.
-      const otherEdges = await deps.db
-        .select()
-        .from(activityPrerequisites)
-        .where(ne(activityPrerequisites.activityId, activityId));
-      const existingEdges: CrossActivityEdge[] = otherEdges.map((e) => ({
-        activityId: e.activityId as LearningActivityId,
-        prerequisiteActivityId: e.prerequisiteActivityId as LearningActivityId,
-      }));
-      const cycle = assertActivityPrerequisitesAcyclic(
-        activityId,
-        prerequisiteActivityIds,
-        existingEdges,
+      await assertPrereqGraphAcyclic(deps, activityId, prerequisiteActivityIds);
+      await deps.db.batch(
+        prerequisiteReplaceStatements(
+          deps,
+          activityId,
+          mintPrereqRows(ids, activityId, prerequisiteActivityIds),
+        ) as unknown as Parameters<typeof deps.db.batch>[0],
       );
-      if (!cycle.ok) {
-        throw new DomainError("INVARIANT_VIOLATION", cycle.message, cycle.code);
-      }
-
-      const newRows = prerequisiteActivityIds.map((prereqId) => ({
-        id: ids.generate(),
-        activityId,
-        prerequisiteActivityId: prereqId,
-      }));
-      await deps.db.batch([
-        deps.db
-          .delete(activityPrerequisites)
-          .where(eq(activityPrerequisites.activityId, activityId)),
-        ...(newRows.length > 0 ? [deps.db.insert(activityPrerequisites).values(newRows)] : []),
-      ] as unknown as Parameters<typeof deps.db.batch>[0]);
       return [...prerequisiteActivityIds];
     }),
 
     setSuggestedSequences: markWrite(async ({ activityId, nextActivityIds }) => {
       await deps.gate.assertWritable();
-      const newRows = nextActivityIds.map((nextId) => ({
-        id: ids.generate(),
-        activityId,
-        nextActivityId: nextId,
-      }));
-      await deps.db.batch([
-        deps.db
-          .delete(activitySuggestedSequences)
-          .where(eq(activitySuggestedSequences.activityId, activityId)),
-        ...(newRows.length > 0 ? [deps.db.insert(activitySuggestedSequences).values(newRows)] : []),
-      ] as unknown as Parameters<typeof deps.db.batch>[0]);
+      await deps.db.batch(
+        suggestedSequenceReplaceStatements(
+          deps,
+          activityId,
+          mintSuggestedRows(ids, activityId, nextActivityIds),
+        ) as unknown as Parameters<typeof deps.db.batch>[0],
+      );
       return [...nextActivityIds];
     }),
 
@@ -526,6 +557,114 @@ function mapCounts(rows: ReadonlyArray<{ activityId: string; count: number }>) {
   const map = new Map<string, number>();
   for (const r of rows) map.set(r.activityId, Number(r.count));
   return map;
+}
+
+// The three child collections live on separate tables and are each a
+// delete-then-insert wholesale replace. The standalone `set*` port
+// methods and the combined `update` batch both compose these statement
+// builders so a child replace has exactly one construction site;
+// `update` folds them into the body batch so the whole save is atomic.
+
+function mintRefRows(
+  ids: IdGenerator,
+  activityId: LearningActivityId,
+  refs: ReadonlyArray<{ readonly libraryItemId: string; readonly pinnedRevisionId: string | null }>,
+) {
+  return refs.map((ref) => ({
+    id: ids.generate(),
+    activityId,
+    libraryItemId: ref.libraryItemId,
+    pinnedRevisionId: ref.pinnedRevisionId,
+  }));
+}
+
+function refReplaceStatements(
+  deps: Pick<CloudflareAdapterDeps, "db">,
+  activityId: LearningActivityId,
+  rows: ReturnType<typeof mintRefRows>,
+) {
+  return [
+    deps.db.delete(activityLibraryRefs).where(eq(activityLibraryRefs.activityId, activityId)),
+    ...(rows.length > 0 ? [deps.db.insert(activityLibraryRefs).values(rows)] : []),
+  ];
+}
+
+function mintPrereqRows(
+  ids: IdGenerator,
+  activityId: LearningActivityId,
+  prerequisiteActivityIds: readonly LearningActivityId[],
+) {
+  return prerequisiteActivityIds.map((prereqId) => ({
+    id: ids.generate(),
+    activityId,
+    prerequisiteActivityId: prereqId,
+  }));
+}
+
+function prerequisiteReplaceStatements(
+  deps: Pick<CloudflareAdapterDeps, "db">,
+  activityId: LearningActivityId,
+  rows: ReturnType<typeof mintPrereqRows>,
+) {
+  return [
+    deps.db.delete(activityPrerequisites).where(eq(activityPrerequisites.activityId, activityId)),
+    ...(rows.length > 0 ? [deps.db.insert(activityPrerequisites).values(rows)] : []),
+  ];
+}
+
+function mintSuggestedRows(
+  ids: IdGenerator,
+  activityId: LearningActivityId,
+  nextActivityIds: readonly LearningActivityId[],
+) {
+  return nextActivityIds.map((nextId) => ({
+    id: ids.generate(),
+    activityId,
+    nextActivityId: nextId,
+  }));
+}
+
+function suggestedSequenceReplaceStatements(
+  deps: Pick<CloudflareAdapterDeps, "db">,
+  activityId: LearningActivityId,
+  rows: ReturnType<typeof mintSuggestedRows>,
+) {
+  return [
+    deps.db
+      .delete(activitySuggestedSequences)
+      .where(eq(activitySuggestedSequences.activityId, activityId)),
+    ...(rows.length > 0 ? [deps.db.insert(activitySuggestedSequences).values(rows)] : []),
+  ];
+}
+
+/**
+ * Defense-in-depth cross-activity cycle re-check over the post-write
+ * graph: every other activity's prereq edges plus the proposed set for
+ * `activityId` is exactly what the wholesale replace lands, so a
+ * concurrent sibling edit that would close a cycle the use case's
+ * pre-check missed aborts here before the write commits.
+ */
+async function assertPrereqGraphAcyclic(
+  deps: Pick<CloudflareAdapterDeps, "db">,
+  activityId: LearningActivityId,
+  prerequisiteActivityIds: readonly LearningActivityId[],
+): Promise<void> {
+  const otherEdges = await deps.db
+    .select()
+    .from(activityPrerequisites)
+    .where(ne(activityPrerequisites.activityId, activityId));
+  const existingEdges: CrossActivityEdge[] = otherEdges.map((e) => ({
+    activityId: e.activityId as LearningActivityId,
+    prerequisiteActivityId: e.prerequisiteActivityId as LearningActivityId,
+  }));
+  const cycle = assertActivityPrerequisitesAcyclic(
+    activityId,
+    prerequisiteActivityIds,
+    existingEdges,
+  );
+  if (!cycle.ok) {
+    throw new DomainError("INVARIANT_VIOLATION", cycle.message, cycle.code);
+  }
 }
 
 function encodeActivity(draft: LearningActivityDraft) {

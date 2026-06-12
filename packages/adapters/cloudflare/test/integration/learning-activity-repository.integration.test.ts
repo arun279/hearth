@@ -26,6 +26,9 @@ import { createSystemFlagRepository } from "../../src/system-flag-repository.ts"
  *     `library_items` row is FK-blocked at the DB layer.
  *   - `setPrerequisites` re-runs the cross-activity acyclic invariant
  *     inside the transaction; the post-write graph cannot land a cycle.
+ *   - `update` writes the body row + every patched child collection in
+ *     ONE batch: a child FK violation rolls the body write back too, so
+ *     no partial state lands.
  */
 describe("learning-activity adapter (real D1)", () => {
   function buildRepos() {
@@ -474,6 +477,121 @@ describe("learning-activity adapter (real D1)", () => {
       // Refused delete — every child set is intact (an empty draft, so
       // the assertion is "the activity is still readable").
       expect(after.id).toBe(created.id);
+    });
+  });
+
+  describe("update batches body + children atomically", () => {
+    it("a child FK violation rolls back the body UPDATE — no partial state lands", async () => {
+      const repos = buildRepos();
+      const { creator, track } = await setupTrack(repos, "ac_atomic");
+      const created = await repos.activities.create({
+        draft: { ...baseDraft(track.id), title: "Original title" },
+        createdBy: creator,
+      });
+
+      // Drive a combined save: a real body patch (new title) AND a
+      // library-ref child patch pointing at a library_items id that does
+      // not exist. The ref INSERT trips the FK on
+      // activity_library_refs.library_item_id, so the whole batch rejects.
+      //
+      // Pre-fix, this same save was a body `update` (auto-committed) THEN a
+      // separate `setLibraryRefs` (FK-fails): the title would have persisted
+      // while the ref write failed — exactly the torn state this proves is
+      // gone. With the combined batch, the failing INSERT rolls the body
+      // UPDATE back too.
+      await expect(
+        repos.activities.update({
+          id: created.id,
+          patch: { title: "Renamed in a doomed save" },
+          children: {
+            libraryRefs: [{ libraryItemId: "li_does_not_exist", pinnedRevisionId: null }],
+          },
+          by: creator,
+        }),
+      ).rejects.toThrow();
+
+      // The body row is untouched: title is still the original, and no
+      // library-ref row leaked from the rejected batch.
+      const after = await repos.activities.byId(created.id);
+      expect(after?.title).toBe("Original title");
+      expect(after?.libraryRefs).toEqual([]);
+      expect(
+        await repos.db
+          .select({ id: schema.activityLibraryRefs.id })
+          .from(schema.activityLibraryRefs)
+          .where(eq(schema.activityLibraryRefs.activityId, created.id)),
+      ).toEqual([]);
+    });
+
+    it("a valid combined save lands the body patch and every child set in one batch", async () => {
+      const repos = buildRepos();
+      const { creator, group, track } = await setupTrack(repos, "ac_atomic_ok");
+      const item = await seedPdfItem(repos, group.id, creator);
+      const created = await repos.activities.create({
+        draft: { ...baseDraft(track.id), title: "Before" },
+        createdBy: creator,
+      });
+      const sibling = await repos.activities.create({
+        draft: { ...baseDraft(track.id), title: "Sibling" },
+        createdBy: creator,
+      });
+
+      const updated = await repos.activities.update({
+        id: created.id,
+        patch: { title: "After" },
+        children: {
+          libraryRefs: [{ libraryItemId: item.item.id, pinnedRevisionId: null }],
+          prerequisites: [sibling.id],
+          suggestedSequences: [sibling.id],
+        },
+        by: creator,
+      });
+
+      expect(updated.title).toBe("After");
+      expect(updated.libraryRefs.map((r) => r.libraryItemId)).toEqual([item.item.id]);
+      expect(updated.prerequisiteActivityIds).toEqual([sibling.id]);
+      expect(updated.suggestedNextActivityIds).toEqual([sibling.id]);
+
+      const round = await repos.activities.byId(created.id);
+      expect(round?.title).toBe("After");
+      expect(round?.libraryRefs.map((r) => r.libraryItemId)).toEqual([item.item.id]);
+      expect(round?.prerequisiteActivityIds).toEqual([sibling.id]);
+      expect(round?.suggestedNextActivityIds).toEqual([sibling.id]);
+    });
+
+    it("a children-only save leaves the body row untouched and rejects a cross-activity cycle", async () => {
+      const repos = buildRepos();
+      const { creator, track } = await setupTrack(repos, "ac_atomic_cycle");
+      const a = await repos.activities.create({
+        draft: { ...baseDraft(track.id), title: "A" },
+        createdBy: creator,
+      });
+      const b = await repos.activities.create({
+        draft: { ...baseDraft(track.id), title: "B" },
+        createdBy: creator,
+      });
+
+      // a → b via the combined update's children-only path (empty body patch).
+      const aUpdated = await repos.activities.update({
+        id: a.id,
+        patch: {},
+        children: { prerequisites: [b.id] },
+        by: creator,
+      });
+      expect(aUpdated.prerequisiteActivityIds).toEqual([b.id]);
+
+      // Proposing b → a closes a 2-node cycle — the in-batch acyclic
+      // re-check must reject before any edge lands.
+      await expect(
+        repos.activities.update({
+          id: b.id,
+          patch: {},
+          children: { prerequisites: [a.id] },
+          by: creator,
+        }),
+      ).rejects.toThrow(/cycle/i);
+      // The rejected save left b with no prereq edges.
+      expect((await repos.activities.byId(b.id))?.prerequisiteActivityIds).toEqual([]);
     });
   });
 });
