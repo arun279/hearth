@@ -55,6 +55,7 @@ function installVars(
       records: throwingProxy("records"),
       sessions: throwingProxy("sessions"),
       storage: throwingProxy("storage"),
+      uploads: throwingProxy("uploads"),
       flags: throwingProxy("flags"),
       clock: { now: () => new Date(0) },
       ids: { generate: () => "id_fuzz" },

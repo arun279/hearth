@@ -26,7 +26,7 @@
   },
   "devDependencies": {
     "@hearth/tsconfig": "workspace:*",
-    "@types/node": "^22.9.0",
+    "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "tailwindcss": "^4.2.0",

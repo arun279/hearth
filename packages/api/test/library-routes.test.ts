@@ -21,6 +21,7 @@ import type {
   SystemFlagRepository,
   UploadCoordinationRepository,
   UserRepository,
+  Write,
 } from "@hearth/ports";
 import { Hono } from "hono";
 import { describe, expect, it, vi } from "vitest";
@@ -28,6 +29,14 @@ import type { AppBindings } from "../src/bindings.ts";
 import { createApiRouter } from "../src/index.ts";
 
 type Ports = AppBindings["Variables"]["ports"];
+
+/**
+ * `Partial<T>` with the `Write<F>` brand stripped from mutating methods, so a
+ * test can pass a plain `vi.fn()` for a branded port method. The brand is an
+ * adapter killswitch-coverage concern; the mock builders re-apply the port
+ * type at the cast boundary. Mirrors `packages/core/test/_helpers.ts`.
+ */
+type MockOverrides<T> = Partial<{ [K in keyof T]: T[K] extends Write<infer F> ? F : T[K] }>;
 
 function throwingProxy<T extends object>(label: string): T {
   return new Proxy({} as T, {
@@ -214,7 +223,9 @@ function makePolicyPort(): InstanceAccessPolicyRepository {
   } as InstanceAccessPolicyRepository;
 }
 
-function makeLibraryPort(overrides: Partial<LibraryItemRepository> = {}): LibraryItemRepository {
+function makeLibraryPort(
+  overrides: MockOverrides<LibraryItemRepository> = {},
+): LibraryItemRepository {
   return {
     create: vi.fn(),
     byId: vi.fn(async () => livingItem),

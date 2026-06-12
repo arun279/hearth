@@ -33,7 +33,7 @@
   "devDependencies": {
     "@hearth/tsconfig": "workspace:*",
     "@total-typescript/ts-reset": "^0.6.1",
-    "@types/node": "^22.9.0",
+    "@types/node": "catalog:",
     "@vitest/coverage-v8": "catalog:",
     "fast-check": "catalog:",
     "typescript": "catalog:",

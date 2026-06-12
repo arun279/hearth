@@ -41,6 +41,10 @@ const adminMembership: GroupMembership = {
   role: "admin",
   joinedAt: now,
   removedAt: null,
+  removedBy: null,
+  attributionOnLeave: null,
+  displayNameSnapshot: null,
+  profile: { nickname: null, avatarUrl: null, bio: null, updatedAt: null },
 };
 
 function makeUsers(user: User | null): UserRepository {
@@ -64,7 +68,19 @@ function makeGroups(overrides: Partial<StudyGroupRepository>): StudyGroupReposit
     updateMetadata: vi.fn(),
     membership: vi.fn(async () => adminMembership),
     membershipsForUser: vi.fn(async () => []),
+    listMemberships: vi.fn(async () => []),
+    listAdmins: vi.fn(async () => []),
     countAdmins: vi.fn(async () => 1),
+    addMembership: vi.fn(),
+    removeMembership: vi.fn(),
+    setMembershipRole: vi.fn(),
+    updateProfile: vi.fn(),
+    createInvitation: vi.fn(),
+    invitationByToken: vi.fn(),
+    invitationById: vi.fn(),
+    listPendingInvitations: vi.fn(async () => []),
+    revokeInvitation: vi.fn(),
+    consumeInvitation: vi.fn(),
     counts: vi.fn(async () => ({ memberCount: 1, trackCount: 0, libraryItemCount: 0 })),
     ...overrides,
   };

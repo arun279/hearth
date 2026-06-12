@@ -22,6 +22,7 @@ import type {
   SystemFlagRepository,
   UploadCoordinationRepository,
   UserRepository,
+  Write,
 } from "@hearth/ports";
 import { Hono } from "hono";
 import { describe, expect, it, vi } from "vitest";
@@ -29,6 +30,14 @@ import type { AppBindings } from "../src/bindings.ts";
 import { createApiRouter } from "../src/index.ts";
 
 type Ports = AppBindings["Variables"]["ports"];
+
+/**
+ * `Partial<T>` with the `Write<F>` brand stripped from mutating methods, so a
+ * test can pass a plain `vi.fn()` for a branded port method. The brand is an
+ * adapter killswitch-coverage concern; the mock builders re-apply the port
+ * type at the cast boundary. Mirrors `packages/core/test/_helpers.ts`.
+ */
+type MockOverrides<T> = Partial<{ [K in keyof T]: T[K] extends Write<infer F> ? F : T[K] }>;
 
 function throwingProxy<T extends object>(label: string): T {
   return new Proxy({} as T, {
@@ -285,7 +294,7 @@ describe("activities routes", () => {
   });
 
   it("creates an activity (round-trip happy path)", async () => {
-    const repo: Pick<LearningActivityRepository, "create" | "byId"> = {
+    const repo: MockOverrides<Pick<LearningActivityRepository, "create" | "byId">> = {
       create: vi.fn(async () => created),
       byId: vi.fn(async () => null),
     };
@@ -339,7 +348,7 @@ describe("activities routes", () => {
   });
 
   describe("read + mutation routes (round-trip happy paths)", () => {
-    function readyDeps(activities: Partial<LearningActivityRepository> = {}) {
+    function readyDeps(activities: MockOverrides<LearningActivityRepository> = {}) {
       return {
         users: {
           byId: vi.fn(async () => facUser),
@@ -422,8 +431,8 @@ describe("activities routes", () => {
       expect(body).toHaveLength(1);
       const [row] = body;
       expect(row).toBeDefined();
-      expect(row?.audienceKind).toBe("subset");
-      expect(row?.audience).toBeUndefined();
+      expect(row?.["audienceKind"]).toBe("subset");
+      expect(row?.["audience"]).toBeUndefined();
       expect(JSON.stringify(body)).not.toContain("userIds");
       expect(JSON.stringify(body)).not.toContain(facId);
     });
