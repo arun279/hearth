@@ -27,7 +27,6 @@
   // hoisted node_modules; it's not a declared dep of the root package,
   // so knip needs the exemption.
   //
-  // TODO(scaffolding): remove entries from this list as each dep gets its first real import.
   // These are v1-expected dependencies declared in package.json but not yet wired in the
   // skeleton — knip would flag them as phantom deps without this allowlist. When a feature
   // actually imports the dep, remove its entry here.
