@@ -10,7 +10,7 @@ import { ActivityComposer, findIncompletePart, sanitizePartForWire } from "./act
  * interactive flows need a real DOM and live in the deferred jsdom
  * component-test layer + the m10 e2e.
  *
- * TODO(test): add jsdom component coverage for the deferred DOM behaviors —
+ * TODO(m10.5): add jsdom component coverage for the deferred DOM behaviors —
  * the add-accept-row flow (and that a blank accept row is dropped, never
  * reaching the server), the Match-exactly toggle swapping the worked-example
  * note, and the submit-error field binding (a coherence failure sets

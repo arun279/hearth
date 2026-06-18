@@ -15,7 +15,7 @@ import { ConfirmActionDialog } from "./confirm-action-dialog.tsx";
  * so SSR asserts the suppressed contract; the confirm→fail→retry transition
  * needs a real DOM.
  *
- * TODO(test): in the deferred jsdom component-test layer, drive the session
+ * TODO(m10.5): in the deferred jsdom component-test layer, drive the session
  * scoping directly — open with a latched errorMessage and assert no Callout,
  * then click confirm and assert the Callout appears; reopen and assert it is
  * suppressed again. The category e2e covers the failed-confirm surface

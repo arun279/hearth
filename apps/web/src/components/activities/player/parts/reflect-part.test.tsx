@@ -9,7 +9,7 @@ import { deriveSaveStatus, ReflectPart, wordCountLabel } from "./reflect-part.ts
  * it here keeps a future branch (e.g. a "conflict" state) conspicuously the
  * odd one out.
  *
- * TODO(test): the behavioural DOM transitions — retry-calls-persist, the
+ * TODO(m10.5): the behavioural DOM transitions — retry-calls-persist, the
  * autosave-debounce pill transitions, the monotonic `lastSaved` advance, and
  * the visibilitychange/unmount keepalive flush (including the no-pending-change
  * skip) — need a real DOM and a fetch spy, so they land with the deferred
