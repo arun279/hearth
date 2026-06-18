@@ -108,6 +108,13 @@ Each entry names the **pinned tool**, the **condition** that triggers a reassess
 
 ## Supply-chain + licensing
 
+### `ws` pinned via override (current: `miniflare>ws` → `^8.21.0`)
+
+- **Trigger**: `miniflare`'s own `dependencies.ws` reaches `>=8.21.0` in a released version that the repo's `wrangler` (`apps/worker` `^4.86.0`) and `@cloudflare/vitest-pool-workers` (catalog `^0.14.7`) pins resolve to.
+- **Action**: drop the `miniflare>ws` entry from `package.json` `pnpm.overrides` and remove this tripwire entry — pnpm then dedupes to the patched `ws` natively. Leaving the override in place pins `ws` to the `8.21.x` line after miniflare moves on, defeating dedup.
+- **Why it exists**: GHSA-96hv-2xvq-fx4p (`ws` memory-exhaustion DoS, affected `>=8.0.0 <8.21.0`). `ws` is a dev-only transitive — `miniflare` is the local Workers simulator and never reaches the deployed workerd runtime — but `pnpm audit --audit-level=high` (a pre-push + daily CI gate) flags it regardless. When the override was added, `miniflare@latest` still pinned `ws@8.20.1`, so the advisory could not be cleared by bumping `wrangler`/`miniflare`; the scoped override forces the patched `ws`, which is a structural fix (it removes the vulnerable code), not a suppression.
+- **Location**: `package.json` `pnpm.overrides`.
+
 ## Design system
 
 ### No sub-AA palette token

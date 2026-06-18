@@ -43,11 +43,10 @@
   },
   "pnpm": {
     "overrides": {
-      "drizzle-zod>zod": "^4.1.11",
       "@esbuild-kit/core-utils>esbuild": "^0.25.0",
       "@esbuild-kit/esm-loader>esbuild": "^0.25.0",
       "ajv>fast-uri": "^3.1.2",
-      "better-auth>kysely": "^0.28.17"
+      "miniflare>ws": "^8.21.0"
     }
   },
   "devDependencies": {

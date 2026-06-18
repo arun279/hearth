@@ -22,7 +22,7 @@ catalog:
   "@types/react-dom": ^19.2.0
   "@types/node": ^22.10.0
   zod: ^4.1.11
-  hono: ^4.12.18
+  hono: ^4.12.25
   drizzle-orm: 0.45.2
   drizzle-kit: 0.31.10
   better-auth: ^1.6.11
