@@ -37,7 +37,7 @@ test-results/
 design-review/
 
 # Local scratch docs (plans, punch-lists, review artifacts). Never push.
-docs/temp/
+temp/
 
 # Editor / OS
 .DS_Store
