@@ -70,7 +70,9 @@ Each entry names the **pinned tool**, the **condition** that triggers a reassess
 
 ## Dev-server tooling
 
-### Vite watcher fragility on cross-package source files (current pin: `vite@^8.0.9`, ships `chokidar@3.6.0`)
+### Vite watcher fragility on cross-package source files (current pin: `vite@^8.0.16`)
+
+TODO(tripwire): vite 8 no longer bundles `chokidar` (verified: `npm view vite@8.0.16 dependencies` → the watcher path uses `picomatch` + `tinyglobby`). The brittle `chokidar@3.6.0` `chokidar.add()` behaviour described below now resolves via `@tanstack/router-cli` / `@tanstack/router-plugin`, not vite. Revisit whether this entry's chokidar rationale and the `docs/dev-runbook.md` § 11 troubleshooting note still apply, or should re-point at the `@tanstack/router-*` source.
 
 - **Trigger**: Vite upgrades to chokidar 4 / 5 (re-introducing the chokidar-v4 migration that vite 6 had via PR #18453), OR Vite migrates to `@parcel/watcher` (tracking issue: vitejs/vite#12495), OR Vite ships a fix in the watcher path that adds parent-directory watches alongside `chokidar.add(file)` for cross-package source files.
 - **Action**: on a long-running dev server, edit a file under `packages/*/src/` rapidly via atomic-rename (write-temp + rename — the pattern Edit tools and vim default to) and verify HMR fires every time. If it does, retire the `e2e fails locally on a long-running Vite dev server` bullet in `docs/dev-runbook.md` § 11 Troubleshooting and remove this tripwire entry. Background: with `chokidar@3.6.0`, `chokidar.add(file)` watches only the file's inode (not the parent directory); atomic-rename writes change the inode and chokidar's re-watch logic is brittle under rapid sequences. The rare-but-painful failure mode is "Vite serves the cached transform of a cross-package file from when it was first imported regardless of disk state."
@@ -107,6 +109,13 @@ Each entry names the **pinned tool**, the **condition** that triggers a reassess
 - **Location**: `apps/web/package.json` (`@hookform/resolvers`, `zod`); call sites in `apps/web/src/components/groups/{create-group-dialog,group-settings-dialog}.tsx`.
 
 ## Supply-chain + licensing
+
+### `ws` pinned via override (current: `miniflare>ws` → `^8.21.0`)
+
+- **Trigger**: `miniflare`'s own `dependencies.ws` reaches `>=8.21.0` in a released version that the repo's `wrangler` (`apps/worker` `^4.86.0`) and `@cloudflare/vitest-pool-workers` (catalog `^0.14.7`) pins resolve to.
+- **Action**: drop the `miniflare>ws` entry from `package.json` `pnpm.overrides` and remove this tripwire entry — pnpm then dedupes to the patched `ws` natively. Leaving the override in place pins `ws` to the `8.21.x` line after miniflare moves on, defeating dedup.
+- **Why it exists**: GHSA-96hv-2xvq-fx4p (`ws` memory-exhaustion DoS, affected `>=8.0.0 <8.21.0`). `ws` is a dev-only transitive — `miniflare` is the local Workers simulator and never reaches the deployed workerd runtime — but `pnpm audit --audit-level=high` (a pre-push + daily CI gate) flags it regardless. When the override was added, `miniflare@latest` still pinned `ws@8.20.1`, so the advisory could not be cleared by bumping `wrangler`/`miniflare`; the scoped override forces the patched `ws`, which is a structural fix (it removes the vulnerable code), not a suppression.
+- **Location**: `package.json` `pnpm.overrides`.
 
 ## Design system
 
