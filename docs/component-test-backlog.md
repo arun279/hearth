@@ -20,10 +20,13 @@ Highest leverage first. Primitives lead because every feature composes them, so 
 
 Cover the interaction-bearing primitives with `renderPrimitive`.
 
-- [ ] `Popover` — open/close, outside-click + Escape close, focus-into-panel on open and focus-restore-to-trigger on close, above/below repositioning.
-- [ ] `RadioGroup` — selection round-trip, disabled state, the result-tone (graded) option rendering with its non-colour adornment.
-- [ ] `Modal` / `dialog-keyboard` — focus trap (Tab/Shift+Tab wrap), Escape on the topmost of a stack only, `inert` on lower panels, focus restoration across a nested-dialog close.
-- [ ] `SaveIndicator` — idle renders nothing; saving/saved/error states; the error state's retry affordance.
+- [x] `Popover` — open/close, outside-click + Escape close (with `stopPropagation` so a parent dialog stays open), focus-into-panel on open and focus-restore-to-trigger on close, free Tab (not trapped), above/below repositioning.
+- [x] `RadioGroup` — controlled selection round-trip + checked-mirror, disabled-fieldset suppresses the callback. (Tone/adornment/legend are pure prop→markup mappings; they stay at the SSR-string altitude, not in this DOM test.)
+- [x] `Modal` / `dialog-keyboard` — focus trap (Tab/Shift+Tab wrap), Escape on the topmost of a stack only, `inert` on lower panels, focus restoration to the trigger + re-trap into the parent on nested-dialog close, scrim-button close.
+- [x] `TabBar` — Arrow/Home/End keyboard nav with wrap, the `moveFocusOnNextChange` gate (keyboard nav moves DOM focus + rolls the roving tabindex; an external value change does not), click path does not arm the focus-move.
+- [x] `Drawer` — divergent surface only (left/right edge anchoring, visible scrim + header close affordances, z-40-under-Modal-z-50 so a confirm Modal takes Escape). The shared `useDialogPanel` contract is covered once via `Modal` above.
+- [x] `Avatar` — the `img.onError` → initials-fallback transition (the one stateful branch; hue/initials/static-src are unit/SSR).
+- [ ] `SaveIndicator` — already covered by `packages/ui/test/save-indicator.test.tsx` (idle/saving/saved/error states + the retry affordance's focus ring + the `onRetry` handler wiring asserted by tree-walk). It is a pure stateless props→markup component with no internal state, fetch, or timers; a DOM test would only re-click an already-asserted handler binding, so it stays at the SSR-string altitude.
 
 ### Pending — feature components (`apps/web`)
 
