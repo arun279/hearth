@@ -17,7 +17,7 @@ import {
  * outcome-badge tone + copy), plus SSR checks for the participant and
  * read-only render arms.
  *
- * TODO(test): the post-submit rendering paths — the `ScoreSummary`
+ * TODO(m10.5): the post-submit rendering paths — the `ScoreSummary`
  * `gradeable === 0` ("no auto-graded questions") branch, the short-answer
  * submit round-trip, and verdict-clears-on-edit — depend on a submit mutation
  * firing and updating state, so they need a real DOM. They land with the

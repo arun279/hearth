@@ -1621,7 +1621,7 @@ function PostCloseRadios({
 }
 
 /**
- * TODO(m11-m12): refresh the prereq + suggested-sequence helper copy
+ * TODO(m11): refresh the prereq + suggested-sequence helper copy
  * once Activity Records (M11) and Visibility (M12) make prereq
  * satisfaction observable to the learner. Today the copy is correct
  * for the static state ("Pick zero or more activities a learner

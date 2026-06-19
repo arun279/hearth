@@ -12,6 +12,7 @@ import { spawnSync } from "node:child_process";
  * Run via: pnpm check:conventions
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
+import { classifyTodo, parseMilestone } from "./lib/todo-scope.mjs";
 
 /**
  * @typedef {{
@@ -548,8 +549,9 @@ function findStaleMilestoneTodos(files) {
   if (log.status !== 0) return [];
   let maxShipped = 0;
   for (const subject of log.stdout.split("\n")) {
-    const m = /^\w+\(m(\d+)\)/.exec(subject);
-    if (m?.[1]) maxShipped = Math.max(maxShipped, Number(m[1]));
+    const m = /^\w+\((m\d+(?:\.\d+)?)\)/.exec(subject);
+    const shipped = m ? parseMilestone(m[1]) : null;
+    if (shipped !== null) maxShipped = Math.max(maxShipped, shipped);
   }
   const hits = [];
   for (const file of files) {
@@ -561,9 +563,42 @@ function findStaleMilestoneTodos(files) {
       continue;
     }
     text.split("\n").forEach((line, i) => {
-      const m = /TODO\(m(\d+)\)/.exec(line);
-      if (m?.[1] && Number(m[1]) <= maxShipped) {
+      const m = /TODO\((m\d+(?:\.\d+)?)\)/.exec(line);
+      const tagged = m ? parseMilestone(m[1]) : null;
+      if (tagged !== null && tagged <= maxShipped) {
         hits.push({ ref: m[0], location: `${file}:${i + 1}`, line: line.trim() });
+      }
+    });
+  }
+  return hits;
+}
+
+/**
+ * Flags any committed `TODO(` that is not scoped to a single valid milestone
+ * (`TODO(m11)`, `TODO(m10.5)`). Non-milestone scopes (`TODO(test)`), milestone
+ * ranges (`TODO(m11-m12)`), and bare `TODO` are debt with no home — re-scope to
+ * the owning milestone or do the work now. Skips markdown by type (prose about
+ * the convention, never a code-borne marker) and the rule's own source + test
+ * (which necessarily contain the literal patterns they match) — exempt by
+ * design, the same way every other rule here treats this script.
+ *
+ * @param {string[]} files
+ */
+function findUnscopedTodos(files) {
+  const isRuleSource = (f) =>
+    f.endsWith("scripts/check-conventions.mjs") || f.includes("scripts/lib/todo-scope");
+  const hits = [];
+  for (const file of files) {
+    if (isRuleSource(file) || /\.(md|mdx)$/.test(file)) continue;
+    let text;
+    try {
+      text = readFileSync(file, "utf8");
+    } catch {
+      continue;
+    }
+    text.split("\n").forEach((line, i) => {
+      if (classifyTodo(line) === "unscoped") {
+        hits.push({ location: `${file}:${i + 1}`, line: line.trim() });
       }
     });
   }
@@ -738,6 +773,16 @@ if (staleTodos.length > 0) {
   for (const h of staleTodos) console.error(`  ${h.location}: ${h.line}    [${h.ref}]`);
   console.error(
     "  Why: a TODO tagged for a milestone that has already shipped (per git history) is debt that looks tracked but points at done work. Re-tag it to the milestone that actually owns the follow-up, or do the work and delete the TODO.\n",
+  );
+  fail = true;
+}
+
+const unscopedTodos = findUnscopedTodos(files);
+if (unscopedTodos.length > 0) {
+  console.error('\nConvention violation — unscoped TODO (rule "no-unscoped-todo"):');
+  for (const h of unscopedTodos) console.error(`  ${h.location}: ${h.line}`);
+  console.error(
+    "  Why: every committed TODO must name a single owning milestone (e.g. TODO(m11), TODO(m10.5)). A non-milestone scope (TODO(test), TODO(scaffolding)), a milestone range (TODO(m11-m12)), or a bare TODO is debt with no home — re-scope it to the milestone that owns the work, or do the work now and delete the marker. Debt with no owning milestone (trigger-based scaffolding, upstream-gated cleanup) belongs in a prose note plus docs/tripwires.md or the AGENTS.md Scaffolding-temporary table, not a TODO(.\n",
   );
   fail = true;
 }
