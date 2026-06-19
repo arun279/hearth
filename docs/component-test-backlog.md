@@ -36,7 +36,8 @@ Cover the interaction-bearing primitives with `renderPrimitive`.
 - [x] `groups/leave-group-dialog` — case-insensitive + whitespace-normalized type-to-confirm gate (internal whitespace significant), attribution radio → mutateAsync payload, reset-on-reopen.
 - [x] `groups/avatar-uploader` — client-side MIME rejection, post-resize size-cap rejection, success upload, upload-vs-remove pending gates, file-input reset.
 - [x] `groups/invitations-panel` — query loading/empty/data fork, status→action-visibility mapping, copy success/fallback fork, revoke-confirm error latch + retry.
-- [ ] `library/upload-dialog` — the Reserving → Uploading → Finalizing state machine and the retire flow.
+- [x] `library/upload-dialog` — the Reserving → Uploading → Finalizing stage machine, progress-percent math, cancel-only-during-uploading, abort-silent-reset vs latched-error, MIME/size rejection, quota block/warn fork, revision-mode field hiding, close-reset.
+- [x] `library/library-item-detail` — query loading-vs-data fork, retire type-to-confirm success/close, retire error latch + retry, no-error-carry-over across reopen, archived/retired affordance gating, focus restore on sub-dialog close, Upload-revision opens the nested UploadDialog in revision mode. (The "retire flow" the upload-dialog entry referenced lives here, not in UploadDialog.)
 - [ ] `library` search — debounce, "Load more" cursor exhaustion, and the `isError` vs empty branches.
 - [ ] `admin` tabs — operator/approved-email list mutations and their error/confirm surfaces (the shared confirm dialog is seeded above).
 - [ ] `tracks` dialogs and `activities` composer — the audience picker (subset roster) and the dirty-discard confirm guard.
