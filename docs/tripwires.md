@@ -115,6 +115,13 @@ Each entry names the **pinned tool**, the **condition** that triggers a reassess
 - **Why it exists**: GHSA-96hv-2xvq-fx4p (`ws` memory-exhaustion DoS, affected `>=8.0.0 <8.21.0`). `ws` is a dev-only transitive — `miniflare` is the local Workers simulator and never reaches the deployed workerd runtime — but `pnpm audit --audit-level=high` (a pre-push + daily CI gate) flags it regardless. When the override was added, `miniflare@latest` still pinned `ws@8.20.1`, so the advisory could not be cleared by bumping `wrangler`/`miniflare`; the scoped override forces the patched `ws`, which is a structural fix (it removes the vulnerable code), not a suppression.
 - **Location**: `package.json` `pnpm.overrides`.
 
+### `undici` pinned via override (current: `miniflare>undici` → `^7.28.0`)
+
+- **Trigger**: the repo's `wrangler` (`apps/worker` `^4.86.0`) resolves to a `miniflare` whose bundled `dependencies.undici` is already `>=7.28.0`. Unlike `ws` above, `miniflare@latest` **already** ships `undici@7.28.0`, so this clears as soon as a `wrangler` bump pulls that miniflare — no waiting on upstream.
+- **Action**: drop the `miniflare>undici` entry from `package.json` `pnpm.overrides` and remove this tripwire entry; pnpm then dedupes to the patched `undici` natively. Better: a single `wrangler`/`miniflare` bump can retire **both** this and the `ws` override above at once — prefer that consolidation over carrying two miniflare overrides indefinitely.
+- **Why it exists**: GHSA-vmh5-mc38-953g (TLS certificate validation bypass), GHSA-vxpw-j846-p89q (WebSocket-client DoS), GHSA-hm92-r4w5-c3mj (cross-origin request routing via SOCKS5 proxy pool reuse) — all `undici <7.28.0`, fixed in `7.28.0`. Same dev-only-transitive + scoped-override-is-a-structural-fix-not-a-suppression rationale as the `ws` entry above. The installed `wrangler@4.90.0 → miniflare@4.20260507.1` pinned `undici@7.24.8`; the override forces the patched `7.28.0`.
+- **Location**: `package.json` `pnpm.overrides`.
+
 ## Design system
 
 ### No sub-AA palette token

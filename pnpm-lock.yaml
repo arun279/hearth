@@ -68,6 +68,7 @@ overrides:
   '@esbuild-kit/core-utils>esbuild': ^0.25.0
   '@esbuild-kit/esm-loader>esbuild': ^0.25.0
   ajv>fast-uri: ^3.1.2
+  miniflare>undici: ^7.28.0
   miniflare>ws: ^8.21.0
 
 importers:
@@ -3897,8 +3898,8 @@ packages:
   undici-types@6.21.0:
     resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
 
-  undici@7.24.8:
-    resolution: {integrity: sha512-6KQ/+QxK49Z/p3HO6E5ZCZWNnCasyZLa5ExaVYyvPxUwKtbCPMKELJOqh7EqOle0t9cH/7d2TaaTRRa6Nhs4YQ==}
+  undici@7.28.0:
+    resolution: {integrity: sha512-cRZYrTDwWznlnRiPjggAGxZXanty6M8RV1ff8Wm4LWXBp7/IG8v5DnOm74DtUBp9OONpK75YlPnIjQqX0dBDtA==}
     engines: {node: '>=20.18.1'}
 
   unenv@2.0.0-rc.24:
@@ -6398,7 +6399,7 @@ snapshots:
     dependencies:
       '@cspotcode/source-map-support': 0.8.1
       sharp: 0.34.5
-      undici: 7.24.8
+      undici: 7.28.0
       workerd: 1.20260420.1
       ws: 8.21.0
       youch: 4.1.0-beta.10
@@ -6410,7 +6411,7 @@ snapshots:
     dependencies:
       '@cspotcode/source-map-support': 0.8.1
       sharp: 0.34.5
-      undici: 7.24.8
+      undici: 7.28.0
       workerd: 1.20260507.1
       ws: 8.21.0
       youch: 4.1.0-beta.10
@@ -7028,7 +7029,7 @@ snapshots:
 
   undici-types@6.21.0: {}
 
-  undici@7.24.8: {}
+  undici@7.28.0: {}
 
   unenv@2.0.0-rc.24:
     dependencies:
