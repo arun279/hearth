@@ -200,6 +200,9 @@ function ReflectEditor({
       if (textRef.current === lastSaved.current) return;
       const body = JSON.stringify({ text: textRef.current });
       markSaved(textRef.current);
+      // Raw keepalive `fetch` (not the react-query mutation) so the write
+      // outlives an unload; `$url` resolves because the client base is
+      // origin-anchored (see api-client.ts).
       const url = api.activities[":activityId"]["my-record"].parts[":partId"].reflection.$url({
         param: { activityId, partId: part.id },
       });

@@ -13,13 +13,9 @@ import { VisibilitySelector } from "./visibility-selector.tsx";
  * its trigger-label resolution and the "no redundant default radio" invariant
  * are pinned here. The radios and the "Use my default" clear action live in a
  * Popover panel that mounts only after a client click + focus effect, neither
- * of which runs under `renderToString`; their behaviour is exercised by the
- * m10 e2e and lands in the deferred jsdom component-test layer (separate PR).
- *
- * TODO(m10.5): add jsdom component coverage for the deferred DOM behaviors —
- * the in-panel popover radios selecting a scope, and the "Use my default"
- * clear round-trip (override -> null reverts the trigger to the resolved
- * account default) including the SaveIndicator settling to "Saved".
+ * of which runs under `renderToString`; their behaviour — selecting a scope,
+ * the clear round-trip, and the in-panel SaveIndicator settling to "Saved" —
+ * lives in `visibility-selector.dom.test.tsx` on the happy-dom project.
  */
 
 function render(value: VisibilityPreference | null): string {

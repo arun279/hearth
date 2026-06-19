@@ -7,14 +7,10 @@ import { ActivityComposer, findIncompletePart, sanitizePartForWire } from "./act
 /**
  * SSR-level coverage for the static render of the composer's short-answer
  * answer-key editor and the destructive / required affordances. The
- * interactive flows need a real DOM and live in the deferred jsdom
- * component-test layer + the m10 e2e.
- *
- * TODO(m10.5): add jsdom component coverage for the deferred DOM behaviors —
- * the add-accept-row flow (and that a blank accept row is dropped, never
- * reaching the server), the Match-exactly toggle swapping the worked-example
- * note, and the submit-error field binding (a coherence failure sets
- * aria-invalid + aria-describedby on the correct-answer Input and focuses it).
+ * interactive flows — the add-accept-row drop, the Match-exactly note swap,
+ * and the submit-error field binding (aria-invalid + aria-describedby + focus
+ * on the correct-answer Input) — live in `activity-composer.dom.test.tsx` on
+ * the happy-dom project.
  */
 
 const SHORT_ANSWER_ACTIVITY: LearningActivity = {

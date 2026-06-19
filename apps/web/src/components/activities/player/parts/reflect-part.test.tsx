@@ -7,14 +7,10 @@ import { deriveSaveStatus, ReflectPart, wordCountLabel } from "./reflect-part.ts
 /**
  * `deriveSaveStatus` is the precedence rule the autosave pill reads; pinning
  * it here keeps a future branch (e.g. a "conflict" state) conspicuously the
- * odd one out.
- *
- * TODO(m10.5): the behavioural DOM transitions — retry-calls-persist, the
- * autosave-debounce pill transitions, the monotonic `lastSaved` advance, and
- * the visibilitychange/unmount keepalive flush (including the no-pending-change
- * skip) — need a real DOM and a fetch spy, so they land with the deferred
- * jsdom component-test layer (separate PR). The m10 e2e covers debounced
- * autosave and retry end-to-end in the meantime.
+ * odd one out. The behavioural DOM transitions — debounce pill transitions,
+ * retry-calls-persist, the monotonic `lastSaved` advance, and the
+ * visibilitychange/unmount keepalive flush (plus the no-pending-change skip)
+ * — live in `reflect-part.dom.test.tsx` on the happy-dom project.
  */
 
 const PART: WriteReflectionPart = { kind: "write_reflection", id: "p_reflect", prompt: "Why?" };
