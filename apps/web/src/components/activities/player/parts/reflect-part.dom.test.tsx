@@ -1,6 +1,7 @@
 import type { WriteReflectionPart } from "@hearth/domain";
 import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { api } from "../../../../lib/api-client.ts";
 import { installFetchSpy } from "../../../../test/fetch-spy.ts";
 import { renderWithProviders } from "../../../../test/render.tsx";
 
@@ -177,9 +178,12 @@ describe("ReflectPart keepalive flush", () => {
     expect(fetchSpy.init(0)?.method).toBe("PUT");
     expect(fetchSpy.init(0)?.keepalive).toBe(true);
     expect(fetchSpy.init(0)?.body).toBe(JSON.stringify({ text: "draft" }));
-    expect(fetchSpy.url(0)).toContain(
-      "/api/v1/activities/a_test/my-record/parts/p_reflect/reflection",
+    // Assert against the same typed `$url` the component builds, so the check
+    // tracks the route surface instead of a hand-written path that can drift.
+    const expectedUrl = api.activities[":activityId"]["my-record"].parts[":partId"].reflection.$url(
+      { param: { activityId: "a_test", partId: "p_reflect" } },
     );
+    expect(new URL(fetchSpy.url(0)).pathname).toBe(expectedUrl.pathname);
   });
 
   it("flushes the pending draft on unmount", async () => {
