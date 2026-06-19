@@ -30,7 +30,12 @@ Cover the interaction-bearing primitives with `renderPrimitive`.
 
 ### Pending — feature components (`apps/web`)
 
-- [ ] `groups/create-group-dialog` + `groups/group-settings-dialog` — RHF + Zod resolver wiring; the empty-submit assertion (the resolver-version tripwire) is e2e-only today and belongs at this altitude.
+- [x] `groups/create-group-dialog` + `groups/group-settings-dialog` — RHF + Zod resolver wiring; the empty-submit resolver-version tripwire, server-error→field binding, dirty-gate, prop re-hydration, archived read-only, archive-confirm error latch + retry, close-blocked-while-pending.
+- [x] `groups/invite-dialog` — onChange submit gate, form→result toggle, copy success/fallback fork, emailApproved warning Callout, reset-on-reopen.
+- [x] `groups/group-members-dialog` — query loading/empty/data fork, per-row capability gating, discriminated-union confirm copy/tone, role-change error latch + retry, close-blocked-while-pending.
+- [x] `groups/leave-group-dialog` — case-insensitive + whitespace-normalized type-to-confirm gate (internal whitespace significant), attribution radio → mutateAsync payload, reset-on-reopen.
+- [x] `groups/avatar-uploader` — client-side MIME rejection, post-resize size-cap rejection, success upload, upload-vs-remove pending gates, file-input reset.
+- [x] `groups/invitations-panel` — query loading/empty/data fork, status→action-visibility mapping, copy success/fallback fork, revoke-confirm error latch + retry.
 - [ ] `library/upload-dialog` — the Reserving → Uploading → Finalizing state machine and the retire flow.
 - [ ] `library` search — debounce, "Load more" cursor exhaustion, and the `isError` vs empty branches.
 - [ ] `admin` tabs — operator/approved-email list mutations and their error/confirm surfaces (the shared confirm dialog is seeded above).

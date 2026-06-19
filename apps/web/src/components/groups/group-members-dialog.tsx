@@ -149,13 +149,13 @@ export function GroupMembersDialog({ open, onClose, group }: Props) {
         onClose={() => setConfirming(null)}
         onConfirm={async () => {
           if (confirming?.kind !== "promote") return;
-          await runRoleChange(
+          const ok = await runRoleChange(
             setRole,
             confirming.row.membership.userId,
             "admin",
             "Promoted to admin.",
           );
-          setConfirming(null);
+          if (ok) setConfirming(null);
         }}
       />
       <ConfirmActionDialog
@@ -175,13 +175,13 @@ export function GroupMembersDialog({ open, onClose, group }: Props) {
         onClose={() => setConfirming(null)}
         onConfirm={async () => {
           if (confirming?.kind !== "demote") return;
-          await runRoleChange(
+          const ok = await runRoleChange(
             setRole,
             confirming.row.membership.userId,
             "participant",
             "Admin role removed.",
           );
-          setConfirming(null);
+          if (ok) setConfirming(null);
         }}
       />
       <ConfirmActionDialog
@@ -218,16 +218,23 @@ function labelOf(row: GroupMemberRow): string {
   return row.displayName;
 }
 
+// Returns false on failure so the caller leaves the confirm dialog open: the
+// failed mutation's latched `errorMessage` then surfaces as the in-dialog
+// Callout and the confirm button stays live for a retry, matching the
+// archive/remove flows on this same dialog. Closing on failure would drop the
+// user back to a toast that auto-dismisses before it can be re-read.
 async function runRoleChange(
   setRole: ReturnType<typeof useSetGroupAdmin>,
   userId: UserId,
   role: GroupRole,
   successMsg: string,
-) {
+): Promise<boolean> {
   try {
     await setRole.mutateAsync({ userId, role });
     toast.success(successMsg);
+    return true;
   } catch (err) {
     toast.error(asUserMessage(err, "Role change failed."));
+    return false;
   }
 }
