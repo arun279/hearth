@@ -90,6 +90,12 @@ export type EvidenceSignal = {
  * is false for a viewer who can see the activity but is not a participant
  * (e.g. a facilitator outside a subset audience); the SPA renders the
  * interactive Parts read-only in that case.
+ *
+ * `partHistoryCount` + `partsWithHistory` carry the same two history rollups
+ * `ActivityRecordFullView` exposes, so the owner's Player renders the
+ * activity-level "N prior attempts preserved" chip and the per-Part history
+ * affordance from this single read — without the record id this path hides.
+ * Both are `0` / `[]` until a record exists.
  */
 export type MyActivityRecordView = {
   readonly canParticipate: boolean;
@@ -98,4 +104,6 @@ export type MyActivityRecordView = {
     readonly partId: ActivityPartId;
     readonly state: PartProgressState;
   }>;
+  readonly partHistoryCount: number;
+  readonly partsWithHistory: readonly ActivityPartId[];
 };

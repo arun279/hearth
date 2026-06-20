@@ -13,6 +13,7 @@ import { markWrite } from "@hearth/ports";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createActivity } from "../src/use-cases/create-activity.ts";
 import { getMyActivityRecord } from "../src/use-cases/get-my-activity-record.ts";
+import { listMyPartHistory } from "../src/use-cases/list-my-part-history.ts";
 import { saveReflectionDraft } from "../src/use-cases/save-reflection-draft.ts";
 import { setPartCompleted } from "../src/use-cases/set-part-completed.ts";
 import { setRecordVisibilityOverride } from "../src/use-cases/set-record-visibility-override.ts";
@@ -165,10 +166,13 @@ describe("getMyActivityRecord", () => {
     expect(view.canParticipate).toBe(true);
     expect(view.parts).toEqual([]);
     expect(view.visibilityOverride).toBeNull();
+    expect(view.partHistoryCount).toBe(0);
+    expect(view.partsWithHistory).toEqual([]);
     expect(deps.records.upsert).not.toHaveBeenCalled();
+    expect(deps.records.countPartHistory).not.toHaveBeenCalled();
   });
 
-  it("hydrates parts + visibility from an existing record", async () => {
+  it("hydrates parts + visibility + history rollups from an existing record", async () => {
     const progress: PartProgress = {
       id: "pp_1",
       activityRecordId: RECORD_ID,
@@ -176,16 +180,29 @@ describe("getMyActivityRecord", () => {
       state: { kind: "write_reflection", completed: false, text: "draft" },
       updatedAt: TEST_NOW,
     };
+    const historyRow = {
+      id: "ph_1",
+      activityRecordId: RECORD_ID,
+      partId: "p_quiz" as ActivityPartId,
+      snapshot: { kind: "quiz" as const, completed: true, answers: [] },
+      reason: "retry" as const,
+      revisionIdAtTime: null,
+      recordedAt: TEST_NOW,
+    };
     const deps = depsOk({
       records: makeRecords({
         byParticipantAndActivity: vi.fn(async () => record({ visibilityOverride: "private" })),
         listPartProgress: vi.fn(async () => [progress]),
+        countPartHistory: vi.fn(async () => 2),
+        listPartHistory: vi.fn(async () => [historyRow, { ...historyRow, id: "ph_2" }]),
       }),
     });
     const view = await getMyActivityRecord({ actor: ACTOR_ID, activityId: ACTIVITY_ID }, deps);
     expect(view.canParticipate).toBe(true);
     expect(view.visibilityOverride).toBe("private");
     expect(view.parts).toEqual([{ partId: "p_reflect", state: progress.state }]);
+    expect(view.partHistoryCount).toBe(2);
+    expect(view.partsWithHistory).toEqual(["p_quiz"]);
   });
 
   it("returns canParticipate=false for a member who is not enrolled (read-only viewer)", async () => {
@@ -203,6 +220,40 @@ describe("getMyActivityRecord", () => {
     await expect(
       getMyActivityRecord({ actor: ACTOR_ID, activityId: ACTIVITY_ID }, deps),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+});
+
+describe("listMyPartHistory (owner-addressed, record-id-free)", () => {
+  it("resolves the owner's record internally and lists its history", async () => {
+    const records = makeRecords({
+      byParticipantAndActivity: vi.fn(async () => record()),
+    });
+    const deps = depsOk({ records });
+    await listMyPartHistory(
+      { actor: ACTOR_ID, activityId: ACTIVITY_ID, partId: "p_quiz" as ActivityPartId },
+      deps,
+    );
+    expect(records.listPartHistory).toHaveBeenCalledWith(RECORD_ID, { partId: "p_quiz" });
+  });
+
+  it("returns [] for an owner who has no record yet (never reads history)", async () => {
+    const records = makeRecords({ byParticipantAndActivity: vi.fn(async () => null) });
+    const deps = depsOk({ records });
+    const result = await listMyPartHistory({ actor: ACTOR_ID, activityId: ACTIVITY_ID }, deps);
+    expect(result).toEqual([]);
+    expect(records.listPartHistory).not.toHaveBeenCalled();
+  });
+
+  it("404s a viewer outside a subset audience before resolving the record", async () => {
+    const records = makeRecords({ byParticipantAndActivity: vi.fn(async () => record()) });
+    const deps = depsOk({
+      activity: makeActivity({ audience: { kind: "subset", userIds: ["u_other" as never] } }),
+      records,
+    });
+    await expect(
+      listMyPartHistory({ actor: ACTOR_ID, activityId: ACTIVITY_ID }, deps),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    expect(records.byParticipantAndActivity).not.toHaveBeenCalled();
   });
 });
 

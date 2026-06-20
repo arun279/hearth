@@ -284,10 +284,44 @@ describe("GET /api/v1/activities/:id/my-record", () => {
       canParticipate: boolean;
       visibilityOverride: string | null;
       parts: readonly unknown[];
+      partHistoryCount: number;
+      partsWithHistory: readonly string[];
     };
     expect(body.canParticipate).toBe(true);
     expect(body.visibilityOverride).toBeNull();
     expect(body.parts).toEqual([]);
+    expect(body.partHistoryCount).toBe(0);
+    expect(body.partsWithHistory).toEqual([]);
+  });
+
+  it("carries the history rollups for an existing record", async () => {
+    const ports = viewablePorts({
+      records: {
+        byParticipantAndActivity: vi.fn(async () => record),
+        listPartProgress: vi.fn(async () => []),
+        countPartHistory: vi.fn(async () => 2),
+        listPartHistory: vi.fn(async () => [
+          {
+            id: "ph_1",
+            activityRecordId: record.id,
+            partId: "p_quiz" as never,
+            snapshot: { kind: "quiz" as const, completed: true, answers: [] },
+            reason: "retry" as const,
+            revisionIdAtTime: null,
+            recordedAt: now,
+          },
+        ]),
+      },
+    });
+    const app = harness({ userId: actorId, ports });
+    const res = await app.request(`/api/v1/activities/${aid}/my-record`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      partHistoryCount: number;
+      partsWithHistory: readonly string[];
+    };
+    expect(body.partHistoryCount).toBe(2);
+    expect(body.partsWithHistory).toEqual(["p_quiz"]);
   });
 
   it("does not create a record on read (works under read_only killswitch)", async () => {
@@ -772,4 +806,147 @@ describe("POST /api/v1/activities/:id/participants/:participantId/reset", () => 
     });
     expect(res.status).toBe(503);
   });
+});
+
+describe("GET /api/v1/activities/:id/my-record/history", () => {
+  const historyRow = {
+    id: "ph_1",
+    activityRecordId: record.id,
+    partId: "p_quiz" as never,
+    snapshot: { kind: "quiz" as const, completed: true, answers: [] },
+    reason: "retry" as const,
+    revisionIdAtTime: null,
+    recordedAt: now,
+  };
+
+  it("lists the owner's history, resolving the record internally (no record id in path)", async () => {
+    const listPartHistory = vi.fn(async () => [historyRow]);
+    const ports = viewablePorts({
+      records: { byParticipantAndActivity: vi.fn(async () => record), listPartHistory },
+    });
+    const app = harness({ userId: actorId, ports });
+    const res = await app.request(`/api/v1/activities/${aid}/my-record/history?partId=p_quiz`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as readonly unknown[];
+    expect(body).toHaveLength(1);
+    expect(listPartHistory).toHaveBeenCalledWith(record.id, { partId: "p_quiz" });
+  });
+
+  it("returns [] for an owner with no record yet", async () => {
+    const app = harness({
+      userId: actorId,
+      ports: viewablePorts({ records: { byParticipantAndActivity: vi.fn(async () => null) } }),
+    });
+    const res = await app.request(`/api/v1/activities/${aid}/my-record/history`);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual([]);
+  });
+
+  it("404s a viewer outside a subset audience", async () => {
+    const app = harness({
+      userId: actorId,
+      ports: viewablePorts({
+        activity: makeActivity({ audience: { kind: "subset", userIds: [otherId] } }),
+      }),
+    });
+    const res = await app.request(`/api/v1/activities/${aid}/my-record/history`);
+    expect(res.status).toBe(404);
+  });
+
+  it("400 on an over-long partId query", async () => {
+    const app = harness({ userId: actorId, ports: viewablePorts({}) });
+    const res = await app.request(
+      `/api/v1/activities/${aid}/my-record/history?partId=${"p".repeat(65)}`,
+    );
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("GET /api/v1/activities/:id/participants", () => {
+  it("returns the participant roster for a facilitator", async () => {
+    const app = harness({
+      userId: actorId,
+      ports: viewablePorts({
+        enrollment: { ...enrollment, role: "facilitator" },
+        records: {
+          listByActivity: vi.fn(async () => ({
+            records: [{ ...record, participantId: otherId }],
+            nextCursor: null,
+          })),
+          countPartHistory: vi.fn(async () => 1),
+        },
+      }),
+    });
+    const res = await app.request(`/api/v1/activities/${aid}/participants`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      entries: ReadonlyArray<{ participantId: string; partHistoryCount: number }>;
+    };
+    expect(body.entries).toHaveLength(1);
+    expect(body.entries[0]?.participantId).toBe(otherId);
+    expect(body.entries[0]?.partHistoryCount).toBe(1);
+  });
+
+  it("403 not_track_authority for a non-facilitator", async () => {
+    const app = harness({ userId: actorId, ports: viewablePorts({}) });
+    const res = await app.request(`/api/v1/activities/${aid}/participants`);
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as { code: string }).code).toBe("not_track_authority");
+  });
+
+  it("400 on an over-long activity id", async () => {
+    const app = harness({ userId: actorId, ports: {} });
+    const res = await app.request(`/api/v1/activities/${"a".repeat(65)}/participants`);
+    expect(res.status).toBe(400);
+  });
+});
+
+// Param-validation failure paths for the new + existing record routes — the
+// zValidator error callbacks (an over-MAX_ID_LENGTH path segment) that the
+// happy-path tests never trip.
+describe("record route param validation (400 paths)", () => {
+  const tooLong = "x".repeat(65);
+  const cases: ReadonlyArray<readonly [string, string, RequestInit?]> = [
+    ["GET my-record", `/api/v1/activities/${tooLong}/my-record`],
+    [
+      "GET my-record/parts/:partId/quiz",
+      `/api/v1/activities/${aid}/my-record/parts/${tooLong}/quiz`,
+    ],
+    [
+      "PUT reflection",
+      `/api/v1/activities/${tooLong}/my-record/parts/p_x/reflection`,
+      { method: "PUT", headers: { "content-type": "application/json" }, body: "{}" },
+    ],
+    [
+      "PUT quiz",
+      `/api/v1/activities/${tooLong}/my-record/parts/p_x/quiz`,
+      { method: "PUT", headers: { "content-type": "application/json" }, body: "{}" },
+    ],
+    [
+      "PUT completion",
+      `/api/v1/activities/${tooLong}/my-record/parts/p_x/completion`,
+      { method: "PUT", headers: { "content-type": "application/json" }, body: "{}" },
+    ],
+    [
+      "PATCH visibility-override",
+      `/api/v1/activities/${tooLong}/my-record/visibility-override`,
+      { method: "PATCH", headers: { "content-type": "application/json" }, body: "{}" },
+    ],
+    ["POST complete", `/api/v1/activities/${tooLong}/my-record/complete`, { method: "POST" }],
+    ["GET record", `/api/v1/records/${tooLong}`],
+    ["GET record history", `/api/v1/records/${tooLong}/history`],
+    [
+      "POST reset",
+      `/api/v1/activities/${tooLong}/participants/${otherId}/reset`,
+      { method: "POST" },
+    ],
+  ];
+
+  for (const [label, path, init] of cases) {
+    it(`400 on an over-long id — ${label}`, async () => {
+      const app = harness({ userId: actorId, ports: {} });
+      const res = await app.request(path, init);
+      expect(res.status).toBe(400);
+    });
+  }
 });

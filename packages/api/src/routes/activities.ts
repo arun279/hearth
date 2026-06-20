@@ -5,6 +5,8 @@ import {
   getActivityForPlayer,
   getMyActivityRecord,
   gradeQuizAnswers,
+  listActivityParticipantRecords,
+  listMyPartHistory,
   listPartHistory,
   listTrackActivities,
   markActivityComplete,
@@ -665,6 +667,38 @@ export const activitiesRoutes = new Hono<AppBindings>()
     },
   )
 
+  // Owner-addressed Part History read — mirrors the own-record WRITE
+  // addressing (activity id + my-record, never the record id) so the
+  // <PartHistoryDrawer> reaches the owner's history without exposing the
+  // record id the lean own-record path hides. The record is resolved
+  // internally; an owner with no record yet gets [].
+  .get(
+    "/activities/:activityId/my-record/history",
+    zValidator("param", activityIdParam, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    zValidator("query", historyQuery, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    async (c) => {
+      const { activityId } = c.req.valid("param");
+      const { partId } = c.req.valid("query");
+      try {
+        const result = await listMyPartHistory(
+          {
+            actor: getUserId(c),
+            activityId: activityId as LearningActivityId,
+            ...(partId !== undefined ? { partId: partId as ActivityPartId } : {}),
+          },
+          depsFor(c),
+        );
+        return c.json(result);
+      } catch (err) {
+        return problemResponse(c, mapUnknown(err));
+      }
+    },
+  )
+
   .post(
     "/activities/:activityId/my-record/complete",
     zValidator("param", activityIdParam, (result, c) => {
@@ -674,6 +708,30 @@ export const activitiesRoutes = new Hono<AppBindings>()
       const { activityId } = c.req.valid("param");
       try {
         const result = await markActivityComplete(
+          { actor: getUserId(c), activityId: activityId as LearningActivityId },
+          depsFor(c),
+        );
+        return c.json(result);
+      } catch (err) {
+        return problemResponse(c, mapUnknown(err));
+      }
+    },
+  )
+
+  // Facilitator roster: the activity's participant records (display name +
+  // completion state + history count) the reset affordance is driven from.
+  // Track-Facilitator / Group-Admin only — the same authority that gates the
+  // reset, so a row is never shown to someone who couldn't act on it.
+  // Viewability runs first (404 a non-viewer), then authority (403).
+  .get(
+    "/activities/:activityId/participants",
+    zValidator("param", activityIdParam, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    async (c) => {
+      const { activityId } = c.req.valid("param");
+      try {
+        const result = await listActivityParticipantRecords(
           { actor: getUserId(c), activityId: activityId as LearningActivityId },
           depsFor(c),
         );

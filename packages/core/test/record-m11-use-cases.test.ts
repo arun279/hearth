@@ -12,6 +12,7 @@ import type {
 import { markWrite } from "@hearth/ports";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { gradeQuizAnswers } from "../src/use-cases/grade-quiz-answers.ts";
+import { listActivityParticipantRecords } from "../src/use-cases/list-activity-participant-records.ts";
 import { listPartHistory } from "../src/use-cases/list-part-history.ts";
 import { markActivityComplete } from "../src/use-cases/mark-activity-complete.ts";
 import { resetParticipantProgress } from "../src/use-cases/reset-participant-progress.ts";
@@ -349,6 +350,57 @@ describe("resetParticipantProgress", () => {
         deps,
       ),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+});
+
+describe("listActivityParticipantRecords (facilitator roster)", () => {
+  const targetRecord = record({ id: "ar_target" as ActivityRecordId, participantId: TARGET_ID });
+
+  it("rejects a non-facilitator with 403 not_track_authority before listing", async () => {
+    const records = makeRecords({
+      listByActivity: vi.fn(async () => ({ records: [targetRecord], nextCursor: null })),
+    });
+    const deps = depsOk({ records, enrollment: enrolled("participant") });
+    await expect(
+      listActivityParticipantRecords({ actor: ACTOR_ID, activityId: ACTIVITY_ID }, deps),
+    ).rejects.toMatchObject({ code: "FORBIDDEN", reason: "not_track_authority" });
+    expect(records.listByActivity).not.toHaveBeenCalled();
+  });
+
+  it("returns each participant record with display name + history count for a facilitator", async () => {
+    const records = makeRecords({
+      listByActivity: vi.fn(async () => ({ records: [targetRecord], nextCursor: null })),
+      countPartHistory: vi.fn(async () => 3),
+    });
+    const deps = depsOk({ records, enrollment: enrolled("facilitator") });
+    const { entries } = await listActivityParticipantRecords(
+      { actor: ACTOR_ID, activityId: ACTIVITY_ID },
+      deps,
+    );
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      recordId: "ar_target",
+      participantId: TARGET_ID,
+      displayName: TARGET.name,
+      completionState: "in_progress",
+      partHistoryCount: 3,
+    });
+  });
+
+  it("falls back to a generic label when the participant user is gone", async () => {
+    const records = makeRecords({
+      listByActivity: vi.fn(async () => ({ records: [targetRecord], nextCursor: null })),
+    });
+    const deps = depsOk({ records, enrollment: enrolled("facilitator") });
+    deps.users.byId = vi.fn(async (id) => (id === ACTOR_ID ? ACTOR : null));
+    deps.groups.membership = vi.fn(async (_groupId, userId) =>
+      userId === ACTOR_ID ? membership({ role: "participant" }) : null,
+    );
+    const { entries } = await listActivityParticipantRecords(
+      { actor: ACTOR_ID, activityId: ACTIVITY_ID },
+      deps,
+    );
+    expect(entries[0]?.displayName).toBe("Member");
   });
 });
 
