@@ -283,9 +283,13 @@ const policyDenialMessages: Record<KnownProblemCode, string> = {
   // Activity records + quiz
   activity_not_open: "This activity isn't open yet — you can take part once it opens.",
   activity_closed: "This activity is closed, so it can't be changed anymore.",
+  activity_window_closed: "This activity's window has closed, so it can't be changed anymore.",
   part_kind_mismatch: "That response doesn't match this part. Refresh and try again.",
   quiz_answers_mismatch:
     "Your answers didn't line up with this quiz's questions. Refresh the activity and try again.",
+  not_record_owner: "You can only change your own progress on this activity.",
+  parts_incomplete: "Mark every Part complete before completing the activity.",
+  prereq_not_met: "Finish the required earlier Part before completing this one.",
 };
 
 function problemMessage(problem: ApiProblem): string {

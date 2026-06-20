@@ -38,6 +38,31 @@ describe("initialPartProgressState", () => {
       completed: false,
     });
   });
+
+  it("seeds listen_audio with just the completed flag", () => {
+    const part: ActivityPart = { kind: "listen_audio", id: "p4", libraryItemId: "li2" };
+    expect(initialPartProgressState(part)).toEqual({ kind: "listen_audio", completed: false });
+  });
+
+  it("seeds watch_video with just the completed flag", () => {
+    const part: ActivityPart = { kind: "watch_video", id: "p5", libraryItemId: "li3" };
+    expect(initialPartProgressState(part)).toEqual({ kind: "watch_video", completed: false });
+  });
+
+  it("seeds attend_session with just the completed flag", () => {
+    const part: ActivityPart = { kind: "attend_session", id: "p6", studySessionId: "s1" };
+    expect(initialPartProgressState(part)).toEqual({ kind: "attend_session", completed: false });
+  });
+
+  it("seeds embed with just the completed flag", () => {
+    const part: ActivityPart = {
+      kind: "embed",
+      id: "p7",
+      url: "https://example.com",
+      provider: "generic",
+    };
+    expect(initialPartProgressState(part)).toEqual({ kind: "embed", completed: false });
+  });
 });
 
 describe("partProgressEnvelopeSchema", () => {

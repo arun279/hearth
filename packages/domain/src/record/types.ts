@@ -1,4 +1,10 @@
-import type { ActivityPartId, ActivityRecordId, LearningActivityId, UserId } from "../ids.ts";
+import type {
+  ActivityPartId,
+  ActivityRecordId,
+  LearningActivityId,
+  LibraryRevisionId,
+  UserId,
+} from "../ids.ts";
 import type { VisibilityPreference } from "../visibility/preference.ts";
 import type { PartProgressState } from "./part-progress.ts";
 
@@ -26,6 +32,51 @@ export type PartProgress = {
   readonly activityRecordId: ActivityRecordId;
   readonly partId: ActivityPartId;
   readonly state: PartProgressState;
+  readonly updatedAt: Date;
+};
+
+/**
+ * Why a `PartProgress` value was archived into `PartHistory`.
+ * - `retry` — the learner overwrote a prior attempt (e.g. re-took a quiz).
+ * - `revision_bump` — an unpinned Library-backed Part saw a newer current
+ *   revision, so its progress was reopened and the prior value preserved.
+ * - `facilitator_reset` — a Track Facilitator reset the participant's
+ *   progress for the whole activity.
+ *
+ * The wire strings match the M0 `part_history.reason` CHECK constraint.
+ */
+export type PartHistoryReason = "retry" | "revision_bump" | "facilitator_reset";
+
+/**
+ * An append-only snapshot of a `PartProgress` value at the moment it was
+ * superseded. The contract that makes resume/restart safe: prior work is
+ * never silently destroyed — it moves here. `revisionIdAtTime` is set only
+ * for the `revision_bump` case (FK to `library_revisions`), naming the
+ * revision the activity moved to when the Part was reopened.
+ */
+export type PartHistory = {
+  readonly id: string;
+  readonly activityRecordId: ActivityRecordId;
+  readonly partId: ActivityPartId;
+  readonly snapshot: PartProgressState;
+  readonly reason: PartHistoryReason;
+  readonly revisionIdAtTime: LibraryRevisionId | null;
+  readonly recordedAt: Date;
+};
+
+/**
+ * One Evidence Signal emitted while a participant works a Part — the raw
+ * material a future analytics/auto-complete layer (M17) consumes. The
+ * `value` is opaque JSON validated at ingest, not in the domain. M11
+ * declares the type + port surface; the throttled batcher + write-budget
+ * limiter that actually persist these ship in M17.
+ */
+export type EvidenceSignal = {
+  readonly activityId: LearningActivityId;
+  readonly participantId: UserId;
+  readonly partId: ActivityPartId;
+  readonly signalType: string;
+  readonly value: unknown;
   readonly updatedAt: Date;
 };
 
