@@ -168,6 +168,12 @@ Each entry names the **pinned tool**, the **condition** that triggers a reassess
 - **Action**: switch the per-line scan to a global `matchAll` and evaluate every marker on the line. Fixing it may surface previously-hidden legitimate stale markers — evaluate those separately rather than bundling. Low priority: real lines almost never carry two milestone markers.
 - **Location**: `scripts/check-conventions.mjs` (`findStaleMilestoneTodos`).
 
+### Both `TODO(` scanners skip markdown by file type (accepted blind spot)
+
+- **Trigger**: someone records genuine deferred-work debt as a `TODO(mN)` marker inside a `.md`/`.mdx` file (against convention) and expects a gate to flag it when the milestone ships.
+- **Action**: it will not be flagged, by design. Both `findUnscopedTodos` (`no-unscoped-todo`) and `findStaleMilestoneTodos` (`no-stale-milestone-todo`) skip markdown by file type. Markdown is prose _about_ the convention — the AGENTS.md syntax illustrations (e.g. `TODO(m11)`), the `§ Scaffolding-temporary` table's still-future `TODO(m13)` / `TODO(m18)` rows, tripwire write-ups — never a trackable code-borne marker. This matches the project debt model: trackable debt is code-only; prose debt lives in this file or the `§ Scaffolding-temporary` table, not a `TODO(`. Put real deferred work at a code call site (`TODO(mN)`) or as a prose entry here — never as a `TODO(` inside markdown.
+- **Location**: `scripts/check-conventions.mjs` (`findUnscopedTodos`, `findStaleMilestoneTodos` — both gate on `/\.(md|mdx)$/`).
+
 ## How to remove an entry
 
 An entry leaves this list only when one of the following is true:
