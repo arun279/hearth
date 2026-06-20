@@ -65,6 +65,30 @@ export type QuizSubmitResult = {
   readonly autoScore: { readonly correct: number; readonly gradeable: number };
 };
 
+/**
+ * Mount-time quiz verdict rehydration. The per-question verdict + score are
+ * derived server-side from the participant's persisted answers, so a refreshed
+ * Player can show the grade again without re-submitting. A READ — the endpoint
+ * never writes (re-grading on every mount must not consume a D1 write, the
+ * ≤ 50-write/user/day budget behind the $0 guarantee), so this stays safe under
+ * the killswitch's read-only mode. Resolves to `null` when no answers are
+ * stored yet, in which case the quiz renders its ungraded prompt.
+ */
+export function useQuizVerdict(activityId: string, partId: string, enabled = true) {
+  return useQuery<QuizSubmitResult | null>({
+    queryKey: ["activity-quiz-verdict", activityId, partId] as const,
+    enabled: enabled && activityId.length > 0 && partId.length > 0,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const res = await api.activities[":activityId"]["my-record"].parts[":partId"].quiz.$get({
+        param: { activityId, partId },
+      });
+      await assertOk(res);
+      return (await res.json()) as QuizSubmitResult | null;
+    },
+  });
+}
+
 export function useSubmitQuiz(activityId: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -79,7 +103,16 @@ export function useSubmitQuiz(activityId: string) {
       await assertOk(res);
       return (await res.json()) as QuizSubmitResult;
     },
-    onSuccess: () => invalidateRecord(qc, activityId),
+    // Seed the verdict cache from the fresh grade so a Part switch + back reads
+    // the just-submitted result without a re-grade round-trip, then invalidate
+    // the record so the completion chips reflect any persisted answer change.
+    onSuccess: (result, variables) => {
+      qc.setQueryData<QuizSubmitResult | null>(
+        ["activity-quiz-verdict", activityId, variables.partId],
+        result,
+      );
+      invalidateRecord(qc, activityId);
+    },
   });
 }
 

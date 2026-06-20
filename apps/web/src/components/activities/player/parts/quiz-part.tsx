@@ -6,9 +6,13 @@ import type {
 } from "@hearth/domain";
 import { Badge, type BadgeTone, Button, Input, RadioGroup, type RadioOption } from "@hearth/ui";
 import { Check, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { type QuizSubmitResult, useSubmitQuiz } from "../../../../hooks/use-activity-record.ts";
+import {
+  type QuizSubmitResult,
+  useQuizVerdict,
+  useSubmitQuiz,
+} from "../../../../hooks/use-activity-record.ts";
 import { asUserMessage } from "../../../../lib/problem.ts";
 
 type Props = {
@@ -51,11 +55,13 @@ export function QuizPart({ activityId, part, partState, canParticipate }: Props)
   const [answers, setAnswers] = useState<Record<string, QuizAnswer>>(() =>
     initialAnswers(part, partState),
   );
-  // TODO(m11): `feedback` and `score` are mount-local, seeded only by a submit
-  // response, so the graded verdict goes blank on reload. M11's durable-Record
-  // read path must rehydrate it — carry a graded-result projection on read, or
-  // re-grade on mount from the persisted answers — mirroring the completion
-  // rehydration owned by `packages/core/src/use-cases/set-part-completed.ts`.
+  // The graded verdict + score are mount-local: a submit seeds them, and an
+  // edit clears them so the learner re-submits for fresh feedback. They go
+  // blank on reload because the answer key is redacted from the client, so the
+  // SPA can't re-grade locally. `useQuizVerdict` re-grades server-side from the
+  // persisted answers (zero D1 writes) and rehydrates the verdict once on
+  // arrival — without it a refreshed Player shows a completed quiz with no
+  // grade.
   const [feedback, setFeedback] = useState<Map<string, Verdict> | null>(null);
   const [score, setScore] = useState<QuizSubmitResult["autoScore"] | null>(null);
   // Set when the learner attempts an all-blank submit. Grading nothing would
@@ -63,6 +69,21 @@ export function QuizPart({ activityId, part, partState, canParticipate }: Props)
   // so we warn inline instead of POSTing (the next state is a true no-op).
   const [emptyWarning, setEmptyWarning] = useState(false);
   const submit = useSubmitQuiz(activityId);
+  const verdictQuery = useQuizVerdict(activityId, part.id);
+
+  // Seed the verdict from the server re-grade exactly once on arrival, and only
+  // while the learner hasn't touched their answers (an edit clears `feedback`
+  // and means the stored grade is now stale). A ref — not a state flag — so the
+  // seed never re-fires after the learner edits and re-clears.
+  const rehydrated = useRef(false);
+  useEffect(() => {
+    if (rehydrated.current || feedback !== null) return;
+    const data = verdictQuery.data;
+    if (!data) return;
+    rehydrated.current = true;
+    setFeedback(new Map(data.perQuestion.map((v) => [v.questionId, v])));
+    setScore(data.autoScore);
+  }, [verdictQuery.data, feedback]);
 
   // Editing any answer invalidates the prior grading — clear it so the
   // learner re-submits to see fresh feedback. A real edit also clears the
@@ -112,6 +133,26 @@ export function QuizPart({ activityId, part, partState, canParticipate }: Props)
           />
         );
       })}
+
+      {/* The mount-time verdict re-grade is a read; a transient failure must not
+          leave a previously-graded quiz silently blank (it would read as "never
+          submitted"). Surface a quiet retry only when we have no grade in hand —
+          once feedback is present (from cache or a submit) the failure is moot. */}
+      {verdictQuery.isError && feedback === null ? (
+        <span
+          role="alert"
+          className="inline-flex items-center gap-1 text-[12px] text-[var(--color-ink-2)]"
+        >
+          Couldn't load your earlier grade.
+          <button
+            type="button"
+            onClick={() => void verdictQuery.refetch()}
+            className="rounded-[var(--radius-sm)] underline hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
+          >
+            Try again
+          </button>
+        </span>
+      ) : null}
 
       {canParticipate ? (
         <div className="flex flex-wrap items-center gap-3">

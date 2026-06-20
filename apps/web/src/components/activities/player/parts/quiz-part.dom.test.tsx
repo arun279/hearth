@@ -16,11 +16,21 @@ import { renderWithProviders } from "../../../../test/render.tsx";
 
 const submitFn =
   vi.fn<(input: { partId: string; answers: unknown }) => Promise<QuizSubmitResult>>();
+const verdictFn = vi.fn<() => Promise<QuizSubmitResult | null>>();
 
+// The verdict re-grade is a real `useQuery` over a controllable `queryFn` so
+// the rejection path drives the component's `isError` branch (the "Couldn't
+// load your earlier grade" retry, asserted below) the same way a 5xx would.
 vi.mock("../../../../hooks/use-activity-record.ts", async () => {
   const rq = await import("@tanstack/react-query");
   return {
     useSubmitQuiz: () => rq.useMutation({ mutationFn: submitFn }),
+    useQuizVerdict: (activityId: string, partId: string) =>
+      rq.useQuery({
+        queryKey: ["activity-quiz-verdict", activityId, partId],
+        queryFn: verdictFn,
+        retry: false,
+      }),
   };
 });
 
@@ -33,6 +43,8 @@ let fetchSpy: ReturnType<typeof installFetchSpy>;
 
 beforeEach(() => {
   submitFn.mockReset();
+  verdictFn.mockReset();
+  verdictFn.mockResolvedValue(null);
   toastError.mockReset();
   fetchSpy = installFetchSpy();
 });
@@ -112,6 +124,75 @@ describe("QuizPart ScoreSummary gradeable === 0", () => {
     ).toBeInTheDocument();
     // The "N of M graded correct" summary must NOT render in this branch.
     expect(screen.queryByText(/graded correct/)).not.toBeInTheDocument();
+  });
+});
+
+describe("QuizPart verdict rehydration on mount", () => {
+  it("re-grades from persisted answers and shows the verdict without a submit", async () => {
+    verdictFn.mockResolvedValue({
+      perQuestion: [{ questionId: "q_sa", verdict: "correct", correctIndex: null }],
+      autoScore: { correct: 1, gradeable: 1 },
+    });
+    renderWithProviders(
+      <QuizPart
+        activityId="a_test"
+        part={SHORT_ANSWER_PART}
+        partState={{
+          kind: "quiz",
+          completed: false,
+          answers: [{ questionId: "q_sa", kind: "short_answer", text: "hola" }],
+        }}
+        canParticipate={true}
+      />,
+    );
+
+    // The grade appears with no submit click, and the CTA reflects a prior grade.
+    expect(await screen.findByText("Correct")).toBeInTheDocument();
+    expect(screen.getByText("1 of 1")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Re-submit" })).toBeInTheDocument();
+    // A mount-time re-grade is a read — it must not POST.
+    expect(submitFn).not.toHaveBeenCalled();
+  });
+
+  it("clears a rehydrated verdict when the learner edits an answer", async () => {
+    verdictFn.mockResolvedValue({
+      perQuestion: [{ questionId: "q_sa", verdict: "incorrect", correctIndex: null }],
+      autoScore: { correct: 0, gradeable: 1 },
+    });
+    const { user } = renderWithProviders(
+      <QuizPart
+        activityId="a_test"
+        part={SHORT_ANSWER_PART}
+        partState={{
+          kind: "quiz",
+          completed: false,
+          answers: [{ questionId: "q_sa", kind: "short_answer", text: "wrong" }],
+        }}
+        canParticipate={true}
+      />,
+    );
+    expect(await screen.findByText("Not quite")).toBeInTheDocument();
+
+    await user.type(screen.getByRole("textbox", { name: "Answer for question 1" }), "x");
+    expect(screen.queryByText("Not quite")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Submit" })).toBeInTheDocument();
+  });
+
+  it("surfaces a retry when the verdict re-grade fails with no grade in hand", async () => {
+    verdictFn.mockRejectedValue(new Error("network"));
+    const { user } = renderQuiz(SHORT_ANSWER_PART);
+
+    expect(await screen.findByText("Couldn't load your earlier grade.")).toBeInTheDocument();
+
+    // A successful submit makes the failed re-grade moot — the notice clears.
+    submitFn.mockResolvedValue({
+      perQuestion: [{ questionId: "q_sa", verdict: "correct", correctIndex: null }],
+      autoScore: { correct: 1, gradeable: 1 },
+    });
+    await user.type(screen.getByRole("textbox", { name: "Answer for question 1" }), "hola");
+    await user.click(screen.getByRole("button", { name: "Submit" }));
+    expect(await screen.findByText("Correct")).toBeInTheDocument();
+    expect(screen.queryByText("Couldn't load your earlier grade.")).not.toBeInTheDocument();
   });
 });
 
