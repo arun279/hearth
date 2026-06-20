@@ -9,6 +9,12 @@ type Props = {
   readonly totalParts: number;
   readonly completedCount: number;
   /**
+   * True once the participant's own activity record is `completed`. Renders a
+   * "Completed" badge in the title row so the closed state is recognisable at a
+   * glance and rehydrates across a reload (not just inferred from the footer).
+   */
+  readonly activityCompleted?: boolean;
+  /**
    * Total prior attempts preserved across every Part of the participant's own
    * record (`partHistoryCount`). Renders the "N prior attempts preserved" chip
    * only when non-zero — its presence reassures the learner that a reset or
@@ -44,6 +50,7 @@ export function ActivityHeader({
   currentPartIndex,
   totalParts,
   completedCount,
+  activityCompleted = false,
   priorAttemptsCount = 0,
   facilitatorAction,
 }: Props) {
@@ -58,6 +65,7 @@ export function ActivityHeader({
         <h1 className="font-medium font-serif text-[24px] text-[var(--color-ink)] leading-tight md:text-[28px]">
           {activity.title}
         </h1>
+        {activityCompleted ? <Badge tone="good">Completed</Badge> : null}
         {stateBadge ? <Badge tone={stateBadge.tone}>{stateBadge.label}</Badge> : null}
       </div>
       {activity.description ? (

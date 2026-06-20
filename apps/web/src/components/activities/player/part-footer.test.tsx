@@ -77,6 +77,7 @@ describe("<PartFooter> visual hierarchy", () => {
       groupId: "g_1",
       trackId: "t_1",
       allPartsComplete: false,
+      activityCompletion: null,
       completion: baseCompletion,
     });
     // The MarkCompleteButton wrapper is unrendered, so resolve its variant from
@@ -95,6 +96,7 @@ describe("<PartFooter> visual hierarchy", () => {
       groupId: "g_1",
       trackId: "t_1",
       allPartsComplete: false,
+      activityCompletion: null,
       completion: { ...baseCompletion, completed: true },
     });
     expect(markCompleteVariant(tree)).toBe("secondary");
@@ -110,6 +112,7 @@ describe("<PartFooter> visual hierarchy", () => {
       groupId: "g_1",
       trackId: "t_1",
       allPartsComplete: false,
+      activityCompletion: null,
       completion: { ...baseCompletion, canMark: false },
     });
     // No Mark-complete control renders; Next is the footer's primary.
@@ -124,6 +127,7 @@ describe("<PartFooter> visual hierarchy", () => {
       groupId: "g_1",
       trackId: "t_1",
       allPartsComplete: false,
+      activityCompletion: null,
       completion: baseCompletion,
     });
     expect(markCompleteVariant(tree)).toBe("primary");
@@ -140,6 +144,7 @@ describe("<PartFooter> visual hierarchy", () => {
       groupId: "g_1",
       trackId: "t_1",
       allPartsComplete: true,
+      activityCompletion: null,
       completion: { ...baseCompletion, completed: true },
     });
     expect(markCompleteVariant(tree)).toBe("secondary");
@@ -157,6 +162,7 @@ describe("<PartFooter> all-parts-complete closure", () => {
       groupId: "g_1",
       trackId: "t_1",
       allPartsComplete: true,
+      activityCompletion: null,
       completion: { ...baseCompletion, completed: true },
     });
     const note = collect(tree, (el) => {
@@ -176,6 +182,7 @@ describe("<PartFooter> all-parts-complete closure", () => {
       groupId: "g_1",
       trackId: "t_1",
       allPartsComplete: true,
+      activityCompletion: null,
       completion: { ...baseCompletion, completed: true },
     });
     const links = collect(tree, (el) => {
@@ -195,6 +202,7 @@ describe("<PartFooter> all-parts-complete closure", () => {
       groupId: "g_1",
       trackId: "t_1",
       allPartsComplete: true,
+      activityCompletion: null,
       completion: { ...baseCompletion, completed: true },
     });
     const links = collect(tree, (el) => {
@@ -212,6 +220,7 @@ describe("<PartFooter> all-parts-complete closure", () => {
       groupId: "g_1",
       trackId: "t_1",
       allPartsComplete: false,
+      activityCompletion: null,
       completion: baseCompletion,
     });
     const note = collect(tree, (el) => {
@@ -237,6 +246,78 @@ describe("<PartFooter> in-flight toggle keeps focus", () => {
   });
 });
 
+type TestActivityCompletion = { completed: boolean; pending: boolean; onComplete: () => void };
+
+/**
+ * The `<ActivityCompletionBanner>` is an unrendered function element in the
+ * footer tree, so resolve it and invoke its component to get the rendered
+ * `<Callout>`/`<Button>` subtree — the same approach the MarkCompleteButton
+ * helpers use (the banner has no router `<Link>`, so it SSRs cleanly).
+ */
+function activityBannerSubtree(activityCompletion: TestActivityCompletion): unknown {
+  const tree = PartFooter({
+    previousPartId: null,
+    nextPartId: "p2",
+    onNavigate: noop,
+    groupId: "g_1",
+    trackId: "t_1",
+    allPartsComplete: false,
+    activityCompletion,
+    completion: baseCompletion,
+  });
+  const banner = collect(tree, (el) => {
+    const props = el.props as { activityCompletion?: unknown; ctaIsPrimary?: unknown };
+    return props.activityCompletion !== undefined && props.ctaIsPrimary !== undefined;
+  })[0];
+  if (!banner) throw new Error("ActivityCompletionBanner not found");
+  const Component = banner.type as (p: unknown) => ReactElement;
+  return Component(banner.props);
+}
+
+function hasText(node: unknown, needle: string): boolean {
+  return (
+    collect(node, (el) => {
+      const children = (el.props as { children?: unknown }).children;
+      const flat = Array.isArray(children) ? children : [children];
+      return flat.some((c) => typeof c === "string" && c.includes(needle));
+    }).length > 0
+  );
+}
+
+describe("<PartFooter> activity-level completion (manual_mark)", () => {
+  it("renders a 'Mark activity complete' CTA when an incomplete activityCompletion is passed", () => {
+    const subtree = activityBannerSubtree({ completed: false, pending: false, onComplete: noop });
+    expect(hasText(subtree, "Mark activity complete")).toBe(true);
+    expect(hasText(subtree, "Activity complete —")).toBe(false);
+  });
+
+  it("the incomplete activity CTA owns the footer's single primary slot; the per-Part toggle steps down", () => {
+    const tree = PartFooter({
+      previousPartId: null,
+      nextPartId: "p2",
+      onNavigate: noop,
+      groupId: "g_1",
+      trackId: "t_1",
+      allPartsComplete: false,
+      activityCompletion: { completed: false, pending: false, onComplete: noop },
+      completion: baseCompletion,
+    });
+    // The Next button (the only other rendered control) must be secondary.
+    expect(collect(tree, isPrimary)).toHaveLength(0);
+    // And the per-Part Mark-complete wrapper demotes while the activity CTA leads.
+    expect(markCompleteVariant(tree)).toBe("secondary");
+    // The banner itself carries the single filled-primary CTA.
+    const subtree = activityBannerSubtree({ completed: false, pending: false, onComplete: noop });
+    expect(collect(subtree, isPrimary)).toHaveLength(1);
+  });
+
+  it("flips to a 'good'-tone confirmation once the activity is complete (no CTA)", () => {
+    const subtree = activityBannerSubtree({ completed: true, pending: false, onComplete: noop });
+    expect(hasText(subtree, "Activity complete —")).toBe(true);
+    expect(hasText(subtree, "Mark activity complete")).toBe(false);
+  });
+});
+
 /** The `<MarkCompleteButton>` wrapper element extracted from a rendered footer. */
 function markCompleteWrapper(completion: TestCompletion): ReactElement {
   const tree = PartFooter({
@@ -246,6 +327,7 @@ function markCompleteWrapper(completion: TestCompletion): ReactElement {
     groupId: "g_1",
     trackId: "t_1",
     allPartsComplete: false,
+    activityCompletion: null,
     completion,
   });
   const wrapper = collect(tree, (el) => {

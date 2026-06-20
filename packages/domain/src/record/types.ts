@@ -96,9 +96,16 @@ export type EvidenceSignal = {
  * activity-level "N prior attempts preserved" chip and the per-Part history
  * affordance from this single read — without the record id this path hides.
  * Both are `0` / `[]` until a record exists.
+ *
+ * `completionState` is the activity-level rollup the Player needs to rehydrate
+ * the completed chrome (header badge, the activity-complete CTA's hidden/shown
+ * state) across a reload — `"in_progress"` until a record exists or is marked
+ * complete. Without it, an activity completed under `manual_mark` would revert
+ * to looking incomplete on the next mount.
  */
 export type MyActivityRecordView = {
   readonly canParticipate: boolean;
+  readonly completionState: CompletionState;
   readonly visibilityOverride: VisibilityPreference | null;
   readonly parts: ReadonlyArray<{
     readonly partId: ActivityPartId;

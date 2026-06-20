@@ -341,6 +341,42 @@ describe("resetParticipantProgress", () => {
     });
   });
 
+  it("returns a completed record to in_progress (clearing completedAt) so the reset is a fresh start", async () => {
+    const targetRecord = {
+      ...record({ completionState: "completed", completedAt: TEST_NOW }),
+      participantId: TARGET_ID,
+      id: RECORD_ID,
+    };
+    const records = makeRecords({
+      byParticipantAndActivity: vi.fn(async () => targetRecord),
+    });
+    const deps = depsOk({ records, enrollment: enrolled("facilitator") });
+    const view = await resetParticipantProgress(
+      { actor: ACTOR_ID, activityId: ACTIVITY_ID, participantId: TARGET_ID },
+      deps,
+    );
+    expect(records.setCompletion).toHaveBeenCalledWith({
+      id: RECORD_ID,
+      state: "in_progress",
+      at: TEST_NOW,
+    });
+    expect(view.completionState).toBe("in_progress");
+    expect(view.completedAt).toBeNull();
+  });
+
+  it("does not touch completion for an already in_progress record", async () => {
+    const targetRecord = { ...record(), participantId: TARGET_ID, id: RECORD_ID };
+    const records = makeRecords({
+      byParticipantAndActivity: vi.fn(async () => targetRecord),
+    });
+    const deps = depsOk({ records, enrollment: enrolled("facilitator") });
+    await resetParticipantProgress(
+      { actor: ACTOR_ID, activityId: ACTIVITY_ID, participantId: TARGET_ID },
+      deps,
+    );
+    expect(records.setCompletion).not.toHaveBeenCalled();
+  });
+
   it("404s when the participant has no record to reset", async () => {
     const records = makeRecords({ byParticipantAndActivity: vi.fn(async () => null) });
     const deps = depsOk({ records, enrollment: enrolled("facilitator") });

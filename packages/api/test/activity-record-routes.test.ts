@@ -770,6 +770,30 @@ describe("POST /api/v1/activities/:id/participants/:participantId/reset", () => 
     );
   });
 
+  it("clears completion when resetting a completed record", async () => {
+    const setCompletion = vi.fn();
+    const completedRecord: ActivityRecord = {
+      ...record,
+      completionState: "completed",
+      completedAt: new Date("2026-06-01T00:00:00.000Z"),
+    };
+    const app = harness({
+      userId: actorId,
+      ports: facilitatorPorts({
+        byParticipantAndActivity: vi.fn(async () => completedRecord),
+        setCompletion,
+      }),
+    });
+    const res = await app.request(`/api/v1/activities/${aid}/participants/${otherId}/reset`, {
+      method: "POST",
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { completionState: string; completedAt: string | null };
+    expect(body.completionState).toBe("in_progress");
+    expect(body.completedAt).toBeNull();
+    expect(setCompletion).toHaveBeenCalledWith(expect.objectContaining({ state: "in_progress" }));
+  });
+
   it("403 not_track_authority for a non-facilitator", async () => {
     const app = harness({
       userId: actorId,

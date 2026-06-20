@@ -8,7 +8,7 @@ import {
 } from "@hearth/domain";
 import { isAuthorityOverTrack } from "@hearth/domain/policy/is-authority-over-track";
 import { canResetParticipantProgress } from "@hearth/domain/policy/record";
-import type { ActivityRecordRepository } from "@hearth/ports";
+import type { ActivityRecordRepository, Clock } from "@hearth/ports";
 import {
   type LoadViewableActivityDeps,
   loadViewableActivity,
@@ -22,6 +22,7 @@ export type ResetParticipantProgressInput = {
 
 export type ResetParticipantProgressDeps = LoadViewableActivityDeps & {
   readonly records: ActivityRecordRepository;
+  readonly clock: Clock;
 };
 
 /**
@@ -31,6 +32,12 @@ export type ResetParticipantProgressDeps = LoadViewableActivityDeps & {
  * facilitator_reset`) and reset to its kind-appropriate empty state in one
  * D1 batch via `reopenAgainstRevision`. Addressed by activity + participant
  * (not record id), so the facilitator never needs to hold the record id.
+ *
+ * A completed record is also returned to `in_progress` (clearing `completedAt`):
+ * a reset that cleared every Part but left the activity flagged complete is
+ * incoherent — under `manual_mark` the participant can no longer re-complete,
+ * and under `all_parts_complete` the auto-complete cannot re-fire. Resetting
+ * the rollup is what makes the cleared state a genuine fresh start.
  *
  * Returns the now-reset full record view so the facilitator's surface updates
  * without a refetch. A no-op (the participant never started) is a `NOT_FOUND`
@@ -61,11 +68,23 @@ export async function resetParticipantProgress(
     reason: "facilitator_reset",
   });
 
+  let resetRecord = record;
+  if (record.completionState === "completed") {
+    const now = deps.clock.now();
+    await deps.records.setCompletion({ id: record.id, state: "in_progress", at: now });
+    resetRecord = { ...record, completionState: "in_progress", completedAt: null, updatedAt: now };
+  }
+
   const [progress, partHistoryCount, history] = await Promise.all([
-    deps.records.listPartProgress(record.id),
-    deps.records.countPartHistory(record.id),
-    deps.records.listPartHistory(record.id),
+    deps.records.listPartProgress(resetRecord.id),
+    deps.records.countPartHistory(resetRecord.id),
+    deps.records.listPartHistory(resetRecord.id),
   ]);
   const partsWithHistory = [...new Set(history.map((h) => h.partId))];
-  return projectRecordFull({ record, progress, partHistoryCount, partsWithHistory });
+  return projectRecordFull({
+    record: resetRecord,
+    progress,
+    partHistoryCount,
+    partsWithHistory,
+  });
 }

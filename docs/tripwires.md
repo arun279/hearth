@@ -154,6 +154,12 @@ Each entry names the **pinned tool**, the **condition** that triggers a reassess
 - **Action**: M17 replaces the no-op adapter body with the batched `INSERT … ON CONFLICT … DO UPDATE` UPSERT behind the limiter, and adds the budget CI test. No enqueue-site change needed — the call sites already pass the computed values.
 - **Location**: `packages/core/src/use-cases/save-reflection-draft.ts`, `packages/core/src/use-cases/submit-quiz-answers.ts` (enqueue call sites); `packages/adapters/cloudflare/src/activity-record-repository.ts` (`flushEvidenceSignals` no-op body).
 
+### Revision-bump fan-out runs synchronously on the finalize request path
+
+- **Trigger**: a Library Item is used by enough activities × participant records that one `finalize-library-upload` request's revision-bump fan-out approaches D1's **50-queries-per-invocation** limit (`docs/free-tier-guardrails.md` § 1). The fan-out cost is per-record (2 reads + 1 batch in `reopenAgainstRevision`) plus per-activity (`byId` + paged `listByActivity` in `revisionBumpRestart`), all issued inside the single finalize request that publishes the new revision.
+- **Action**: move the fan-out off the request path (a queue or cron consumer that drains the affected activities/records), deriving any batching threshold from the observed D1 query-per-invocation limit rather than a guessed constant. The restart is already idempotent per (record, newRevisionId), so an off-request retry is safe. Bounded and correct for v1 track sizes; this entry exists so the scale ceiling is found before it bites a finalize request.
+- **Location**: `packages/core/src/use-cases/finalize-library-upload.ts` (the synchronous `for (… of usingActivities)` loop calling `revisionBumpRestart`); `packages/core/src/use-cases/revision-bump-restart.ts`.
+
 ## Convention check tooling
 
 ### `no-stale-milestone-todo` inspects only the first milestone marker per line

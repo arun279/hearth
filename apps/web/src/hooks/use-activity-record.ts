@@ -141,6 +141,29 @@ export function useSetPartCompleted(activityId: string) {
   });
 }
 
+/**
+ * Mark the actor's own activity record complete. Under `manual_mark` (the v1
+ * default Completion Rule) this is the only path that closes the record — the
+ * SPA gates the calling CTA on that rule. Under `all_parts_complete` the server
+ * auto-completes on the last Part, so no UI invokes this there. Invalidates the
+ * record query on success so the header badge + CTA reflect `completed`; the
+ * same invalidate-on-success shape as the sibling mutations (a background
+ * refetch can't clobber the activity-level rollup the editor never holds).
+ */
+export function useMarkActivityComplete(activityId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (): Promise<{ readonly completionState: CompletionState }> => {
+      const res = await api.activities[":activityId"]["my-record"].complete.$post({
+        param: { activityId },
+      });
+      await assertOk(res);
+      return (await res.json()) as { readonly completionState: CompletionState };
+    },
+    onSuccess: () => invalidateRecord(qc, activityId),
+  });
+}
+
 export function useSetRecordVisibility(activityId: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -235,6 +258,17 @@ type ResetResponse = ActivityRecordFullView;
  * On success the roster cache is patched in place from the returned full view —
  * the reset participant's `partHistoryCount` advances and `completionState`
  * resets — so the facilitator's surface updates without a refetch.
+ *
+ * The reset clears the participant's per-Part progress and appends prior
+ * attempts, so any open Player for this activity (the facilitator's own session
+ * — reset is participant-scoped server-side, but the only Player a facilitator
+ * has open is their own) would otherwise show stale progress, stale per-Part
+ * history, and a stale prior-attempts chip until a manual reload. Invalidate
+ * every record-derived cache for the activity so those surfaces refetch the
+ * cleared state. An invalidate (not a write-through) because the reset touches
+ * multiple Part rows and the Player refetch is cheap and already gated by
+ * `staleTime`; for a facilitator not viewing the reset participant the refetch
+ * is a harmless no-op.
  */
 export function useResetParticipant(activityId: string) {
   const qc = useQueryClient();
@@ -265,6 +299,9 @@ export function useResetParticipant(activityId: string) {
           ),
         };
       });
+      qc.invalidateQueries({ queryKey: recordKey(activityId) });
+      qc.invalidateQueries({ queryKey: ["activity-part-history", activityId] });
+      qc.invalidateQueries({ queryKey: ["activity-quiz-verdict", activityId] });
     },
   });
 }

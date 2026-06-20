@@ -111,6 +111,33 @@ describe("FacilitatorRosterDialog", () => {
     expect(screen.getByText(/3 prior attempts preserved/i)).toBeInTheDocument();
   });
 
+  it("invalidates the open Player's record + history + quiz caches on reset success", async () => {
+    fetchSpy.respondWith(roster([ROW]));
+    const { user, queryClient } = renderDialog();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+
+    await waitFor(() => expect(screen.getByText("Ada Lovelace")).toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "Reset progress" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Reset this participant's progress?",
+    });
+    fetchSpy.respondWith(
+      new Response(JSON.stringify(RESET_FULL_VIEW), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    await user.click(within(dialog).getByRole("button", { name: "Reset progress" }));
+
+    // The reset clears the participant's progress server-side; the open Player
+    // (the facilitator's own session) must refetch rather than show stale work.
+    await waitFor(() =>
+      expect(invalidate).toHaveBeenCalledWith({ queryKey: ["activity-record", "act1"] }),
+    );
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["activity-part-history", "act1"] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["activity-quiz-verdict", "act1"] });
+  });
+
   it("403 renders a neutral no-retry surface; a non-facilitator can't act", async () => {
     fetchSpy.respondWith(problem(403));
     renderDialog();

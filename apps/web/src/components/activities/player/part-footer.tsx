@@ -15,6 +15,20 @@ type Completion = {
   readonly onToggle: () => void;
 };
 
+/**
+ * The activity-level completion affordance for the `manual_mark` Completion
+ * Rule (the v1 composer default). Absent (`null`) for `all_parts_complete`
+ * (the server auto-completes on the last Part) and for read-only / non-author
+ * viewers. `completed` flips the closure banner from a "Mark activity complete"
+ * call to action to a "good"-tone confirmation, giving the participant the
+ * dialog-closure signal the per-Part marks alone never provided.
+ */
+type ActivityCompletion = {
+  readonly completed: boolean;
+  readonly pending: boolean;
+  readonly onComplete: () => void;
+};
+
 type Props = {
   readonly previousPartId: string | null;
   readonly nextPartId: string | null;
@@ -25,10 +39,12 @@ type Props = {
   /**
    * True once every Part carries the participant's completion mark. Drives the
    * "all parts complete" closure note. Honest scope: this is per-Part marking
-   * only — the activity-level completion record arrives in M11, so the copy
-   * never claims the activity itself is complete.
+   * only under the `all_parts_complete` rule — the copy never claims the
+   * activity itself is complete (that is `activityCompletion`'s job).
    */
   readonly allPartsComplete: boolean;
+  /** Activity-level completion (the `manual_mark` close affordance + state). */
+  readonly activityCompletion: ActivityCompletion | null;
 };
 
 /**
@@ -60,19 +76,33 @@ export function PartFooter({
   trackId,
   completion,
   allPartsComplete,
+  activityCompletion,
 }: Props) {
   const isLastPart = nextPartId === null;
   const activePartComplete = completion?.completed ?? false;
+  // An incomplete activity-level CTA owns the footer's single primary slot — it
+  // is the headline close action — so every per-Part/forward control steps down
+  // while it shows. Once the activity is complete (or there is no manual CTA),
+  // the per-Part hierarchy below resumes.
+  const activityCtaIsPrimary = activityCompletion !== null && !activityCompletion.completed;
   // The forward affordance ("Back to track" on the last Part, "Next" otherwise)
   // claims primary emphasis only once there's nothing left to mark here — while
   // the active Part is still incomplete (and the viewer may mark it),
   // Mark-complete owns the single primary slot so the two never render
   // filled-blue at once (one primary per footer; visual-hierarchy rule). Once
   // the Part is complete, Mark-complete steps down and the forward action leads.
-  const forwardIsPrimary = activePartComplete || !(completion?.canMark ?? false);
+  const forwardIsPrimary =
+    !activityCtaIsPrimary && (activePartComplete || !(completion?.canMark ?? false));
   const finishIsPrimary = isLastPart && forwardIsPrimary;
+  const markCompleteDemoted = forwardIsPrimary || activityCtaIsPrimary;
   return (
     <footer className="sticky bottom-0 z-10 flex flex-col gap-2 border-[var(--color-rule)] border-t bg-[var(--color-surface)] px-4 py-3 md:px-8">
+      {activityCompletion ? (
+        <ActivityCompletionBanner
+          activityCompletion={activityCompletion}
+          ctaIsPrimary={activityCtaIsPrimary}
+        />
+      ) : null}
       {allPartsComplete ? (
         // The strongest closure signal carries the strongest onward action so
         // it's reachable from any Part. On the last Part the footer's own
@@ -106,7 +136,7 @@ export function PartFooter({
           <span className="hidden sm:inline">Previous</span>
         </Button>
         {completion?.canMark ? (
-          <MarkCompleteButton completion={completion} demoteToSecondary={forwardIsPrimary} />
+          <MarkCompleteButton completion={completion} demoteToSecondary={markCompleteDemoted} />
         ) : null}
         {isLastPart ? (
           <Link
@@ -130,6 +160,55 @@ export function PartFooter({
         )}
       </div>
     </footer>
+  );
+}
+
+/**
+ * Activity-level completion closure for `manual_mark`. Incomplete: a callout
+ * carrying the primary "Mark activity complete" CTA — the single action that
+ * closes a manual-mark record (per-Part marks never auto-complete it). Complete:
+ * a "good"-tone confirmation so the participant gets the dialog-closure signal
+ * the per-Part marks alone never provided (Shneiderman rule 4). The button stays
+ * ENABLED while pending (a disabled focused button drops focus to `<body>`);
+ * `aria-busy` announces the in-flight state and the handler short-circuits a
+ * re-entrant click.
+ */
+function ActivityCompletionBanner({
+  activityCompletion,
+  ctaIsPrimary,
+}: {
+  readonly activityCompletion: ActivityCompletion;
+  readonly ctaIsPrimary: boolean;
+}) {
+  const { completed, pending, onComplete } = activityCompletion;
+  if (completed) {
+    return (
+      <Callout tone="good" className="py-2">
+        <span className="inline-flex items-center gap-1.5">
+          <Check size={14} strokeWidth={1.75} aria-hidden="true" />
+          Activity complete — your progress is recorded.
+        </span>
+      </Callout>
+    );
+  }
+  return (
+    <Callout tone="neutral" className="py-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <span>When you're done, mark this activity complete to record it.</span>
+        <Button
+          type="button"
+          variant={ctaIsPrimary ? "primary" : "secondary"}
+          size="sm"
+          onClick={() => {
+            if (!pending) onComplete();
+          }}
+          aria-busy={pending}
+        >
+          <Check size={14} strokeWidth={1.75} aria-hidden="true" />
+          Mark activity complete
+        </Button>
+      </div>
+    </Callout>
   );
 }
 

@@ -78,12 +78,22 @@ export type PartHistoryEnvelope = z.infer<typeof partHistoryEnvelopeSchema>;
 
 /**
  * The empty starting state for a freshly-touched Part, keyed off its kind.
- * Single source of truth for the first-time create path (and, in a later
- * milestone, the revision-restart reset step). Reflection starts with empty
- * text; quiz with no answers; every kind starts `completed: false`.
+ * Single source of truth for both the first-time-resume create path and the
+ * `reopenAgainstRevision` reset step. Reflection starts with empty text; quiz
+ * with no answers; every kind starts `completed: false`.
+ *
+ * The create path holds the full `ActivityPart`; the reset step holds only a
+ * prior snapshot's `kind`. Both route through `initialPartProgressStateForKind`
+ * so the value-per-kind defaults live in exactly one switch.
  */
 export function initialPartProgressState(part: ActivityPart): PartProgressState {
-  switch (part.kind) {
+  return initialPartProgressStateForKind(part.kind);
+}
+
+export function initialPartProgressStateForKind(
+  kind: PartProgressState["kind"],
+): PartProgressState {
+  switch (kind) {
     case "read_library_item":
       return { kind: "read_library_item", completed: false };
     case "listen_audio":
@@ -99,7 +109,7 @@ export function initialPartProgressState(part: ActivityPart): PartProgressState 
     case "embed":
       return { kind: "embed", completed: false };
     default:
-      part satisfies never;
-      throw new Error(`Unknown part kind: ${(part as { kind: string }).kind}`);
+      kind satisfies never;
+      throw new Error(`Unknown part kind: ${kind as string}`);
   }
 }

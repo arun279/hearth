@@ -2,7 +2,11 @@ import type { ActivityPart, ActivityPlayerProjection, PartProgressState } from "
 import { Button, Callout } from "@hearth/ui";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { useActivityRecord, useSetPartCompleted } from "../../../hooks/use-activity-record.ts";
+import {
+  useActivityRecord,
+  useMarkActivityComplete,
+  useSetPartCompleted,
+} from "../../../hooks/use-activity-record.ts";
 import { formatRelative, formatShortDate } from "../../../lib/format.ts";
 import { asUserMessage, errorStatus } from "../../../lib/problem.ts";
 import { partTitle } from "./_lib/part-title.ts";
@@ -115,6 +119,7 @@ function PlayerBody({
   );
   const partsWithHistory = useMemo(() => new Set<string>(record?.partsWithHistory ?? []), [record]);
   const setCompleted = useSetPartCompleted(activity.id);
+  const markComplete = useMarkActivityComplete(activity.id);
 
   // The Part whose history drawer is open, or null when closed. The drawer
   // reads the owner history route lazily, so it fetches only on open.
@@ -184,6 +189,14 @@ function PlayerBody({
   const canAuthor =
     (record?.canParticipate ?? false) && accessState === "open" && recordQuery.isSuccess;
 
+  const activityCompleted = record?.completionState === "completed";
+  // The `manual_mark` close affordance: shown only for an authoring participant
+  // under the manual rule (under `all_parts_complete` the server auto-completes
+  // on the last Part, so no manual CTA), or once the record is complete (so the
+  // confirmation banner persists across reloads regardless of the rule).
+  const showActivityCompletion =
+    activityCompleted || (canAuthor && activity.completionRule.kind === "manual_mark");
+
   const historyPart = historyPartId !== null ? partById.get(historyPartId) : undefined;
 
   return (
@@ -194,11 +207,12 @@ function PlayerBody({
         currentPartIndex={Math.max(activeIndex, 0)}
         totalParts={orderedPartIds.length}
         completedCount={completedPartIds.size}
+        activityCompleted={activityCompleted}
         priorAttemptsCount={record?.partHistoryCount ?? 0}
         facilitatorAction={
           isFacilitator ? (
             <Button type="button" size="sm" variant="secondary" onClick={() => setRosterOpen(true)}>
-              Manage participants
+              Participant progress
             </Button>
           ) : null
         }
@@ -259,7 +273,22 @@ function PlayerBody({
             groupId={groupId}
             trackId={trackId}
             allPartsComplete={
-              orderedPartIds.length > 0 && completedPartIds.size === orderedPartIds.length
+              activity.completionRule.kind === "all_parts_complete" &&
+              orderedPartIds.length > 0 &&
+              completedPartIds.size === orderedPartIds.length
+            }
+            activityCompletion={
+              showActivityCompletion
+                ? {
+                    completed: activityCompleted,
+                    pending: markComplete.isPending,
+                    onComplete: () =>
+                      markComplete.mutate(undefined, {
+                        onError: (err) =>
+                          toast.error(asUserMessage(err, "Couldn't mark the activity complete.")),
+                      }),
+                  }
+                : null
             }
             completion={
               activePart

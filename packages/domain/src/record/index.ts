@@ -1,6 +1,7 @@
 export { affectedPartIdsForRevisionBump, type RevisionMap } from "./affected-parts.ts";
 export {
   initialPartProgressState,
+  initialPartProgressStateForKind,
   type PartHistoryEnvelope,
   type PartProgressEnvelope,
   type PartProgressState,

@@ -5,6 +5,7 @@ import {
   type ActivityRecordId,
   type CompletionState,
   DomainError,
+  initialPartProgressStateForKind,
   type LearningActivityId,
   type LibraryRevisionId,
   type PartHistory,
@@ -367,7 +368,7 @@ export function createActivityRecordRepository(
                 stateJson: JSON.stringify(
                   partProgressEnvelopeSchema.parse({
                     v: 1,
-                    data: resetState(snapshot),
+                    data: initialPartProgressStateForKind(snapshot.kind),
                   }),
                 ),
                 updatedAt: now,
@@ -405,28 +406,6 @@ export function createActivityRecordRepository(
       return [];
     },
   };
-}
-
-function resetState(snapshot: PartProgressState): PartProgressState {
-  switch (snapshot.kind) {
-    case "write_reflection":
-      return { kind: "write_reflection", completed: false, text: "" };
-    case "quiz":
-      return { kind: "quiz", completed: false, answers: [] };
-    case "read_library_item":
-      return { kind: "read_library_item", completed: false };
-    case "listen_audio":
-      return { kind: "listen_audio", completed: false };
-    case "watch_video":
-      return { kind: "watch_video", completed: false };
-    case "attend_session":
-      return { kind: "attend_session", completed: false };
-    case "embed":
-      return { kind: "embed", completed: false };
-    default:
-      snapshot satisfies never;
-      throw new Error(`Unknown part kind: ${(snapshot as { kind: string }).kind}`);
-  }
 }
 
 function encodeHistory(

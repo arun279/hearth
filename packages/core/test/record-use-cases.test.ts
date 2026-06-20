@@ -164,6 +164,7 @@ describe("getMyActivityRecord", () => {
     const deps = depsOk();
     const view = await getMyActivityRecord({ actor: ACTOR_ID, activityId: ACTIVITY_ID }, deps);
     expect(view.canParticipate).toBe(true);
+    expect(view.completionState).toBe("in_progress");
     expect(view.parts).toEqual([]);
     expect(view.visibilityOverride).toBeNull();
     expect(view.partHistoryCount).toBe(0);
@@ -191,7 +192,9 @@ describe("getMyActivityRecord", () => {
     };
     const deps = depsOk({
       records: makeRecords({
-        byParticipantAndActivity: vi.fn(async () => record({ visibilityOverride: "private" })),
+        byParticipantAndActivity: vi.fn(async () =>
+          record({ visibilityOverride: "private", completionState: "completed" }),
+        ),
         listPartProgress: vi.fn(async () => [progress]),
         countPartHistory: vi.fn(async () => 2),
         listPartHistory: vi.fn(async () => [historyRow, { ...historyRow, id: "ph_2" }]),
@@ -199,6 +202,7 @@ describe("getMyActivityRecord", () => {
     });
     const view = await getMyActivityRecord({ actor: ACTOR_ID, activityId: ACTIVITY_ID }, deps);
     expect(view.canParticipate).toBe(true);
+    expect(view.completionState).toBe("completed");
     expect(view.visibilityOverride).toBe("private");
     expect(view.parts).toEqual([{ partId: "p_reflect", state: progress.state }]);
     expect(view.partHistoryCount).toBe(2);

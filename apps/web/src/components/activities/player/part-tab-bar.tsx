@@ -102,7 +102,7 @@ export function PartTabBar({
                   type="button"
                   onClick={() => onOpenHistory(partId)}
                   aria-label={`View prior attempts for ${label}`}
-                  className="inline-flex size-7 shrink-0 items-center justify-center rounded-full text-[var(--color-ink-3)] transition-colors hover:bg-[var(--color-surface-2)] hover:text-[var(--color-ink-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
+                  className="inline-flex size-9 shrink-0 items-center justify-center rounded-full text-[var(--color-ink-3)] transition-colors hover:bg-[var(--color-surface-2)] hover:text-[var(--color-ink-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
                 >
                   <History size={13} strokeWidth={1.75} aria-hidden="true" />
                 </button>

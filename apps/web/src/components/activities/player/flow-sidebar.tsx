@@ -85,7 +85,7 @@ export function FlowSidebar({
                   type="button"
                   onClick={() => onOpenHistory(partId)}
                   aria-label={`View prior attempts for ${label}`}
-                  className="mr-1.5 inline-flex size-6 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-ink-3)] transition-colors hover:bg-[var(--color-surface)] hover:text-[var(--color-ink-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
+                  className="mr-1 inline-flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-ink-3)] transition-colors hover:bg-[var(--color-surface)] hover:text-[var(--color-ink-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
                 >
                   <History size={13} strokeWidth={1.75} aria-hidden="true" />
                 </button>
