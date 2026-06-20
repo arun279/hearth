@@ -533,6 +533,17 @@ function findFictionalCheckScripts(files) {
 }
 
 /**
+ * The TODO-scope rule's own source + test necessarily contain the literal
+ * `TODO(mN)` patterns they match (as documentation and fixtures), so both
+ * `no-stale-milestone-todo` and `no-unscoped-todo` exempt them — they are
+ * pattern definitions, not debt.
+ *
+ * @param {string} f
+ */
+const isRuleSource = (f) =>
+  f.endsWith("scripts/check-conventions.mjs") || f.includes("scripts/lib/todo-scope");
+
+/**
  * Flags milestone TODOs whose milestone has already shipped. The "highest
  * shipped milestone" is derived from the conventional-commit subjects in git
  * history (`feat(mN)` / `fix(mN)` / …), not a hand-maintained list, so it
@@ -555,7 +566,7 @@ function findStaleMilestoneTodos(files) {
   }
   const hits = [];
   for (const file of files) {
-    if (file.endsWith("scripts/check-conventions.mjs")) continue;
+    if (isRuleSource(file)) continue;
     let text;
     try {
       text = readFileSync(file, "utf8");
@@ -585,8 +596,6 @@ function findStaleMilestoneTodos(files) {
  * @param {string[]} files
  */
 function findUnscopedTodos(files) {
-  const isRuleSource = (f) =>
-    f.endsWith("scripts/check-conventions.mjs") || f.includes("scripts/lib/todo-scope");
   const hits = [];
   for (const file of files) {
     if (isRuleSource(file) || /\.(md|mdx)$/.test(file)) continue;

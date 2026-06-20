@@ -168,6 +168,14 @@ Each entry names the **pinned tool**, the **condition** that triggers a reassess
 - **Action**: M11 declares the port + wires the enqueue at the two marked call sites; M17 adds the batcher + budget CI test. The values are already computed in both use cases, and each enqueue point carries a `TODO(m11)` marker, so M11 only adds the port dependency + one call per use case — no restructuring.
 - **Location**: `packages/core/src/use-cases/save-reflection-draft.ts`, `packages/core/src/use-cases/submit-quiz-answers.ts` (see the `TODO(m11)` markers).
 
+## Convention check tooling
+
+### `no-stale-milestone-todo` inspects only the first milestone marker per line
+
+- **Trigger**: a single committed line legitimately carries two or more milestone markers where an earlier one is still-open (milestone not yet shipped) but a later one on the same line is stale (already shipped). The non-global `RegExp.exec` scan in `findStaleMilestoneTodos` reads only the first match per line, so the later stale marker is never flagged.
+- **Action**: switch the per-line scan to a global `matchAll` and evaluate every marker on the line. Fixing it may surface previously-hidden legitimate stale markers — evaluate those separately rather than bundling. Low priority: real lines almost never carry two milestone markers.
+- **Location**: `scripts/check-conventions.mjs` (`findStaleMilestoneTodos`).
+
 ## How to remove an entry
 
 An entry leaves this list only when one of the following is true:

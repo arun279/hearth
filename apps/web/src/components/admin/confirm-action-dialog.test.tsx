@@ -12,14 +12,9 @@ import { ConfirmActionDialog } from "./confirm-action-dialog.tsx";
  * confirm in this session, so a latched mutation error from a prior open
  * (close→reopen, or a sibling dialog sharing the mutation) stays hidden until
  * the user retries. A fresh server render is exactly that pre-confirm state,
- * so SSR asserts the suppressed contract; the confirm→fail→retry transition
- * needs a real DOM.
- *
- * TODO(m10.5): in the deferred jsdom component-test layer, drive the session
- * scoping directly — open with a latched errorMessage and assert no Callout,
- * then click confirm and assert the Callout appears; reopen and assert it is
- * suppressed again. The category e2e covers the failed-confirm surface
- * end-to-end in the meantime.
+ * so SSR asserts the suppressed contract; the confirm→fail→reopen transition
+ * and the focus restoration on nested close live in
+ * `confirm-action-dialog.dom.test.tsx` on the happy-dom project.
  */
 
 const baseProps = {

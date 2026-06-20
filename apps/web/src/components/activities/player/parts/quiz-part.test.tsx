@@ -15,15 +15,10 @@ import {
  * from on mount), `gradedMcOptions` (the post-grade option tinting, across
  * the correct / incorrect / no-key verdicts), and `verdictBadge` (the
  * outcome-badge tone + copy), plus SSR checks for the participant and
- * read-only render arms.
- *
- * TODO(m10.5): the post-submit rendering paths — the `ScoreSummary`
- * `gradeable === 0` ("no auto-graded questions") branch, the short-answer
- * submit round-trip, and verdict-clears-on-edit — depend on a submit mutation
- * firing and updating state, so they need a real DOM. They land with the
- * deferred jsdom component-test layer (separate PR), alongside the reflection
- * keepalive-flush / autosave-transition tests; the m10 e2e covers the single
- * correct-MC path end-to-end in the meantime.
+ * read-only render arms. The post-submit rendering paths — the `ScoreSummary`
+ * `gradeable === 0` branch, the short-answer submit round-trip, and
+ * verdict-clears-on-edit — live in `quiz-part.dom.test.tsx` on the happy-dom
+ * project.
  */
 
 const PART: QuizPartT = {
