@@ -1,5 +1,6 @@
 import type { ActivityPlayerProjection, LearningActivity } from "@hearth/domain";
 import { Badge } from "@hearth/ui";
+import type { ReactNode } from "react";
 
 type Props = {
   readonly activity: LearningActivity;
@@ -7,6 +8,19 @@ type Props = {
   readonly currentPartIndex: number;
   readonly totalParts: number;
   readonly completedCount: number;
+  /**
+   * Total prior attempts preserved across every Part of the participant's own
+   * record (`partHistoryCount`). Renders the "N prior attempts preserved" chip
+   * only when non-zero — its presence reassures the learner that a reset or
+   * revision bump never destroyed earlier work.
+   */
+  readonly priorAttemptsCount?: number;
+  /**
+   * Authority-only action (the facilitator participant-roster trigger), pushed
+   * to the right of the status row so it sits where a facilitator already looks
+   * for activity-level controls rather than in a dedicated band.
+   */
+  readonly facilitatorAction?: ReactNode;
 };
 
 /**
@@ -30,6 +44,8 @@ export function ActivityHeader({
   currentPartIndex,
   totalParts,
   completedCount,
+  priorAttemptsCount = 0,
+  facilitatorAction,
 }: Props) {
   const denominator = Math.max(totalParts, 1);
   const completionPercent = Math.round((completedCount / denominator) * 100);
@@ -68,6 +84,12 @@ export function ActivityHeader({
           />
         </div>
         <span className="text-[11px] text-[var(--color-ink-2)] tabular-nums">{completionText}</span>
+        {priorAttemptsCount > 0 ? (
+          <Badge tone="neutral">
+            {priorAttemptsCount} prior {priorAttemptsCount === 1 ? "attempt" : "attempts"} preserved
+          </Badge>
+        ) : null}
+        {facilitatorAction ? <div className="ms-auto">{facilitatorAction}</div> : null}
       </div>
     </header>
   );

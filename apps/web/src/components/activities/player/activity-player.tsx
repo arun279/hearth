@@ -1,13 +1,16 @@
 import type { ActivityPart, ActivityPlayerProjection, PartProgressState } from "@hearth/domain";
 import { Button, Callout } from "@hearth/ui";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useActivityRecord, useSetPartCompleted } from "../../../hooks/use-activity-record.ts";
 import { formatRelative, formatShortDate } from "../../../lib/format.ts";
 import { asUserMessage, errorStatus } from "../../../lib/problem.ts";
+import { partTitle } from "./_lib/part-title.ts";
 import { ActivityHeader } from "./activity-header.tsx";
+import { FacilitatorRosterDialog } from "./facilitator-roster-dialog.tsx";
 import { FlowSidebar } from "./flow-sidebar.tsx";
 import { PartFooter } from "./part-footer.tsx";
+import { PartHistoryDrawer } from "./part-history-drawer.tsx";
 import { PartTabBar } from "./part-tab-bar.tsx";
 import { PartViewport } from "./part-viewport.tsx";
 
@@ -110,7 +113,16 @@ function PlayerBody({
       new Set<string>((record?.parts ?? []).filter((p) => p.state.completed).map((p) => p.partId)),
     [record],
   );
+  const partsWithHistory = useMemo(() => new Set<string>(record?.partsWithHistory ?? []), [record]);
   const setCompleted = useSetPartCompleted(activity.id);
+
+  // The Part whose history drawer is open, or null when closed. The drawer
+  // reads the owner history route lazily, so it fetches only on open.
+  const [historyPartId, setHistoryPartId] = useState<string | null>(null);
+  // The facilitator participant-roster dialog (reset affordance). Gated below
+  // on the viewer being a facilitator; non-facilitators never see the trigger.
+  const [rosterOpen, setRosterOpen] = useState(false);
+  const isFacilitator = projection.viewer.enrollmentStatus === "facilitator";
 
   const requestedExists = requestedPartId !== null && orderedPartIds.includes(requestedPartId);
   const activePartId = requestedExists ? (requestedPartId as string) : (orderedPartIds[0] ?? "");
@@ -172,6 +184,8 @@ function PlayerBody({
   const canAuthor =
     (record?.canParticipate ?? false) && accessState === "open" && recordQuery.isSuccess;
 
+  const historyPart = historyPartId !== null ? partById.get(historyPartId) : undefined;
+
   return (
     <FullViewport>
       <ActivityHeader
@@ -180,6 +194,14 @@ function PlayerBody({
         currentPartIndex={Math.max(activeIndex, 0)}
         totalParts={orderedPartIds.length}
         completedCount={completedPartIds.size}
+        priorAttemptsCount={record?.partHistoryCount ?? 0}
+        facilitatorAction={
+          isFacilitator ? (
+            <Button type="button" size="sm" variant="secondary" onClick={() => setRosterOpen(true)}>
+              Manage participants
+            </Button>
+          ) : null
+        }
       />
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         <FlowSidebar
@@ -188,6 +210,8 @@ function PlayerBody({
           activePartId={activePartId}
           completedPartIds={completedPartIds}
           onSelectPart={onChangeActivePartId}
+          partsWithHistory={partsWithHistory}
+          onOpenHistory={setHistoryPartId}
         />
         <div className="flex min-w-0 flex-1 flex-col">
           <PartTabBar
@@ -196,6 +220,8 @@ function PlayerBody({
             activePartId={activePartId}
             completedPartIds={completedPartIds}
             onSelectPart={onChangeActivePartId}
+            partsWithHistory={partsWithHistory}
+            onOpenHistory={setHistoryPartId}
           />
           <div className="flex-1 px-4 py-5 md:px-8 md:py-7">
             {accessState === "locked" ? (
@@ -258,6 +284,23 @@ function PlayerBody({
           />
         </div>
       </div>
+      {historyPart ? (
+        <PartHistoryDrawer
+          open
+          onClose={() => setHistoryPartId(null)}
+          activityId={activity.id}
+          partId={historyPart.id}
+          partLabel={partTitle(historyPart, Math.max(orderedPartIds.indexOf(historyPart.id), 0))}
+        />
+      ) : null}
+      {isFacilitator ? (
+        <FacilitatorRosterDialog
+          open={rosterOpen}
+          onClose={() => setRosterOpen(false)}
+          activityId={activity.id}
+          activityTitle={activity.title}
+        />
+      ) : null}
     </FullViewport>
   );
 }

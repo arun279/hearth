@@ -204,14 +204,16 @@ type AuthorablePartKind = (typeof AUTHORABLE_PART_KINDS)[number];
  * tab set is sized once there against the full section roster — with
  * M11 (the dependency that makes the Flow tab worth sizing) landed.
  *
- * TODO(m11): the Draft state carries `hardEdges` (the intra-Part
+ * TODO(m19): the Draft state carries `hardEdges` (the intra-Part
  * `flow.prereqs[]` projection) and the serializer round-trips them,
  * but no UI exposes wiring an edge between two Parts. The schema
- * supports it; M8 simply ships no Flow editor. M11 is the consumer of
- * `flow.prereqs[]`: `canMarkPartComplete` rejects `prereq_not_met`, and
- * the PartFooter Mark Complete control disables when prereqs are unmet
- * — without that consumer, a Flow editor would write data nothing
- * reads. Wire the editor as a sibling section / tab when M11 lands.
+ * supports it; M8 simply ships no Flow editor. M11 wired the consumer
+ * of `flow.prereqs[]` (the player's `canMarkPartComplete` prereq gate),
+ * so an authored edge now reads — but the editor itself is composer
+ * authoring UI: it belongs in the `Flow` tab M19 sizes against the full
+ * section roster, and its keyboard reorder rides M19's dnd-kit
+ * KeyboardSensor. Wire the editor as a sibling section / tab when M19
+ * restructures the composer.
  *
  * Compose or edit a Learning Activity. The dialog mirrors the design
  * prototype: a single scrolled modal with discrete sections (Parts /
@@ -1621,15 +1623,15 @@ function PostCloseRadios({
 }
 
 /**
- * TODO(m11): refresh the prereq + suggested-sequence helper copy
- * once Activity Records (M11) and Visibility (M12) make prereq
- * satisfaction observable to the learner. Today the copy is correct
- * for the static state ("Pick zero or more activities a learner
- * must complete first") because no completion signal exists yet;
- * once records track per-Part progress and visibility ties prereq
- * status to access, the copy gets richer (e.g., "blocks access
- * until the learner has marked all Parts of the prereq complete").
- * Re-evaluate when M11 lands — the truth-table gets more interesting.
+ * TODO(m12): refresh the prereq + suggested-sequence helper copy once
+ * Visibility (M12) ties prereq satisfaction to learner-visible access.
+ * The current copy ("block access" / "Pick zero or more activities a
+ * learner must complete first") is correct after M11 too — M11 tracks
+ * per-Part progress but does not change what the composer copy promises.
+ * The richer truth-table ("blocks access until the learner has marked
+ * all Parts of the prereq complete") only becomes accurate once M12
+ * resolves prereq status into an observable access scope. Re-evaluate
+ * when M12 lands.
  */
 function CrossActivityFields({
   siblings,

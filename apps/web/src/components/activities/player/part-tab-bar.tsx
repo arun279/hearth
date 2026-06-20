@@ -1,6 +1,6 @@
 import type { ActivityPart } from "@hearth/domain";
 import { cn, PartIcon } from "@hearth/ui";
-import { Check } from "lucide-react";
+import { Check, History } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { partTitle } from "./_lib/part-title.ts";
 
@@ -10,6 +10,9 @@ type Props = {
   readonly activePartId: string;
   readonly completedPartIds: ReadonlySet<string>;
   readonly onSelectPart: (partId: string) => void;
+  /** Part ids with at least one prior attempt — render the history chip. */
+  readonly partsWithHistory: ReadonlySet<string>;
+  readonly onOpenHistory: (partId: string) => void;
 };
 
 /**
@@ -34,6 +37,8 @@ export function PartTabBar({
   activePartId,
   completedPartIds,
   onSelectPart,
+  partsWithHistory,
+  onOpenHistory,
 }: Props) {
   const partById = new Map(parts.map((p) => [p.id, p]));
   const listRef = useRef<HTMLOListElement | null>(null);
@@ -58,8 +63,10 @@ export function PartTabBar({
           if (!part) return null;
           const isActive = partId === activePartId;
           const isComplete = completedPartIds.has(partId);
+          const hasHistory = partsWithHistory.has(partId);
+          const label = partTitle(part, index);
           return (
-            <li key={partId}>
+            <li key={partId} className="flex items-center gap-0.5">
               <button
                 type="button"
                 onClick={() => onSelectPart(partId)}
@@ -86,10 +93,20 @@ export function PartTabBar({
                   <PartIcon kind={part.kind} size={11} />
                 )}
                 <span>
-                  {partTitle(part, index)}
+                  {label}
                   {isComplete ? <span className="sr-only"> (completed)</span> : null}
                 </span>
               </button>
+              {hasHistory ? (
+                <button
+                  type="button"
+                  onClick={() => onOpenHistory(partId)}
+                  aria-label={`View prior attempts for ${label}`}
+                  className="inline-flex size-7 shrink-0 items-center justify-center rounded-full text-[var(--color-ink-3)] transition-colors hover:bg-[var(--color-surface-2)] hover:text-[var(--color-ink-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
+                >
+                  <History size={13} strokeWidth={1.75} aria-hidden="true" />
+                </button>
+              ) : null}
             </li>
           );
         })}

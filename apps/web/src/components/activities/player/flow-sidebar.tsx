@@ -1,6 +1,6 @@
 import type { ActivityPart } from "@hearth/domain";
 import { cn, PartIcon } from "@hearth/ui";
-import { Check } from "lucide-react";
+import { Check, History } from "lucide-react";
 import { partTitle } from "./_lib/part-title.ts";
 
 type Props = {
@@ -9,6 +9,9 @@ type Props = {
   readonly activePartId: string;
   readonly completedPartIds: ReadonlySet<string>;
   readonly onSelectPart: (partId: string) => void;
+  /** Part ids with at least one prior attempt — render the history chip. */
+  readonly partsWithHistory: ReadonlySet<string>;
+  readonly onOpenHistory: (partId: string) => void;
 };
 
 /**
@@ -31,6 +34,8 @@ export function FlowSidebar({
   activePartId,
   completedPartIds,
   onSelectPart,
+  partsWithHistory,
+  onOpenHistory,
 }: Props) {
   const partById = new Map(parts.map((p) => [p.id, p]));
   return (
@@ -44,29 +49,47 @@ export function FlowSidebar({
           if (!part) return null;
           const isActive = partId === activePartId;
           const isComplete = completedPartIds.has(partId);
+          const hasHistory = partsWithHistory.has(partId);
+          const label = partTitle(part, index);
           return (
-            <li key={partId}>
+            <li
+              key={partId}
+              className={cn(
+                "group flex items-center rounded-[var(--radius-sm)] transition-colors",
+                isActive
+                  ? "border-[var(--color-accent)] border-l-2 bg-[var(--color-accent-soft)]"
+                  : isComplete
+                    ? "border-transparent border-l-2 bg-[var(--color-surface-2)]"
+                    : "border-transparent border-l-2 hover:bg-[var(--color-surface-2)]",
+              )}
+            >
               <button
                 type="button"
                 onClick={() => onSelectPart(partId)}
                 className={cn(
-                  "group flex w-full items-center gap-2 rounded-[var(--radius-sm)] px-2 py-1.5 text-left transition-colors",
-                  "hover:bg-[var(--color-surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]",
-                  isActive
-                    ? "border-[var(--color-accent)] border-l-2 bg-[var(--color-accent-soft)] pl-[6px] text-[var(--color-ink)]"
-                    : isComplete
-                      ? "border-transparent border-l-2 bg-[var(--color-surface-2)] text-[var(--color-ink-2)]"
-                      : "border-transparent border-l-2 text-[var(--color-ink-2)]",
+                  "flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]",
+                  isActive ? "pl-[6px] text-[var(--color-ink)]" : "px-2 text-[var(--color-ink-2)]",
                 )}
                 aria-current={isActive ? "step" : undefined}
               >
                 <PartStatusDot complete={isComplete} />
                 <PartIcon kind={part.kind} size={13} />
                 <div className="min-w-0 flex-1 truncate text-[12px]">
-                  {partTitle(part, index)}
+                  {label}
                   {isComplete ? <span className="sr-only"> (completed)</span> : null}
                 </div>
               </button>
+              {hasHistory ? (
+                <button
+                  type="button"
+                  onClick={() => onOpenHistory(partId)}
+                  aria-label={`View prior attempts for ${label}`}
+                  className="mr-1.5 inline-flex size-6 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-ink-3)] transition-colors hover:bg-[var(--color-surface)] hover:text-[var(--color-ink-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
+                >
+                  <History size={13} strokeWidth={1.75} aria-hidden="true" />
+                </button>
+              ) : null}
             </li>
           );
         })}
