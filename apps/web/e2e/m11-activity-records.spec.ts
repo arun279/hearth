@@ -143,7 +143,7 @@ test.describe("M11 — Activity Records, Part Progress & Part History", () => {
 
     // The track creator is enrolled as facilitator, so the same account reaches
     // the roster + reset affordance for its own record.
-    await page.getByRole("button", { name: /Manage participants/i }).click();
+    await page.getByRole("button", { name: /Participant progress/i }).click();
     const roster = page.getByRole("dialog", { name: /— participants/i });
     await expect(roster).toBeVisible();
     await roster
