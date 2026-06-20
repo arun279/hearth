@@ -41,6 +41,7 @@ Cover the interaction-bearing primitives with `renderPrimitive`.
 - [ ] `library` search — debounce, "Load more" cursor exhaustion, and the `isError` vs empty branches.
 - [x] `admin` tabs — `settings-tab` (query loading/error/data fork, hydrate-on-data, dirty-gate, server-error→name binding, isSubmitting button/input flip, empty-submit resolver tripwire), `operators-tab` (current-vs-revoked split, isSelf/onlyOneOperator revoke gating with reason-specific tooltip, grant sub-form server-error→email binding + reset-on-success, revoke confirm error latch + retry), `approved-emails-tab` (single-row Zod + server-error binding, the bulk-paste iterative loop — per-row format-skip / duplicate-mapping / mixed partial-success textarea-clear / all-fail textarea-retention, remove confirm error latch). The shared confirm dialog is seeded above.
 - [ ] `tracks` dialogs and `activities` composer — the audience picker (subset roster) and the dirty-discard confirm guard.
+- [x] `sign-in-screen` — raw-`fetch` OAuth handshake (pending latch + Better Auth request shape), failure→danger Callout→clear-on-retry, OK-but-missing-URL error, and the rejection/bootstrap admission Callouts co-rendering with the error.
 
 ## How to add coverage
 
