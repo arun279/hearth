@@ -234,11 +234,22 @@ function viewablePorts(opts: {
     } as unknown as LearningActivityRepository,
     records: {
       upsert: vi.fn(async () => record),
+      byId: vi.fn(async () => null),
       byParticipantAndActivity: vi.fn(async () => null),
+      listByActivity: vi.fn(async () => ({ records: [], nextCursor: null })),
+      listByParticipant: vi.fn(async () => []),
       getPartProgress: vi.fn(async () => null),
       listPartProgress: vi.fn(async () => []),
       savePartProgress: vi.fn(),
+      setPartCompletion: vi.fn(),
+      setCompletion: vi.fn(),
       setVisibilityOverride: vi.fn(),
+      appendPartHistory: vi.fn(),
+      listPartHistory: vi.fn(async () => []),
+      countPartHistory: vi.fn(async () => 0),
+      reopenAgainstRevision: vi.fn(),
+      flushEvidenceSignals: vi.fn(),
+      listEvidenceSignals: vi.fn(async () => []),
       ...opts.records,
     } as unknown as ActivityRecordRepository,
   };
@@ -413,7 +424,7 @@ describe("PUT /api/v1/activities/:id/my-record/parts/:partId/completion", () => 
     expect(res.status).toBe(200);
     const body = (await res.json()) as { partId: string; completed: boolean };
     expect(body).toEqual({ partId: "p_reflect", completed: true });
-    expect(ports.records?.savePartProgress).toHaveBeenCalled();
+    expect(ports.records?.setPartCompletion).toHaveBeenCalled();
   });
 
   it("400 validation_failed on a non-boolean completed", async () => {

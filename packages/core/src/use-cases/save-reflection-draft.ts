@@ -62,10 +62,23 @@ export async function saveReflectionDraft(
 
   const wordCount = countWords(input.text);
   const meetsMinWords = part.minWords === undefined || wordCount >= part.minWords;
-  // TODO(m11): enqueue the `word_count` + `draft_saved_at` Evidence Signals here,
-  // through an EvidenceSignalRepository port M11 declares (the throttled batcher and
-  // the ≤50-write/user/day budget land in M17). Deferred from M10 on purpose:
-  // without M17's batcher, a signal per autosave would breach that write budget.
-  // The values are already computed, so M11 only adds the port dep + this one call.
+
+  await deps.records.flushEvidenceSignals([
+    {
+      activityId: input.activityId,
+      participantId: input.actor,
+      partId: part.id as ActivityPartId,
+      signalType: "word_count",
+      value: wordCount,
+    },
+    {
+      activityId: input.activityId,
+      participantId: input.actor,
+      partId: part.id as ActivityPartId,
+      signalType: "draft_saved_at",
+      value: deps.clock.now().toISOString(),
+    },
+  ]);
+
   return { saved: true, wordCount, meetsMinWords };
 }

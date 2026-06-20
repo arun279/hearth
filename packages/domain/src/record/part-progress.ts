@@ -2,6 +2,8 @@ import { z } from "zod";
 import { MAX_QUIZ_QUESTIONS, MAX_REFLECTION_LENGTH } from "../activity/_limits.ts";
 import { type ActivityPart, quizAnswerSchema } from "../parts/index.ts";
 
+const PART_HISTORY_REASONS = ["retry", "revision_bump", "facilitator_reset"] as const;
+
 /**
  * Per-Part participant state, discriminated by the Part `kind` it belongs
  * to. `completed` is the honor-system "I finished this Part" flag toggled by
@@ -56,6 +58,23 @@ export const partProgressEnvelopeSchema = z.object({
 });
 
 export type PartProgressEnvelope = z.infer<typeof partProgressEnvelopeSchema>;
+
+/**
+ * Versioned envelope persisted in `part_history.stateJson`. The M0
+ * `part_history` table carries only the snapshot column, so the archival
+ * reason and the revision the activity moved to (for a `revision_bump`)
+ * ride inside the envelope alongside the snapshot. The adapter parses
+ * through this on read so a malformed history row surfaces as a validation
+ * failure; `revisionIdAtTime` is `null` for `retry` and `facilitator_reset`.
+ */
+export const partHistoryEnvelopeSchema = z.object({
+  v: z.literal(1),
+  snapshot: partProgressStateSchema,
+  reason: z.enum(PART_HISTORY_REASONS),
+  revisionIdAtTime: z.string().nullable(),
+});
+
+export type PartHistoryEnvelope = z.infer<typeof partHistoryEnvelopeSchema>;
 
 /**
  * The empty starting state for a freshly-touched Part, keyed off its kind.

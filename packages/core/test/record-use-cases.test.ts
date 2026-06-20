@@ -229,6 +229,22 @@ describe("saveReflectionDraft", () => {
       partId: "p_reflect",
       state: { kind: "write_reflection", completed: true, text: "one two three" },
     });
+    expect(records.flushEvidenceSignals).toHaveBeenCalledWith([
+      {
+        activityId: ACTIVITY_ID,
+        participantId: ACTOR_ID,
+        partId: "p_reflect",
+        signalType: "word_count",
+        value: 3,
+      },
+      {
+        activityId: ACTIVITY_ID,
+        participantId: ACTOR_ID,
+        partId: "p_reflect",
+        signalType: "draft_saved_at",
+        value: TEST_NOW.toISOString(),
+      },
+    ]);
   });
 
   it("meetsMinWords is true at/above the threshold", async () => {
@@ -353,6 +369,29 @@ describe("submitQuizAnswers", () => {
       partId: "p_quiz",
       state: { kind: "quiz", completed: false, answers },
     });
+    expect(records.flushEvidenceSignals).toHaveBeenCalledWith([
+      {
+        activityId: ACTIVITY_ID,
+        participantId: ACTOR_ID,
+        partId: "p_quiz",
+        signalType: "answers_submitted",
+        value: 3,
+      },
+      {
+        activityId: ACTIVITY_ID,
+        participantId: ACTOR_ID,
+        partId: "p_quiz",
+        signalType: "last_answered_at",
+        value: TEST_NOW.toISOString(),
+      },
+      {
+        activityId: ACTIVITY_ID,
+        participantId: ACTOR_ID,
+        partId: "p_quiz",
+        signalType: "auto_score",
+        value: { correct: 2, gradeable: 2 },
+      },
+    ]);
   });
 
   it("marks a wrong multiple-choice answer incorrect", async () => {
@@ -528,70 +567,110 @@ describe("submitQuizAnswers", () => {
 });
 
 describe("setPartCompleted", () => {
-  it("marks a reflection Part complete, preserving its text", async () => {
-    const records = makeRecords({
-      upsert: markWrite(vi.fn(async () => record())),
-      getPartProgress: vi.fn(async () => ({
-        id: "pp",
-        activityRecordId: RECORD_ID,
-        partId: "p_reflect" as ActivityPartId,
-        state: { kind: "write_reflection" as const, completed: false, text: "my draft" },
-        updatedAt: TEST_NOW,
-      })),
-    });
+  it("marks a Part complete via a TARGETED write, never a whole-envelope rewrite", async () => {
+    const records = makeRecords({ upsert: markWrite(vi.fn(async () => record())) });
     const deps = depsOk({ records });
     const result = await setPartCompleted(
       { actor: ACTOR_ID, activityId: ACTIVITY_ID, partId: "p_reflect", completed: true },
       deps,
     );
     expect(result).toEqual({ partId: "p_reflect", completed: true });
-    expect(records.savePartProgress).toHaveBeenCalledWith({
+    expect(records.setPartCompletion).toHaveBeenCalledWith({
       activityRecordId: RECORD_ID,
       partId: "p_reflect",
-      state: { kind: "write_reflection", completed: true, text: "my draft" },
+      completed: true,
+      initialState: { kind: "write_reflection", completed: false, text: "" },
     });
+    // The clobber-prone whole-envelope path is gone: completion never
+    // round-trips the working value back.
+    expect(records.savePartProgress).not.toHaveBeenCalled();
   });
 
-  it("un-marks a quiz Part complete, preserving its answers", async () => {
-    const answers = [{ questionId: "q_mc", kind: "multiple_choice" as const, selectedIndex: 1 }];
-    const records = makeRecords({
-      upsert: markWrite(vi.fn(async () => record())),
-      getPartProgress: vi.fn(async () => ({
-        id: "pp",
-        activityRecordId: RECORD_ID,
-        partId: "p_quiz" as ActivityPartId,
-        state: { kind: "quiz" as const, completed: true, answers },
-        updatedAt: TEST_NOW,
-      })),
-    });
+  it("un-marks a Part complete via the same targeted write", async () => {
+    const records = makeRecords({ upsert: markWrite(vi.fn(async () => record())) });
     const deps = depsOk({ records });
     const result = await setPartCompleted(
       { actor: ACTOR_ID, activityId: ACTIVITY_ID, partId: "p_quiz", completed: false },
       deps,
     );
     expect(result).toEqual({ partId: "p_quiz", completed: false });
-    expect(records.savePartProgress).toHaveBeenCalledWith({
+    expect(records.setPartCompletion).toHaveBeenCalledWith({
       activityRecordId: RECORD_ID,
       partId: "p_quiz",
-      state: { kind: "quiz", completed: false, answers },
+      completed: false,
+      initialState: { kind: "quiz", completed: false, answers: [] },
     });
+    expect(records.savePartProgress).not.toHaveBeenCalled();
   });
 
-  it("marks a freshly-touched Part complete from its initial state", async () => {
-    const records = makeRecords({
-      upsert: markWrite(vi.fn(async () => record())),
-      getPartProgress: vi.fn(async () => null),
-    });
+  it("does not auto-complete the activity under the manual_mark rule", async () => {
+    const records = makeRecords({ upsert: markWrite(vi.fn(async () => record())) });
     const deps = depsOk({ records });
-    await setPartCompleted(
+    const result = await setPartCompleted(
       { actor: ACTOR_ID, activityId: ACTIVITY_ID, partId: "p_reflect", completed: true },
       deps,
     );
-    expect(records.savePartProgress).toHaveBeenCalledWith({
-      activityRecordId: RECORD_ID,
-      partId: "p_reflect",
-      state: { kind: "write_reflection", completed: true, text: "" },
+    expect(result.record).toBeUndefined();
+    expect(records.setCompletion).not.toHaveBeenCalled();
+  });
+
+  it("auto-completes the activity when the last Part completes under all_parts_complete", async () => {
+    const activity = makeActivity({ completionRule: { kind: "all_parts_complete" } });
+    // The reflection Part is the one being marked now; the quiz Part is
+    // already complete — so this mark makes every Part complete.
+    const records = makeRecords({
+      upsert: markWrite(vi.fn(async () => record())),
+      listPartProgress: vi.fn(async () => [
+        {
+          id: "pp_r",
+          activityRecordId: RECORD_ID,
+          partId: "p_reflect" as ActivityPartId,
+          state: { kind: "write_reflection" as const, completed: true, text: "done" },
+          updatedAt: TEST_NOW,
+        },
+        {
+          id: "pp_q",
+          activityRecordId: RECORD_ID,
+          partId: "p_quiz" as ActivityPartId,
+          state: { kind: "quiz" as const, completed: true, answers: [] },
+          updatedAt: TEST_NOW,
+        },
+      ]),
     });
+    const deps = depsOk({ records, activity });
+    const result = await setPartCompleted(
+      { actor: ACTOR_ID, activityId: ACTIVITY_ID, partId: "p_reflect", completed: true },
+      deps,
+    );
+    expect(records.setCompletion).toHaveBeenCalledWith({
+      id: RECORD_ID,
+      state: "completed",
+      at: TEST_NOW,
+    });
+    expect(result.record?.completionState).toBe("completed");
+  });
+
+  it("does NOT auto-complete under all_parts_complete while a Part is still incomplete", async () => {
+    const activity = makeActivity({ completionRule: { kind: "all_parts_complete" } });
+    const records = makeRecords({
+      upsert: markWrite(vi.fn(async () => record())),
+      listPartProgress: vi.fn(async () => [
+        {
+          id: "pp_r",
+          activityRecordId: RECORD_ID,
+          partId: "p_reflect" as ActivityPartId,
+          state: { kind: "write_reflection" as const, completed: true, text: "done" },
+          updatedAt: TEST_NOW,
+        },
+      ]),
+    });
+    const deps = depsOk({ records, activity });
+    const result = await setPartCompleted(
+      { actor: ACTOR_ID, activityId: ACTIVITY_ID, partId: "p_reflect", completed: true },
+      deps,
+    );
+    expect(records.setCompletion).not.toHaveBeenCalled();
+    expect(result.record).toBeUndefined();
   });
 
   it("rejects a non-enrollee with 403 not_track_enrollee", async () => {

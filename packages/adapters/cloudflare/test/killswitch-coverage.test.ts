@@ -405,8 +405,60 @@ describe("killswitch coverage (resilience invariant 2 + 3)", () => {
         }),
     ],
     [
+      "ActivityRecordRepository.setPartCompletion",
+      () =>
+        records.setPartCompletion({
+          activityRecordId: "ar_test" as ActivityRecordId,
+          partId: "p_test" as ActivityPartId,
+          completed: true,
+          initialState: { kind: "write_reflection", completed: false, text: "" },
+        }),
+    ],
+    [
+      "ActivityRecordRepository.setCompletion",
+      () =>
+        records.setCompletion({
+          id: "ar_test" as ActivityRecordId,
+          state: "completed",
+          at: new Date(),
+        }),
+    ],
+    [
       "ActivityRecordRepository.setVisibilityOverride",
       () => records.setVisibilityOverride("ar_test" as ActivityRecordId, "private"),
+    ],
+    [
+      "ActivityRecordRepository.appendPartHistory",
+      () =>
+        records.appendPartHistory({
+          activityRecordId: "ar_test" as ActivityRecordId,
+          partId: "p_test" as ActivityPartId,
+          snapshot: { kind: "write_reflection", completed: false, text: "" },
+          reason: "retry",
+        }),
+    ],
+    [
+      "ActivityRecordRepository.reopenAgainstRevision",
+      () =>
+        records.reopenAgainstRevision({
+          recordId: "ar_test" as ActivityRecordId,
+          newRevisionId: "lr_test" as LibraryRevisionId,
+          affectedPartIds: ["p_test" as ActivityPartId],
+          reason: "revision_bump",
+        }),
+    ],
+    [
+      "ActivityRecordRepository.flushEvidenceSignals",
+      () =>
+        records.flushEvidenceSignals([
+          {
+            activityId: "a_test" as LearningActivityId,
+            participantId: uid,
+            partId: "p_test" as ActivityPartId,
+            signalType: "word_count",
+            value: 1,
+          },
+        ]),
     ],
 
     // The hourly cron-driven sweep is not a *port* method, but it
