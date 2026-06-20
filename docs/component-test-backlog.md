@@ -14,6 +14,7 @@ Highest leverage first. Primitives lead because every feature composes them, so 
 - [x] `activities/player/parts/quiz-part` — `ScoreSummary` `gradeable === 0` branch, short-answer submit round-trip, verdict-clears-on-edit.
 - [x] `activities/activity-composer` — add-accept-row (blank row dropped), Match-exactly note swap, submit-error field binding (aria-invalid / aria-describedby / focus).
 - [x] `activities/player/visibility-selector` — popover radios select a scope, "Use my default" clear round-trip, in-panel SaveIndicator settling.
+- [x] `activities/player/part-tab-bar` — the `activePartId`-change `scrollIntoView` effect (centred smooth options on the now-active pill; no re-scroll on a same-id re-render).
 - [x] `admin/confirm-action-dialog` — session-scoped error latch (suppress → confirm→fail→Callout → reopen suppressed), focus restoration on nested close.
 
 ### Pending — primitives (`packages/ui`)
