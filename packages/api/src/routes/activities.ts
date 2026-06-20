@@ -4,8 +4,12 @@ import {
   getActivity,
   getActivityForPlayer,
   getMyActivityRecord,
+  gradeQuizAnswers,
+  listPartHistory,
   listTrackActivities,
+  markActivityComplete,
   pinLibraryRevision,
+  resetParticipantProgress,
   saveReflectionDraft,
   setActivityLibraryRefs,
   setActivityPrerequisites,
@@ -15,9 +19,12 @@ import {
   submitQuizAnswers,
   unpinLibraryRevision,
   updateActivity,
+  viewActivityRecord,
 } from "@hearth/core";
 import {
   type ActivityAudience,
+  type ActivityPartId,
+  type ActivityRecordId,
   activityPartSchema,
   audienceEnvelopeSchema,
   completionRuleEnvelopeSchema,
@@ -55,6 +62,14 @@ const activityItemParam = z.object({
 const activityPartParam = z.object({
   activityId: z.string().min(1).max(MAX_ID_LENGTH),
   partId: z.string().min(1).max(MAX_ID_LENGTH),
+});
+const recordIdParam = z.object({ id: z.string().min(1).max(MAX_ID_LENGTH) });
+const participantResetParam = z.object({
+  activityId: z.string().min(1).max(MAX_ID_LENGTH),
+  participantId: z.string().min(1).max(MAX_ID_LENGTH),
+});
+const historyQuery = z.object({
+  partId: z.string().min(1).max(MAX_ID_LENGTH).optional(),
 });
 
 const reflectionBody = z.object({ text: z.string().max(MAX_REFLECTION_LENGTH) });
@@ -617,6 +632,127 @@ export const activitiesRoutes = new Hono<AppBindings>()
       try {
         const result = await setRecordVisibilityOverride(
           { actor: getUserId(c), activityId: activityId as LearningActivityId, preference },
+          depsFor(c),
+        );
+        return c.json(result);
+      } catch (err) {
+        return problemResponse(c, mapUnknown(err));
+      }
+    },
+  )
+
+  // Mount-time quiz re-grade: a READ that re-derives the per-question
+  // verdict + score from the persisted answers so a refreshed Player can
+  // show the grade again without re-submitting. No write — re-grading on
+  // every mount must not consume a D1 write (the ≤ 50-writes/user/day
+  // budget behind the $0 guarantee). `null` when nothing is stored yet.
+  .get(
+    "/activities/:activityId/my-record/parts/:partId/quiz",
+    zValidator("param", activityPartParam, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    async (c) => {
+      const { activityId, partId } = c.req.valid("param");
+      try {
+        const result = await gradeQuizAnswers(
+          { actor: getUserId(c), activityId: activityId as LearningActivityId, partId },
+          depsFor(c),
+        );
+        return c.json(result);
+      } catch (err) {
+        return problemResponse(c, mapUnknown(err));
+      }
+    },
+  )
+
+  .post(
+    "/activities/:activityId/my-record/complete",
+    zValidator("param", activityIdParam, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    async (c) => {
+      const { activityId } = c.req.valid("param");
+      try {
+        const result = await markActivityComplete(
+          { actor: getUserId(c), activityId: activityId as LearningActivityId },
+          depsFor(c),
+        );
+        return c.json(result);
+      } catch (err) {
+        return problemResponse(c, mapUnknown(err));
+      }
+    },
+  )
+
+  // Facilitator reset, addressed by activity + participant (not record id,
+  // which the facilitator never holds). Destructive in a non-obvious way —
+  // the participant keeps their work as Part History. Returns the now-reset
+  // full view so the facilitator's surface updates without a refetch.
+  .post(
+    "/activities/:activityId/participants/:participantId/reset",
+    zValidator("param", participantResetParam, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    async (c) => {
+      const { activityId, participantId } = c.req.valid("param");
+      try {
+        const result = await resetParticipantProgress(
+          {
+            actor: getUserId(c),
+            activityId: activityId as LearningActivityId,
+            participantId: participantId as UserId,
+          },
+          depsFor(c),
+        );
+        return c.json(result);
+      } catch (err) {
+        return problemResponse(c, mapUnknown(err));
+      }
+    },
+  )
+
+  // recordId-addressed cross-participant reads. Viewability runs first and
+  // surfaces a view-denial as 404 (not 403) so a non-participant probing a
+  // record id cannot tell "exists but forbidden" from "does not exist" —
+  // the record id is otherwise an enumeration oracle over a hideable
+  // resource. M11 grants only the participant themselves (`scope = full`).
+  .get(
+    "/records/:id",
+    zValidator("param", recordIdParam, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    async (c) => {
+      const { id } = c.req.valid("param");
+      try {
+        const result = await viewActivityRecord(
+          { actor: getUserId(c), recordId: id as ActivityRecordId },
+          depsFor(c),
+        );
+        return c.json(result);
+      } catch (err) {
+        return problemResponse(c, mapUnknown(err));
+      }
+    },
+  )
+
+  .get(
+    "/records/:id/history",
+    zValidator("param", recordIdParam, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    zValidator("query", historyQuery, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    async (c) => {
+      const { id } = c.req.valid("param");
+      const { partId } = c.req.valid("query");
+      try {
+        const result = await listPartHistory(
+          {
+            actor: getUserId(c),
+            recordId: id as ActivityRecordId,
+            ...(partId !== undefined ? { partId: partId as ActivityPartId } : {}),
+          },
           depsFor(c),
         );
         return c.json(result);

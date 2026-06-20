@@ -21,6 +21,7 @@ import type {
   LearningTrackRepository,
   StudyGroupRepository,
   UserRepository,
+  Write,
 } from "@hearth/ports";
 import { Hono } from "hono";
 import { describe, expect, it, vi } from "vitest";
@@ -203,10 +204,16 @@ function makeActivity(overrides: Partial<LearningActivity> = {}): LearningActivi
   };
 }
 
+type RecordMockOverrides = Partial<{
+  [K in keyof ActivityRecordRepository]: ActivityRecordRepository[K] extends Write<infer F>
+    ? F
+    : ActivityRecordRepository[K];
+}>;
+
 function viewablePorts(opts: {
   activity?: LearningActivity;
   enrollment?: TrackEnrollment | null;
-  records?: Partial<ActivityRecordRepository>;
+  records?: RecordMockOverrides;
 }): Partial<Ports> {
   const enr = opts.enrollment === undefined ? enrollment : opts.enrollment;
   return {
@@ -253,6 +260,19 @@ function viewablePorts(opts: {
       ...opts.records,
     } as unknown as ActivityRecordRepository,
   };
+}
+
+/**
+ * Re-point a `users` port so `byId` resolves to a viewer whose id is NOT the
+ * record owner — exercises the viewability→404 path on the recordId reads
+ * (the harness's default `users.byId` returns `actor` for any id, which would
+ * spuriously satisfy the owner check).
+ */
+function asOtherViewer(users: Partial<Ports>["users"]): Partial<Ports>["users"] {
+  return {
+    ...users,
+    byId: vi.fn(async () => ({ ...actor, id: otherId })),
+  } as Partial<Ports>["users"];
 }
 
 describe("GET /api/v1/activities/:id/my-record", () => {
@@ -499,5 +519,257 @@ describe("PATCH /api/v1/activities/:id/my-record/visibility-override", () => {
       body: JSON.stringify({ preference: "everyone" }),
     });
     expect(res.status).toBe(400);
+  });
+});
+
+describe("GET /api/v1/activities/:id/my-record/parts/:partId/quiz", () => {
+  it("re-grades persisted answers without writing", async () => {
+    const ports = viewablePorts({
+      records: {
+        byParticipantAndActivity: vi.fn(async () => record),
+        getPartProgress: vi.fn(async () => ({
+          id: "pp_1",
+          activityRecordId: record.id,
+          partId: "p_quiz" as never,
+          state: {
+            kind: "quiz" as const,
+            completed: false,
+            answers: [{ questionId: "q1", kind: "multiple_choice" as const, selectedIndex: 1 }],
+          },
+          updatedAt: now,
+        })),
+      },
+    });
+    const app = harness({ userId: actorId, ports });
+    const res = await app.request(`/api/v1/activities/${aid}/my-record/parts/p_quiz/quiz`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      perQuestion: ReadonlyArray<{ questionId: string; verdict: string; correctIndex: number }>;
+      autoScore: { correct: number; gradeable: number };
+    };
+    expect(body.perQuestion).toEqual([{ questionId: "q1", verdict: "correct", correctIndex: 1 }]);
+    expect(body.autoScore).toEqual({ correct: 1, gradeable: 1 });
+    expect(ports.records?.savePartProgress).not.toHaveBeenCalled();
+  });
+
+  it("returns null when no answers are stored yet", async () => {
+    const app = harness({
+      userId: actorId,
+      ports: viewablePorts({ records: { byParticipantAndActivity: vi.fn(async () => null) } }),
+    });
+    const res = await app.request(`/api/v1/activities/${aid}/my-record/parts/p_quiz/quiz`);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toBeNull();
+  });
+
+  it("422 when the part is not a quiz", async () => {
+    const app = harness({ userId: actorId, ports: viewablePorts({}) });
+    const res = await app.request(`/api/v1/activities/${aid}/my-record/parts/p_reflect/quiz`);
+    expect(res.status).toBe(422);
+    expect(((await res.json()) as { code: string }).code).toBe("part_kind_mismatch");
+  });
+});
+
+describe("POST /api/v1/activities/:id/my-record/complete", () => {
+  it("completes the record and echoes it under manual_mark", async () => {
+    const ports = viewablePorts({
+      records: { upsert: vi.fn(async () => record), setCompletion: vi.fn() },
+    });
+    const app = harness({ userId: actorId, ports });
+    const res = await app.request(`/api/v1/activities/${aid}/my-record/complete`, {
+      method: "POST",
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { completionState: string; completedAt: string | null };
+    expect(body.completionState).toBe("completed");
+    expect(body.completedAt).not.toBeNull();
+    expect(ports.records?.setCompletion).toHaveBeenCalled();
+  });
+
+  it("409 parts_incomplete under all_parts_complete with an unfinished Part", async () => {
+    const app = harness({
+      userId: actorId,
+      ports: viewablePorts({
+        activity: makeActivity({ completionRule: { kind: "all_parts_complete" } }),
+        records: {
+          upsert: vi.fn(async () => record),
+          listPartProgress: vi.fn(async () => []),
+        },
+      }),
+    });
+    const res = await app.request(`/api/v1/activities/${aid}/my-record/complete`, {
+      method: "POST",
+    });
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { code: string }).code).toBe("parts_incomplete");
+  });
+
+  it("503 read_only when the killswitch blocks writes", async () => {
+    const app = harness({ userId: actorId, ports: viewablePorts({}), killswitchMode: "read_only" });
+    const res = await app.request(`/api/v1/activities/${aid}/my-record/complete`, {
+      method: "POST",
+    });
+    expect(res.status).toBe(503);
+  });
+});
+
+describe("GET /api/v1/records/:id", () => {
+  it("returns the full view with partHistoryCount + partsWithHistory", async () => {
+    const partHistory = {
+      id: "ph_1",
+      activityRecordId: record.id,
+      partId: "p_quiz" as never,
+      snapshot: { kind: "quiz" as const, completed: true, answers: [] },
+      reason: "retry" as const,
+      revisionIdAtTime: null,
+      recordedAt: now,
+    };
+    const countPartHistory = vi.fn(async () => 1);
+    const listPartHistory = vi.fn(async () => [partHistory]);
+    const app = harness({
+      userId: actorId,
+      ports: viewablePorts({
+        records: {
+          byId: vi.fn(async () => record),
+          listPartProgress: vi.fn(async () => []),
+          countPartHistory,
+          listPartHistory,
+        },
+      }),
+    });
+    const res = await app.request(`/api/v1/records/${record.id}`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      partHistoryCount: number;
+      partsWithHistory: readonly string[];
+    };
+    expect(body.partHistoryCount).toBe(1);
+    expect(body.partsWithHistory).toEqual(["p_quiz"]);
+  });
+
+  it("404 (not 403) for a non-owner — no enumeration oracle", async () => {
+    const base = viewablePorts({ records: { byId: vi.fn(async () => record) } });
+    const ports: Partial<Ports> = { ...base, users: asOtherViewer(base.users) };
+    const app = harness({ userId: otherId, ports });
+    const res = await app.request(`/api/v1/records/${record.id}`);
+    expect(res.status).toBe(404);
+    expect(res.headers.get("content-type")).toContain("application/problem+json");
+  });
+
+  it("404 for a record that does not exist", async () => {
+    const app = harness({
+      userId: actorId,
+      ports: viewablePorts({ records: { byId: vi.fn(async () => null) } }),
+    });
+    const res = await app.request("/api/v1/records/ar_missing");
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("GET /api/v1/records/:id/history", () => {
+  it("lists history and the count cross-checks the record view", async () => {
+    const partHistory = (id: string) => ({
+      id,
+      activityRecordId: record.id,
+      partId: "p_quiz" as never,
+      snapshot: { kind: "quiz" as const, completed: true, answers: [] },
+      reason: "retry" as const,
+      revisionIdAtTime: null,
+      recordedAt: now,
+    });
+    const ports = viewablePorts({
+      records: {
+        byId: vi.fn(async () => record),
+        listPartProgress: vi.fn(async () => []),
+        countPartHistory: vi.fn(async () => 2),
+        listPartHistory: vi.fn(async () => [partHistory("ph_1"), partHistory("ph_2")]),
+      },
+    });
+    const app = harness({ userId: actorId, ports });
+
+    const view = await app.request(`/api/v1/records/${record.id}`);
+    const viewBody = (await view.json()) as { partHistoryCount: number };
+
+    const history = await app.request(`/api/v1/records/${record.id}/history?partId=p_quiz`);
+    expect(history.status).toBe(200);
+    const historyBody = (await history.json()) as readonly unknown[];
+    expect(historyBody).toHaveLength(viewBody.partHistoryCount);
+  });
+
+  it("404 (not 403) for a non-owner", async () => {
+    const base = viewablePorts({ records: { byId: vi.fn(async () => record) } });
+    const ports: Partial<Ports> = { ...base, users: asOtherViewer(base.users) };
+    const app = harness({ userId: otherId, ports });
+    const res = await app.request(`/api/v1/records/${record.id}/history`);
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("POST /api/v1/activities/:id/participants/:participantId/reset", () => {
+  const facilitatorPorts = (recordsOverride: RecordMockOverrides = {}) =>
+    viewablePorts({
+      enrollment: { ...enrollment, role: "facilitator" },
+      records: {
+        byParticipantAndActivity: vi.fn(async () => record),
+        reopenAgainstRevision: vi.fn(),
+        listPartProgress: vi.fn(async () => []),
+        countPartHistory: vi.fn(async () => 0),
+        listPartHistory: vi.fn(async () => []),
+        ...recordsOverride,
+      },
+    });
+
+  it("resets and returns the now-reset full view", async () => {
+    const reopenAgainstRevision = vi.fn();
+    const app = harness({
+      userId: actorId,
+      ports: facilitatorPorts({ reopenAgainstRevision }),
+    });
+    const res = await app.request(`/api/v1/activities/${aid}/participants/${otherId}/reset`, {
+      method: "POST",
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { completionState: string };
+    expect(body.completionState).toBe("in_progress");
+    expect(reopenAgainstRevision).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: "facilitator_reset", newRevisionId: null }),
+    );
+  });
+
+  it("403 not_track_authority for a non-facilitator", async () => {
+    const app = harness({
+      userId: actorId,
+      ports: viewablePorts({
+        records: { byParticipantAndActivity: vi.fn(async () => record) },
+      }),
+    });
+    const res = await app.request(`/api/v1/activities/${aid}/participants/${otherId}/reset`, {
+      method: "POST",
+    });
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as { code: string }).code).toBe("not_track_authority");
+  });
+
+  it("404 when the participant has no record to reset", async () => {
+    const app = harness({
+      userId: actorId,
+      ports: facilitatorPorts({ byParticipantAndActivity: vi.fn(async () => null) }),
+    });
+    const res = await app.request(`/api/v1/activities/${aid}/participants/${otherId}/reset`, {
+      method: "POST",
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it("503 read_only when the killswitch blocks writes", async () => {
+    const app = harness({
+      userId: actorId,
+      ports: facilitatorPorts(),
+      killswitchMode: "read_only",
+    });
+    const res = await app.request(`/api/v1/activities/${aid}/participants/${otherId}/reset`, {
+      method: "POST",
+    });
+    expect(res.status).toBe(503);
   });
 });
