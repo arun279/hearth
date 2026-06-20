@@ -250,6 +250,24 @@ To exercise it locally:
 
 The four own-record writes are addressed by `activityId`, not `recordId`: `PUT /api/v1/activities/:activityId/my-record/parts/:partId/reflection`, `PUT .../parts/:partId/quiz`, `PUT .../my-record/parts/:partId/completion` (the honor-system per-Part toggle; body `{ "completed": boolean }`), and `PATCH .../my-record/visibility-override`. Addressing by `activityId` keeps the record lazily created (so a learner who never writes leaves no row, and the routes stay reachable under killswitch read-only mode) and avoids exposing a record id; `PATCH` is partial-update semantics for the single visibility field. This is a deliberate divergence from an earlier `/activity-records/:recordId/...` (all-PUT) sketch — the contract test is written to the as-built shape.
 
+## 8d. Local revision-bump testing
+
+When a Library Item publishes a newer current revision, every unpinned, Library-backed Part across the activities that use it reopens: the affected Part's current progress is archived as Part History (`reason = revision_bump`) and reset to its kind-appropriate empty state. Unaffected Parts keep their progress. To exercise it locally:
+
+1. Upload a PDF to the group Library (see § 8.5), then compose an activity whose first Part is a `read_library_item` pointing at it (the composer's "Reading" Part kind), plus a second Part of any other kind (a reflection is easiest). Leave the read Part unpinned (the default).
+2. Open the activity in the player. Mark the reading Part complete (or otherwise produce progress on it) and write something in the reflection Part — both now have durable `part_progress` rows.
+3. Go to the Library, open the item, and "Upload new revision". Finalizing the revision fans `revision-bump-restart` across every activity using the item.
+4. Reopen the activity in the player. The header shows the "N prior attempts preserved" chip, the reading Part carries a per-Part history chip (its completion is reset), and the reflection Part's text is untouched.
+
+Inspect the archived snapshot directly against the local D1 (the snapshot, `reason`, and `revisionIdAtTime` ride inside the `state_json` envelope):
+
+```bash
+pnpm exec wrangler d1 execute hearth --local --command \
+  "SELECT part_id, state_json, recorded_at FROM part_history ORDER BY recorded_at DESC"
+```
+
+`revision-bump-restart` is idempotent: re-finalizing the same revision (same `newRevisionId`) is a no-op, so a retried upload never double-archives.
+
 ### R2 CORS for media + PDF playback
 
 The Activity Player fetches PDFs via XHR (pdf.js issues `Range` requests for partial loads) and streams audio / video via HTML5 elements (the browser issues `Range` for seek + progressive playback). For both to work over the signed-GET URLs the worker mints, the bucket's CORS policy needs to permit `GET` with the `Range` header and expose `Content-Range`, `Accept-Ranges`, and `Content-Length`.

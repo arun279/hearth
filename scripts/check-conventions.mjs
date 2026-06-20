@@ -566,7 +566,13 @@ function findStaleMilestoneTodos(files) {
   }
   const hits = [];
   for (const file of files) {
-    if (isRuleSource(file)) continue;
+    // Markdown is prose ABOUT the convention (this rule's own examples,
+    // AGENTS.md syntax illustrations, tripwire write-ups), never a
+    // code-borne marker — same exemption `findUnscopedTodos` applies, for
+    // the same reason. A doc that illustrates `TODO(mN)` with a real
+    // milestone number would otherwise turn stale the moment that
+    // milestone ships, even though it is documentation, not debt.
+    if (isRuleSource(file) || /\.(md|mdx)$/.test(file)) continue;
     let text;
     try {
       text = readFileSync(file, "utf8");

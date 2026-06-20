@@ -9,7 +9,9 @@ import {
 import { canAddLibraryRevision } from "@hearth/domain/policy/can-add-library-revision";
 import { canUploadLibraryItem } from "@hearth/domain/policy/can-upload-library-item";
 import type {
+  ActivityRecordRepository,
   InstanceAccessPolicyRepository,
+  LearningActivityRepository,
   LibraryItemDetail,
   LibraryItemRepository,
   ObjectStorage,
@@ -18,6 +20,7 @@ import type {
   UserRepository,
 } from "@hearth/ports";
 import { loadViewableGroup } from "./_lib/load-viewable-group.ts";
+import { revisionBumpRestart } from "./revision-bump-restart.ts";
 
 export type FinalizeLibraryUploadInput = {
   readonly actor: UserId;
@@ -36,6 +39,8 @@ export type FinalizeLibraryUploadDeps = {
   readonly library: LibraryItemRepository;
   readonly storage: ObjectStorage;
   readonly uploads: UploadCoordinationRepository;
+  readonly activities: LearningActivityRepository;
+  readonly records: ActivityRecordRepository;
 };
 
 /**
@@ -217,6 +222,23 @@ export async function finalizeLibraryUpload(
       );
     }
     detail = reloaded;
+
+    // A new current revision reopens every unpinned, Library-backed Part that
+    // resolves to this item across all activities using it — prior work is
+    // archived as Part History (reason = revision_bump). Idempotent per
+    // (record, newRevisionId), so a retried finalize is a no-op.
+    const usingActivities = await deps.activities.activitiesUsingLibraryItem(itemId);
+    for (const { id: activityId } of usingActivities) {
+      await revisionBumpRestart(
+        {
+          activityId,
+          libraryItemId: itemId,
+          previousRevisionId: existing.currentRevisionId,
+          newRevisionId: revisionId,
+        },
+        { activities: deps.activities, records: deps.records },
+      );
+    }
   }
 
   await deps.uploads.deletePending(input.uploadId);
