@@ -164,11 +164,16 @@ test.describe("M9 — Activity player (passive Parts)", () => {
     // explicitly — the default project viewport is ≥1024 (rail shown, hamburger
     // hidden) and the only other assertion is at 390px (hamburger shown either
     // way), so without this a regression of the hamburger to `md:hidden` (gone
-    // ≥768) would leave the whole suite green. The rail is the first
-    // `Activity Parts` nav (DOM order: FlowSidebar before PartTabBar).
+    // ≥768) would leave the whole suite green. The FlowSidebar rail (`lg:flex`)
+    // and the PartTabBar pill strip (`lg:hidden`) share `aria-label="Activity
+    // Parts"`; below 1024 the rail is `display:none` (out of the a11y tree), so
+    // exactly one `Activity Parts` nav — the PartTabBar — remains, and it is the
+    // visible Part navigation for the band.
     await page.setViewportSize({ width: 900, height: 760 });
     await expect(page.getByRole("button", { name: /Open navigation/i })).toBeVisible();
-    await expect(page.getByRole("navigation", { name: /Activity Parts/i }).first()).toBeHidden();
+    const tabletPartNav = page.getByRole("navigation", { name: /Activity Parts/i });
+    await expect(tabletPartNav).toHaveCount(1);
+    await expect(tabletPartNav).toBeVisible();
 
     // At 390px the hamburger opens the nav Drawer so the global nav (the
     // wordmark home link, group/admin/account) is reachable from the focus-mode
