@@ -16,10 +16,12 @@ type Props = {
 };
 
 /**
- * Mobile-only horizontal scroller of Part pills. Sticky-top so the
- * active Part stays visible as the body scrolls; the pill row is
- * always at hand. Matches the prototype mobile-dark layout where the
- * Parts strip sits just below the title and above the body.
+ * Horizontal scroller of Part pills shown below `lg` (the FlowSidebar rail
+ * takes over at ≥1024px). Sticky-top so the active Part stays visible as the
+ * body scrolls; the pill row is always at hand. Matches the prototype
+ * mobile-dark layout where the Parts strip sits just below the title and above
+ * the body. Below `lg` also covers the 768–1023px tablet band, where a 240px
+ * rail would starve the capped content column.
  *
  * On overflow the row scrolls horizontally; when the active id changes
  * (from a footer Next / Previous tap, or a deep-link), the active
@@ -55,7 +57,7 @@ export function PartTabBar({
   return (
     <nav
       aria-label="Activity Parts"
-      className="sticky top-0 z-10 flex shrink-0 overflow-x-auto border-[var(--color-rule)] border-b bg-[var(--color-surface)] md:hidden"
+      className="sticky top-0 z-10 flex shrink-0 overflow-x-auto border-[var(--color-rule)] border-b bg-[var(--color-surface)] lg:hidden"
     >
       <ol ref={listRef} className="flex w-max gap-1 px-3 py-2">
         {orderedPartIds.map((partId, index) => {

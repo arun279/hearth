@@ -60,44 +60,49 @@ export function ActivityHeader({
   const stateBadge = ACCESS_STATE_BADGES[accessState];
 
   return (
-    <header className="space-y-3 border-[var(--color-rule)] border-b px-5 py-5 md:px-8 md:py-7">
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h1 className="font-medium font-serif text-[24px] text-[var(--color-ink)] leading-tight md:text-[28px]">
-          {activity.title}
-        </h1>
-        {activityCompleted ? <Badge tone="good">Completed</Badge> : null}
-        {stateBadge ? <Badge tone={stateBadge.tone}>{stateBadge.label}</Badge> : null}
-      </div>
-      {activity.description ? (
-        <p className="max-w-2xl text-[13px] text-[var(--color-ink-2)] leading-relaxed">
-          {activity.description}
-        </p>
-      ) : null}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <span className="font-mono text-[11px] text-[var(--color-ink-2)] tabular-nums">
-          Part {Math.min(currentPartIndex + 1, denominator)} of {denominator}
-        </span>
-        <div
-          className="h-[5px] min-w-[80px] max-w-[280px] flex-1 overflow-hidden rounded-full bg-[var(--color-rule-strong)]"
-          role="progressbar"
-          aria-label="Activity completion"
-          aria-valuenow={completionPercent}
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuetext={completionText}
-        >
-          <div
-            className="h-full rounded-full bg-[var(--color-accent)] transition-[width] duration-200"
-            style={{ width: `${completionPercent}%` }}
-          />
+    <header className="shrink-0 border-[var(--color-rule)] border-b px-5 py-5 md:px-8 md:py-7">
+      <div className="mx-auto w-full max-w-2xl space-y-3">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h1 className="font-serif text-[24px] text-[var(--color-ink)] leading-tight md:text-[28px]">
+            {activity.title}
+          </h1>
+          {activityCompleted ? <Badge tone="good">Completed</Badge> : null}
+          {stateBadge ? <Badge tone={stateBadge.tone}>{stateBadge.label}</Badge> : null}
         </div>
-        <span className="text-[11px] text-[var(--color-ink-2)] tabular-nums">{completionText}</span>
-        {priorAttemptsCount > 0 ? (
-          <Badge tone="neutral">
-            {priorAttemptsCount} prior {priorAttemptsCount === 1 ? "attempt" : "attempts"} preserved
-          </Badge>
+        {activity.description ? (
+          <p className="text-[13px] text-[var(--color-ink-2)] leading-relaxed">
+            {activity.description}
+          </p>
         ) : null}
-        {facilitatorAction ? <div className="ms-auto">{facilitatorAction}</div> : null}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <span className="font-mono text-[11px] text-[var(--color-ink-2)] tabular-nums">
+            Part {Math.min(currentPartIndex + 1, denominator)} of {denominator}
+          </span>
+          <div
+            className="h-[5px] min-w-[80px] max-w-[280px] flex-1 overflow-hidden rounded-full bg-[var(--color-rule-strong)]"
+            role="progressbar"
+            aria-label="Activity completion"
+            aria-valuenow={completionPercent}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuetext={completionText}
+          >
+            <div
+              className="h-full rounded-full bg-[var(--color-accent)] transition-[width] duration-200"
+              style={{ width: `${completionPercent}%` }}
+            />
+          </div>
+          <span className="text-[11px] text-[var(--color-ink-2)] tabular-nums">
+            {completionText}
+          </span>
+          {priorAttemptsCount > 0 ? (
+            <Badge tone="neutral">
+              {priorAttemptsCount} prior {priorAttemptsCount === 1 ? "attempt" : "attempts"}{" "}
+              preserved
+            </Badge>
+          ) : null}
+          {facilitatorAction ? <div className="ms-auto">{facilitatorAction}</div> : null}
+        </div>
       </div>
     </header>
   );

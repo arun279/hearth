@@ -120,4 +120,53 @@ test.describe("M9 — Activity player (passive Parts)", () => {
     await expect(page.getByRole("link", { name: /Back to track/i })).toBeVisible();
     await expect(page.getByRole("button", { name: /Try again/i })).toBeHidden();
   });
+
+  test("focus mode keeps global nav reachable at 390px and shows an orientation breadcrumb", async ({
+    browser,
+  }) => {
+    const op = await seedOperator(BOOTSTRAP_USER);
+    const context = await browser.newContext();
+    await attachSession(context, op.cookie);
+    const page = await context.newPage();
+
+    const { groupId, trackId } = await seedGroupWithTrack(context, {
+      groupName: "Tuesday Night Learners",
+      trackName: "Beginner Spanish",
+    });
+    const activityRes = await context.request.post(`/api/v1/tracks/${trackId}/activities`, {
+      data: {
+        trackId,
+        title: "Greetings & introductions",
+        parts: [{ kind: "write_reflection", id: "p_reflect", prompt: "Your favorite phrase?" }],
+        flow: { prereqs: [], displayOrder: ["p_reflect"] },
+        audience: { kind: "everyone_enrolled" },
+        completionRule: { kind: "manual_mark" },
+        libraryRefs: [],
+        prerequisiteActivityIds: [],
+        suggestedNextActivityIds: [],
+      },
+      headers: { "content-type": "application/json" },
+    });
+    expect(activityRes.status()).toBe(201);
+    const { id: activityId } = (await activityRes.json()) as { id: string };
+
+    // The orientation breadcrumb (desktop strip) shows the parent track so the
+    // deepest screen still says where it sits, distinct from the standing
+    // "Back to track" focus-exit.
+    await page.goto(`/g/${groupId}/t/${trackId}/a/${activityId}`);
+    const breadcrumb = page.getByRole("navigation", { name: /Breadcrumb/i });
+    await expect(breadcrumb.getByRole("link", { name: /Beginner Spanish/i })).toBeVisible();
+    await expect(breadcrumb.getByRole("link", { name: /Your groups/i })).toBeVisible();
+
+    // At 390px the focus mode previously had NO path back to the global nav —
+    // a one-way island. The hamburger now opens the nav Drawer so the app is
+    // reachable, then the wordmark returns home.
+    await page.setViewportSize({ width: 390, height: 760 });
+    await page.getByRole("button", { name: /Open navigation/i }).click();
+    const drawer = page.getByRole("dialog", { name: /navigation/i });
+    await expect(drawer).toBeVisible();
+    await expect(drawer.getByRole("link", { name: /Hearth — back to your groups/i })).toBeVisible();
+
+    await context.close();
+  });
 });

@@ -96,68 +96,70 @@ export function PartFooter({
   const finishIsPrimary = isLastPart && forwardIsPrimary;
   const markCompleteDemoted = forwardIsPrimary || activityCtaIsPrimary;
   return (
-    <footer className="sticky bottom-0 z-10 flex flex-col gap-2 border-[var(--color-rule)] border-t bg-[var(--color-surface)] px-4 py-3 md:px-8">
-      {activityCompletion ? (
-        <ActivityCompletionBanner
-          activityCompletion={activityCompletion}
-          ctaIsPrimary={activityCtaIsPrimary}
-        />
-      ) : null}
-      {allPartsComplete ? (
-        // The strongest closure signal carries the strongest onward action so
-        // it's reachable from any Part. On the last Part the footer's own
-        // "Back to track" already covers it, so the in-banner link only shows
-        // mid-flow (avoids two identical links side by side at the end).
-        <Callout tone="good" className="py-2">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <span>All parts complete — you've marked every part of this activity done.</span>
-            {isLastPart ? null : (
-              <Link
-                to="/g/$groupId/t/$trackId"
-                params={{ groupId, trackId }}
-                className={buttonClasses("secondary", "sm")}
-              >
-                Back to track
-              </Link>
-            )}
-          </div>
-        </Callout>
-      ) : null}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={() => previousPartId && onNavigate(previousPartId)}
-          disabled={previousPartId === null}
-          size="sm"
-          aria-label="Previous part"
-        >
-          <ChevronLeft size={14} strokeWidth={1.5} aria-hidden="true" />
-          <span className="hidden sm:inline">Previous</span>
-        </Button>
-        {completion?.canMark ? (
-          <MarkCompleteButton completion={completion} demoteToSecondary={markCompleteDemoted} />
+    <footer className="sticky bottom-0 z-10 shrink-0 border-[var(--color-rule)] border-t bg-[var(--color-surface)] px-5 py-3 md:px-8">
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-2">
+        {activityCompletion ? (
+          <ActivityCompletionBanner
+            activityCompletion={activityCompletion}
+            ctaIsPrimary={activityCtaIsPrimary}
+          />
         ) : null}
-        {isLastPart ? (
-          <Link
-            to="/g/$groupId/t/$trackId"
-            params={{ groupId, trackId }}
-            className={buttonClasses(finishIsPrimary ? "primary" : "secondary", "sm")}
-          >
-            Back to track
-          </Link>
-        ) : (
+        {allPartsComplete ? (
+          // The strongest closure signal carries the strongest onward action so
+          // it's reachable from any Part. On the last Part the footer's own
+          // "Back to track" already covers it, so the in-banner link only shows
+          // mid-flow (avoids two identical links side by side at the end).
+          <Callout tone="good" className="py-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <span>All parts complete — you've marked every part of this activity done.</span>
+              {isLastPart ? null : (
+                <Link
+                  to="/g/$groupId/t/$trackId"
+                  params={{ groupId, trackId }}
+                  className={buttonClasses("secondary", "sm")}
+                >
+                  Back to track
+                </Link>
+              )}
+            </div>
+          </Callout>
+        ) : null}
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <Button
             type="button"
-            variant={forwardIsPrimary ? "primary" : "secondary"}
-            onClick={() => nextPartId && onNavigate(nextPartId)}
+            variant="secondary"
+            onClick={() => previousPartId && onNavigate(previousPartId)}
+            disabled={previousPartId === null}
             size="sm"
-            aria-label="Next part"
+            aria-label="Previous part"
           >
-            <span className="hidden sm:inline">Next</span>
-            <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" />
+            <ChevronLeft size={14} strokeWidth={1.5} aria-hidden="true" />
+            <span className="hidden sm:inline">Previous</span>
           </Button>
-        )}
+          {completion?.canMark ? (
+            <MarkCompleteButton completion={completion} demoteToSecondary={markCompleteDemoted} />
+          ) : null}
+          {isLastPart ? (
+            <Link
+              to="/g/$groupId/t/$trackId"
+              params={{ groupId, trackId }}
+              className={buttonClasses(finishIsPrimary ? "primary" : "secondary", "sm")}
+            >
+              Back to track
+            </Link>
+          ) : (
+            <Button
+              type="button"
+              variant={forwardIsPrimary ? "primary" : "secondary"}
+              onClick={() => nextPartId && onNavigate(nextPartId)}
+              size="sm"
+              aria-label="Next part"
+            >
+              <span className="hidden sm:inline">Next</span>
+              <ChevronRight size={14} strokeWidth={1.5} aria-hidden="true" />
+            </Button>
+          )}
+        </div>
       </div>
     </footer>
   );

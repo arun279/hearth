@@ -5,6 +5,7 @@ import { ActivityShell } from "../components/activities/player/activity-shell.ts
 import { useActivityPlayer } from "../hooks/use-activity-player.ts";
 import { useDocumentTitle } from "../hooks/use-document-title.ts";
 import { useMeContext } from "../hooks/use-me-context.ts";
+import { useTrack } from "../hooks/use-tracks.ts";
 import { loadMeContextOrNull } from "../lib/me-context.ts";
 
 /**
@@ -41,8 +42,13 @@ function ActivityPlayerRoute() {
   const me = useMeContext();
   const signedIn = me.data?.data.user !== null && me.data?.data.user !== undefined;
   const playerQuery = useActivityPlayer(params.activityId, signedIn);
+  // Reuses the cached track detail (the user almost always arrives from the
+  // track page, where this query already resolved) to label the orientation
+  // breadcrumb and the document title with real names — no new round-trip in
+  // the common flow, one cheap fetch on a cold deep-link.
+  const trackQuery = useTrack(params.trackId, signedIn);
 
-  useDocumentTitle([playerQuery.data?.activity.title, me.data?.data.instance.name]);
+  useDocumentTitle([playerQuery.data?.activity.title, trackQuery.data?.track.name]);
 
   // User-initiated Part navigation pushes a history entry; correcting a stale
   // `?part=` to the canonical first Part replaces it, so Back doesn't return to
@@ -55,7 +61,13 @@ function ActivityPlayerRoute() {
   };
 
   return (
-    <ActivityShell groupId={params.groupId} trackId={params.trackId}>
+    <ActivityShell
+      groupId={params.groupId}
+      trackId={params.trackId}
+      groupName={trackQuery.data?.group.name ?? null}
+      trackName={trackQuery.data?.track.name ?? null}
+      me={me.data?.data ?? null}
+    >
       <ActivityPlayer
         query={playerQuery}
         requestedPartId={search.part ?? null}

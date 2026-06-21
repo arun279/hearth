@@ -1,5 +1,5 @@
 import type { ActivityPart, ActivityPlayerProjection, PartProgressState } from "@hearth/domain";
-import { Button, Callout } from "@hearth/ui";
+import { Button, Callout, cn } from "@hearth/ui";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -9,6 +9,7 @@ import {
 } from "../../../hooks/use-activity-record.ts";
 import { formatRelative, formatShortDate } from "../../../lib/format.ts";
 import { asUserMessage, errorStatus } from "../../../lib/problem.ts";
+import { partMeasure } from "./_lib/part-measure.ts";
 import { partTitle } from "./_lib/part-title.ts";
 import { ActivityHeader } from "./activity-header.tsx";
 import { FacilitatorRosterDialog } from "./facilitator-roster-dialog.tsx";
@@ -169,8 +170,10 @@ function PlayerBody({
           totalParts={orderedPartIds.length}
           completedCount={0}
         />
-        <div className="px-4 py-5 md:px-8 md:py-7">
-          <AccessStateNotice tone="neutral" title="This activity isn't open yet" body={body} />
+        <div className="flex-1 overflow-y-auto px-5 py-8 md:px-8 md:py-10">
+          <div className="mx-auto w-full max-w-2xl">
+            <AccessStateNotice tone="neutral" title="This activity isn't open yet" body={body} />
+          </div>
         </div>
       </FullViewport>
     );
@@ -217,7 +220,7 @@ function PlayerBody({
           ) : null
         }
       />
-      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         <FlowSidebar
           parts={activity.parts}
           orderedPartIds={orderedPartIds}
@@ -227,7 +230,7 @@ function PlayerBody({
           partsWithHistory={partsWithHistory}
           onOpenHistory={setHistoryPartId}
         />
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <PartTabBar
             parts={activity.parts}
             orderedPartIds={orderedPartIds}
@@ -237,17 +240,21 @@ function PlayerBody({
             partsWithHistory={partsWithHistory}
             onOpenHistory={setHistoryPartId}
           />
-          <div className="flex-1 px-4 py-5 md:px-8 md:py-7">
+          <div className="flex-1 overflow-y-auto px-5 py-8 md:px-8 md:py-10">
             {accessState === "locked" ? (
-              <AccessStateNotice tone="warn" title="This activity is closed" body={lockedBody} />
+              <div className="mx-auto w-full max-w-2xl">
+                <AccessStateNotice tone="warn" title="This activity is closed" body={lockedBody} />
+              </div>
             ) : null}
             {recordQuery.isError ? (
-              <RecordErrorState
-                error={recordQuery.error}
-                onRetry={() => void recordQuery.refetch()}
-              />
+              <div className="mx-auto w-full max-w-2xl">
+                <RecordErrorState
+                  error={recordQuery.error}
+                  onRetry={() => void recordQuery.refetch()}
+                />
+              </div>
             ) : activePart ? (
-              <div key={activePart.id}>
+              <div key={activePart.id} className={cn("mx-auto w-full", partMeasure(activePart))}>
                 <PartViewport
                   activityId={activity.id}
                   part={activePart}
@@ -261,7 +268,7 @@ function PlayerBody({
                 />
               </div>
             ) : (
-              <p className="text-[13px] text-[var(--color-ink-2)]">
+              <p className="mx-auto w-full max-w-2xl text-[13px] text-[var(--color-ink-2)]">
                 This activity has no Parts yet.
               </p>
             )}
@@ -340,7 +347,7 @@ function FullViewport({ children }: { readonly children: React.ReactNode }) {
 
 function LoadingState() {
   return (
-    <div className="flex h-full flex-1 items-center justify-center px-5 py-12 text-[13px] text-[var(--color-ink-2)]">
+    <div className="flex h-full flex-1 items-center justify-center px-5 py-12 text-[13px] text-[var(--color-ink-2)] md:px-8">
       Loading activity…
     </div>
   );
@@ -362,7 +369,7 @@ export function ErrorState({
   const status = errorStatus(error);
   if (status === 404) {
     return (
-      <div className="mx-auto max-w-xl px-5 py-12">
+      <div className="mx-auto max-w-2xl px-5 py-12 md:px-8">
         <Callout tone="neutral" title="This activity isn't available">
           <p>
             It may have been removed, closed, or scoped to a different audience. The link may also
@@ -373,7 +380,7 @@ export function ErrorState({
     );
   }
   return (
-    <div className="mx-auto max-w-xl px-5 py-12">
+    <div className="mx-auto max-w-2xl px-5 py-12 md:px-8">
       <Callout tone="danger" title="Couldn't open this activity">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <span>

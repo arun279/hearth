@@ -41,7 +41,7 @@ export function FlowSidebar({
   return (
     <nav
       aria-label="Activity Parts"
-      className="hidden w-[240px] shrink-0 border-[var(--color-rule)] border-r bg-[var(--color-surface)] md:flex md:flex-col"
+      className="hidden w-[240px] shrink-0 border-[var(--color-rule)] border-r bg-[var(--color-surface)] lg:flex lg:flex-col"
     >
       <ol className="flex flex-col gap-0.5 px-2.5 py-4">
         {orderedPartIds.map((partId, index) => {
