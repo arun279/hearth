@@ -1,6 +1,14 @@
 import type { ActivityPart } from "@hearth/domain";
 
 /**
+ * The player's content-measure tokens. The header, body, and footer all take a
+ * value of this type from `partMeasure(activePart)`, so the prop types reference
+ * this single source instead of restating the `max-w-*` union and drifting from
+ * the function that produces it.
+ */
+export type PartMeasure = "max-w-2xl" | "max-w-3xl";
+
+/**
  * The player's two-tier content measure, keyed off the Part's kind. Text Parts
  * (reflection, quiz, attend) cap at the app's 672px reading measure so the
  * writing/answering column never runs past a comfortable line length; media
@@ -14,7 +22,7 @@ import type { ActivityPart } from "@hearth/domain";
  * string. Off-record states (access notices, the record-error surface) read as
  * text and take the narrow tier.
  */
-export function partMeasure(part: ActivityPart): "max-w-2xl" | "max-w-3xl" {
+export function partMeasure(part: ActivityPart): PartMeasure {
   switch (part.kind) {
     case "read_library_item":
     case "listen_audio":

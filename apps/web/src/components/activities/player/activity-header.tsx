@@ -1,6 +1,7 @@
 import type { ActivityPlayerProjection, LearningActivity } from "@hearth/domain";
 import { Badge, cn } from "@hearth/ui";
 import type { ReactNode } from "react";
+import type { PartMeasure } from "./_lib/part-measure.ts";
 
 type Props = {
   readonly activity: LearningActivity;
@@ -35,7 +36,7 @@ type Props = {
    * post-rail flex column as the body, so the 240px rail produces the offset
    * structurally rather than via a hand-synced literal.
    */
-  readonly measure: "max-w-2xl" | "max-w-3xl";
+  readonly measure: PartMeasure;
 };
 
 /**

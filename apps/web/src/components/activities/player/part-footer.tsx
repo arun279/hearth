@@ -1,6 +1,7 @@
 import { Button, buttonClasses, Callout, cn } from "@hearth/ui";
 import { Link } from "@tanstack/react-router";
 import { Check, ChevronLeft, ChevronRight } from "lucide-react";
+import type { PartMeasure } from "./_lib/part-measure.ts";
 
 /**
  * The active Part's honor-system completion state, plus the toggle. Absent
@@ -35,7 +36,7 @@ type Props = {
    * shares the header's and body's measure so the three columns are the same
    * width and share a left edge across every Part kind.
    */
-  readonly measure: "max-w-2xl" | "max-w-3xl";
+  readonly measure: PartMeasure;
   readonly previousPartId: string | null;
   readonly nextPartId: string | null;
   readonly onNavigate: (partId: string) => void;
