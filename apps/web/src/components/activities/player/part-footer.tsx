@@ -1,4 +1,4 @@
-import { Button, buttonClasses, Callout } from "@hearth/ui";
+import { Button, buttonClasses, Callout, cn } from "@hearth/ui";
 import { Link } from "@tanstack/react-router";
 import { Check, ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -30,6 +30,12 @@ type ActivityCompletion = {
 };
 
 type Props = {
+  /**
+   * The active Part's content measure (`partMeasure(activePart)`). The footer
+   * shares the header's and body's measure so the three columns are the same
+   * width and share a left edge across every Part kind.
+   */
+  readonly measure: "max-w-2xl" | "max-w-3xl";
   readonly previousPartId: string | null;
   readonly nextPartId: string | null;
   readonly onNavigate: (partId: string) => void;
@@ -69,6 +75,7 @@ type Props = {
  * (Next, or "Back to track" on the last Part) takes primary.
  */
 export function PartFooter({
+  measure,
   previousPartId,
   nextPartId,
   onNavigate,
@@ -97,7 +104,7 @@ export function PartFooter({
   const markCompleteDemoted = forwardIsPrimary || activityCtaIsPrimary;
   return (
     <footer className="sticky bottom-0 z-10 shrink-0 border-[var(--color-rule)] border-t bg-[var(--color-surface)] px-5 py-3 md:px-8">
-      <div className="mx-auto flex w-full max-w-2xl flex-col gap-2">
+      <div className={cn("mx-auto flex w-full flex-col gap-2", measure)}>
         {activityCompletion ? (
           <ActivityCompletionBanner
             activityCompletion={activityCompletion}

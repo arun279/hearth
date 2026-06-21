@@ -282,7 +282,6 @@ export function makeRecords(
     countPartHistory: vi.fn(async () => 0),
     reopenAgainstRevision: vi.fn(),
     flushEvidenceSignals: vi.fn(),
-    listEvidenceSignals: vi.fn(async () => []),
     ...overrides,
   } as ActivityRecordRepository;
 }

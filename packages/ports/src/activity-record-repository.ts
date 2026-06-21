@@ -3,7 +3,6 @@ import type {
   ActivityRecord,
   ActivityRecordId,
   CompletionState,
-  EvidenceSignal,
   LearningActivityId,
   LibraryRevisionId,
   PartHistory,
@@ -132,8 +131,4 @@ export interface ActivityRecordRepository {
 
   // Evidence Signals — coalescing UPSERT batch (≤32 per call enforced upstream)
   flushEvidenceSignals: Write<(signals: readonly EvidenceSignalInput[]) => Promise<void>>;
-  listEvidenceSignals(args: {
-    activityId: LearningActivityId;
-    participantId: UserId;
-  }): Promise<readonly EvidenceSignal[]>;
 }

@@ -13,7 +13,6 @@ export { type ActivityRecordFullView, projectRecordFull } from "./projection.ts"
 export type {
   ActivityRecord,
   CompletionState,
-  EvidenceSignal,
   MyActivityRecordView,
   PartHistory,
   PartHistoryReason,

@@ -42,6 +42,7 @@ describe("ActivityHeader completion track", () => {
           currentPartIndex={index}
           totalParts={3}
           completedCount={0}
+          measure="max-w-2xl"
         />,
       );
       expect(html).toContain('role="progressbar"');
@@ -60,6 +61,7 @@ describe("ActivityHeader completion track", () => {
         currentPartIndex={0}
         totalParts={3}
         completedCount={2}
+        measure="max-w-2xl"
       />,
     );
     expect(html).toContain('aria-valuenow="67"');
@@ -77,6 +79,7 @@ describe("ActivityHeader completion track", () => {
         currentPartIndex={2}
         totalParts={3}
         completedCount={3}
+        measure="max-w-2xl"
       />,
     );
     expect(html).toContain('aria-valuenow="100"');
@@ -92,6 +95,7 @@ describe("ActivityHeader completion track", () => {
         currentPartIndex={0}
         totalParts={0}
         completedCount={0}
+        measure="max-w-2xl"
       />,
     );
     expect(html).toContain('aria-valuenow="0"');
@@ -106,6 +110,7 @@ describe("ActivityHeader completion track", () => {
         currentPartIndex={0}
         totalParts={3}
         completedCount={1}
+        measure="max-w-2xl"
       />,
     );
     // A 2px hairline doesn't read as a progress element; the track holds a
@@ -123,6 +128,7 @@ describe("ActivityHeader completion track", () => {
         currentPartIndex={1}
         totalParts={3}
         completedCount={0}
+        measure="max-w-2xl"
       />,
     );
     const stripped = html.replace(/<!--\s*-->/g, "");

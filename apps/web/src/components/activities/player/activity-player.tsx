@@ -169,6 +169,7 @@ function PlayerBody({
           currentPartIndex={0}
           totalParts={orderedPartIds.length}
           completedCount={0}
+          measure="max-w-2xl"
         />
         <div className="flex-1 overflow-y-auto px-5 py-8 md:px-8 md:py-10">
           <div className="mx-auto w-full max-w-2xl">
@@ -201,25 +202,14 @@ function PlayerBody({
     activityCompleted || (canAuthor && activity.completionRule.kind === "manual_mark");
 
   const historyPart = historyPartId !== null ? partById.get(historyPartId) : undefined;
+  // Header, body, and footer all centre this one measure inside the post-rail
+  // column, so the three share a left edge for every Part kind. Off-Part states
+  // (the locked notice, the record-error surface, the empty-Parts line) read as
+  // text and keep the narrow reading measure regardless of the active tier.
+  const activeMeasure = activePart ? partMeasure(activePart) : "max-w-2xl";
 
   return (
     <FullViewport>
-      <ActivityHeader
-        activity={activity}
-        accessState={accessState}
-        currentPartIndex={Math.max(activeIndex, 0)}
-        totalParts={orderedPartIds.length}
-        completedCount={completedPartIds.size}
-        activityCompleted={activityCompleted}
-        priorAttemptsCount={record?.partHistoryCount ?? 0}
-        facilitatorAction={
-          isFacilitator ? (
-            <Button type="button" size="sm" variant="secondary" onClick={() => setRosterOpen(true)}>
-              Participant progress
-            </Button>
-          ) : null
-        }
-      />
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         <FlowSidebar
           parts={activity.parts}
@@ -231,6 +221,28 @@ function PlayerBody({
           onOpenHistory={setHistoryPartId}
         />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <ActivityHeader
+            activity={activity}
+            accessState={accessState}
+            currentPartIndex={Math.max(activeIndex, 0)}
+            totalParts={orderedPartIds.length}
+            completedCount={completedPartIds.size}
+            activityCompleted={activityCompleted}
+            priorAttemptsCount={record?.partHistoryCount ?? 0}
+            facilitatorAction={
+              isFacilitator ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setRosterOpen(true)}
+                >
+                  Participant progress
+                </Button>
+              ) : null
+            }
+            measure={activeMeasure}
+          />
           <PartTabBar
             parts={activity.parts}
             orderedPartIds={orderedPartIds}
@@ -254,7 +266,7 @@ function PlayerBody({
                 />
               </div>
             ) : activePart ? (
-              <div key={activePart.id} className={cn("mx-auto w-full", partMeasure(activePart))}>
+              <div key={activePart.id} className={cn("mx-auto w-full", activeMeasure)}>
                 <PartViewport
                   activityId={activity.id}
                   part={activePart}
@@ -274,6 +286,7 @@ function PlayerBody({
             )}
           </div>
           <PartFooter
+            measure={activeMeasure}
             previousPartId={orderedPartIds[activeIndex - 1] ?? null}
             nextPartId={orderedPartIds[activeIndex + 1] ?? null}
             onNavigate={onChangeActivePartId}

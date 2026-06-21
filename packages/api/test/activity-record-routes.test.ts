@@ -256,7 +256,6 @@ function viewablePorts(opts: {
       countPartHistory: vi.fn(async () => 0),
       reopenAgainstRevision: vi.fn(),
       flushEvidenceSignals: vi.fn(),
-      listEvidenceSignals: vi.fn(async () => []),
       ...opts.records,
     } as unknown as ActivityRecordRepository,
   };

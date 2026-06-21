@@ -71,6 +71,7 @@ const baseCompletion: TestCompletion = {
 describe("<PartFooter> visual hierarchy", () => {
   it("mid-flow incomplete: Mark-complete is the single primary, Next steps down", () => {
     const tree = PartFooter({
+      measure: "max-w-2xl",
       previousPartId: "p1",
       nextPartId: "p3",
       onNavigate: noop,
@@ -90,6 +91,7 @@ describe("<PartFooter> visual hierarchy", () => {
 
   it("mid-flow complete: Next becomes the single primary, Mark-complete steps down", () => {
     const tree = PartFooter({
+      measure: "max-w-2xl",
       previousPartId: "p1",
       nextPartId: "p3",
       onNavigate: noop,
@@ -106,6 +108,7 @@ describe("<PartFooter> visual hierarchy", () => {
 
   it("mid-flow, viewer can't mark: Next leads as the single primary", () => {
     const tree = PartFooter({
+      measure: "max-w-2xl",
       previousPartId: "p1",
       nextPartId: "p3",
       onNavigate: noop,
@@ -121,6 +124,7 @@ describe("<PartFooter> visual hierarchy", () => {
 
   it("last Part, active incomplete: Mark-complete is primary, Back to track is secondary", () => {
     const tree = PartFooter({
+      measure: "max-w-2xl",
       previousPartId: "p2",
       nextPartId: null,
       onNavigate: noop,
@@ -138,6 +142,7 @@ describe("<PartFooter> visual hierarchy", () => {
 
   it("last Part, active complete: Back to track becomes the single primary", () => {
     const tree = PartFooter({
+      measure: "max-w-2xl",
       previousPartId: "p2",
       nextPartId: null,
       onNavigate: noop,
@@ -156,6 +161,7 @@ describe("<PartFooter> visual hierarchy", () => {
 describe("<PartFooter> all-parts-complete closure", () => {
   it("shows an honest 'all parts complete' note that never claims activity completion", () => {
     const tree = PartFooter({
+      measure: "max-w-2xl",
       previousPartId: "p2",
       nextPartId: null,
       onNavigate: noop,
@@ -176,6 +182,7 @@ describe("<PartFooter> all-parts-complete closure", () => {
 
   it("mid-flow all-complete: the closure note carries a Back-to-track onward link", () => {
     const tree = PartFooter({
+      measure: "max-w-2xl",
       previousPartId: "p1",
       nextPartId: "p3",
       onNavigate: noop,
@@ -196,6 +203,7 @@ describe("<PartFooter> all-parts-complete closure", () => {
 
   it("last Part all-complete: only the footer's Back-to-track renders (no duplicate)", () => {
     const tree = PartFooter({
+      measure: "max-w-2xl",
       previousPartId: "p2",
       nextPartId: null,
       onNavigate: noop,
@@ -214,6 +222,7 @@ describe("<PartFooter> all-parts-complete closure", () => {
 
   it("omits the closure note until every Part is complete", () => {
     const tree = PartFooter({
+      measure: "max-w-2xl",
       previousPartId: "p2",
       nextPartId: null,
       onNavigate: noop,
@@ -256,6 +265,7 @@ type TestActivityCompletion = { completed: boolean; pending: boolean; onComplete
  */
 function activityBannerSubtree(activityCompletion: TestActivityCompletion): unknown {
   const tree = PartFooter({
+    measure: "max-w-2xl",
     previousPartId: null,
     nextPartId: "p2",
     onNavigate: noop,
@@ -293,6 +303,7 @@ describe("<PartFooter> activity-level completion (manual_mark)", () => {
 
   it("the incomplete activity CTA owns the footer's single primary slot; the per-Part toggle steps down", () => {
     const tree = PartFooter({
+      measure: "max-w-2xl",
       previousPartId: null,
       nextPartId: "p2",
       onNavigate: noop,
@@ -321,6 +332,7 @@ describe("<PartFooter> activity-level completion (manual_mark)", () => {
 /** The `<MarkCompleteButton>` wrapper element extracted from a rendered footer. */
 function markCompleteWrapper(completion: TestCompletion): ReactElement {
   const tree = PartFooter({
+    measure: "max-w-2xl",
     previousPartId: "p1",
     nextPartId: "p3",
     onNavigate: noop,

@@ -543,7 +543,7 @@ describe("activity-record adapter (real D1)", () => {
     expect(byPart[0]?.participantId).toBe(participants[0]);
   });
 
-  it("flushEvidenceSignals gates on the killswitch but writes no D1 row in M11; listEvidenceSignals is empty", async () => {
+  it("flushEvidenceSignals gates on the killswitch but writes no D1 row in M11", async () => {
     const repos = buildRepos();
     const { participant, activityId } = await setup(repos, "evidence");
 
@@ -559,8 +559,5 @@ describe("activity-record adapter (real D1)", () => {
 
     const rows = await repos.db.select().from(schema.evidenceSignals);
     expect(rows).toHaveLength(0);
-    expect(
-      await repos.records.listEvidenceSignals({ activityId, participantId: participant }),
-    ).toEqual([]);
   });
 });

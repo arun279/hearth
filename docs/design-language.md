@@ -11,12 +11,13 @@ Every in-app route centers its content in a capped measure with the app's standa
 
 Gutters are mobile **20px** (`px-5`) → desktop **32px** (`md:px-8`); vertical **32px** (`py-8`, or `py-12` on the prose tier). These live in one place inside the primitive, so a new screen gets the canonical measure by composing it — not by remembering a string.
 
-The Activity Player carries its own full-height host (`h-dvh` flex column, single scroll region) and a two-tier measure keyed off the Part kind: text Parts use the 672px prose measure, media Parts (PDF / video / embed) use the 768px measure, since WCAG 1.4.10 lists media as a reflow exception and a blanket prose cap crushes it.
+The Activity Player carries its own full-height host (`h-dvh` flex column, single scroll region) and a two-tier measure keyed off the Part kind: text Parts use the 672px prose measure, media Parts (PDF / audio / video / embed) use the 768px measure, since WCAG 1.4.10 lists media as a reflow exception and a blanket prose cap crushes it. The player's title strip and footer share the active Part's measure and sit inside the same post-rail flow column as the body, so the three share a left edge for every Part kind — the offset from the 240px Part rail is structural, not a hand-synced literal.
 
 ## Type scale
 
 - Base body is **13px** Inter (`packages/ui/src/styles.css` `body`), line-height 1.5. The whole app's text rhythm is built on this floor; it is AA-passing app-wide.
-- Page titles are `font-serif text-[28px] leading-tight` at **weight 400** (the serif default — no weight utility). Source Serif 4 supplies the serif face.
+- **In-app page titles** are `font-serif text-[28px] text-[var(--color-ink)] leading-tight` at **weight 400** (the serif default — no weight utility). Source Serif 4 supplies the serif face. Every in-app route title (home, group, track, library, people, admin, the Activity Player) and the account stub follow this one shape.
+- **Standalone landing heroes** are the deliberate exception: the sign-in screen and the invite-accept screen are full-screen surfaces outside the AppShell with their own hero scale (sign-in `font-semibold text-3xl`, invite `text-[22px]`). They are page heroes, not in-app page titles, so they intentionally do not follow the `text-[28px]` rule. New landing-style surfaces join this family; new in-app routes follow the page-title rule above.
 - Sizes appear as arbitrary values, not named utilities: `text-[10px]`/`text-[11px]` for uppercase section labels and meta/mono counts, `text-[12px]`–`text-[13px]` for body. Weights used: 400, 500 (`font-medium`), 600 (`font-semibold`).
 
 ## Surfaces + elevation

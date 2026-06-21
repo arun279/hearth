@@ -65,22 +65,6 @@ export type PartHistory = {
 };
 
 /**
- * One Evidence Signal emitted while a participant works a Part — the raw
- * material a future analytics/auto-complete layer (M17) consumes. The
- * `value` is opaque JSON validated at ingest, not in the domain. M11
- * declares the type + port surface; the throttled batcher + write-budget
- * limiter that actually persist these ship in M17.
- */
-export type EvidenceSignal = {
-  readonly activityId: LearningActivityId;
-  readonly participantId: UserId;
-  readonly partId: ActivityPartId;
-  readonly signalType: string;
-  readonly value: unknown;
-  readonly updatedAt: Date;
-};
-
-/**
  * Wire shape returned by `GET /api/v1/activities/:id/my-record`. Deliberately
  * lean: it carries only what the Activity Player needs to hydrate the
  * participant's own surfaces — whether the viewer may author state at all,

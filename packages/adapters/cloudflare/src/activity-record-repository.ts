@@ -401,10 +401,6 @@ export function createActivityRecordRepository(
     flushEvidenceSignals: markWrite(async (_signals) => {
       await deps.gate.assertWritable();
     }),
-
-    async listEvidenceSignals() {
-      return [];
-    },
   };
 }
 

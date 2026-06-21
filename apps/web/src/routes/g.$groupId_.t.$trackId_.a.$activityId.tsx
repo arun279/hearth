@@ -48,7 +48,11 @@ function ActivityPlayerRoute() {
   // the common flow, one cheap fetch on a cold deep-link.
   const trackQuery = useTrack(params.trackId, signedIn);
 
-  useDocumentTitle([playerQuery.data?.activity.title, trackQuery.data?.track.name]);
+  useDocumentTitle([
+    playerQuery.data?.activity.title,
+    trackQuery.data?.track.name,
+    trackQuery.data?.group.name,
+  ]);
 
   // User-initiated Part navigation pushes a history entry; correcting a stale
   // `?part=` to the canonical first Part replaces it, so Back doesn't return to

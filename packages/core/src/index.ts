@@ -13,7 +13,6 @@ export * from "./use-cases/delete-activity.ts";
 export * from "./use-cases/enroll-in-track.ts";
 export * from "./use-cases/finalize-avatar-upload.ts";
 export * from "./use-cases/finalize-library-upload.ts";
-export * from "./use-cases/flush-evidence-signals.ts";
 export * from "./use-cases/get-activity.ts";
 export * from "./use-cases/get-activity-for-player.ts";
 export * from "./use-cases/get-group.ts";

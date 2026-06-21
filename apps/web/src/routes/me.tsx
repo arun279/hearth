@@ -10,7 +10,7 @@ function AccountComponent() {
   useDocumentTitle(["Account"]);
   return (
     <PageContainer as="main" measure="prose">
-      <h1 className="font-serif text-2xl">Account</h1>
+      <h1 className="font-serif text-[28px] text-[var(--color-ink)] leading-tight">Account</h1>
     </PageContainer>
   );
 }

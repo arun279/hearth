@@ -1,5 +1,5 @@
 import type { ActivityPlayerProjection, LearningActivity } from "@hearth/domain";
-import { Badge } from "@hearth/ui";
+import { Badge, cn } from "@hearth/ui";
 import type { ReactNode } from "react";
 
 type Props = {
@@ -27,6 +27,15 @@ type Props = {
    * for activity-level controls rather than in a dedicated band.
    */
   readonly facilitatorAction?: ReactNode;
+  /**
+   * The active Part's content measure (`partMeasure(activePart)`). The header
+   * shares the body's measure so the two columns are always the same width and
+   * share a left edge across every Part kind — text (672) and media (768)
+   * alike. The header takes no rail offset of its own: it sits inside the same
+   * post-rail flex column as the body, so the 240px rail produces the offset
+   * structurally rather than via a hand-synced literal.
+   */
+  readonly measure: "max-w-2xl" | "max-w-3xl";
 };
 
 /**
@@ -53,6 +62,7 @@ export function ActivityHeader({
   activityCompleted = false,
   priorAttemptsCount = 0,
   facilitatorAction,
+  measure,
 }: Props) {
   const denominator = Math.max(totalParts, 1);
   const completionPercent = Math.round((completedCount / denominator) * 100);
@@ -60,10 +70,10 @@ export function ActivityHeader({
   const stateBadge = ACCESS_STATE_BADGES[accessState];
 
   return (
-    <header className="shrink-0 border-[var(--color-rule)] border-b px-5 py-5 md:px-8 md:py-7 lg:ps-[240px] lg:pe-0">
-      <div className="mx-auto w-full max-w-2xl space-y-3">
+    <header className="shrink-0 border-[var(--color-rule)] border-b px-5 py-5 md:px-8 md:py-7">
+      <div className={cn("mx-auto w-full space-y-3", measure)}>
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h1 className="font-serif text-[24px] text-[var(--color-ink)] leading-tight md:text-[28px]">
+          <h1 className="font-serif text-[28px] text-[var(--color-ink)] leading-tight">
             {activity.title}
           </h1>
           {activityCompleted ? <Badge tone="good">Completed</Badge> : null}
