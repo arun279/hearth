@@ -60,7 +60,7 @@ export function ActivityHeader({
   const stateBadge = ACCESS_STATE_BADGES[accessState];
 
   return (
-    <header className="shrink-0 border-[var(--color-rule)] border-b px-5 py-5 md:px-8 md:py-7">
+    <header className="shrink-0 border-[var(--color-rule)] border-b px-5 py-5 md:px-8 md:py-7 lg:ps-[240px] lg:pe-0">
       <div className="mx-auto w-full max-w-2xl space-y-3">
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <h1 className="font-serif text-[24px] text-[var(--color-ink)] leading-tight md:text-[28px]">
