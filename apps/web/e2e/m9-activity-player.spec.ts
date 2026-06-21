@@ -158,6 +158,18 @@ test.describe("M9 — Activity player (passive Parts)", () => {
     await expect(breadcrumb.getByRole("link", { name: /Beginner Spanish/i })).toBeVisible();
     await expect(breadcrumb.getByRole("link", { name: /Your groups/i })).toBeVisible();
 
+    // The 768–1023 tablet band is the gap the hamburger guards: the desktop
+    // Part rail is `lg:flex` (visible only ≥1024), so below 1024 the rail is
+    // absent and the hamburger is the sole reach into global nav. Pin the band
+    // explicitly — the default project viewport is ≥1024 (rail shown, hamburger
+    // hidden) and the only other assertion is at 390px (hamburger shown either
+    // way), so without this a regression of the hamburger to `md:hidden` (gone
+    // ≥768) would leave the whole suite green. The rail is the first
+    // `Activity Parts` nav (DOM order: FlowSidebar before PartTabBar).
+    await page.setViewportSize({ width: 900, height: 760 });
+    await expect(page.getByRole("button", { name: /Open navigation/i })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: /Activity Parts/i }).first()).toBeHidden();
+
     // At 390px the hamburger opens the nav Drawer so the global nav (the
     // wordmark home link, group/admin/account) is reachable from the focus-mode
     // island rather than being a one-way dead end.
