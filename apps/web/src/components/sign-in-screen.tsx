@@ -75,9 +75,9 @@ export function SignInScreen({ me, rejection }: Props) {
 
       <main className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center gap-5 px-5 py-10">
         <div>
-          <div className="font-semibold font-serif text-3xl text-[var(--color-ink)]">
+          <h1 className="font-semibold font-serif text-3xl text-[var(--color-ink)]">
             Welcome to {me.instance.name}
-          </div>
+          </h1>
           <p className="mt-2 text-[13px] text-[var(--color-ink-2)]">
             A calm place for small groups to learn together.
           </p>

@@ -184,6 +184,15 @@ describe("SignInScreen sign-in handshake", () => {
   });
 });
 
+describe("SignInScreen heading semantics", () => {
+  it("names the page with a level-1 heading (WCAG 1.3.1 / 2.4.6)", () => {
+    renderWithProviders(<SignInScreen me={meData()} />);
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Welcome to Test Hearth" }),
+    ).toBeInTheDocument();
+  });
+});
+
 describe("SignInScreen admission + bootstrap Callouts", () => {
   it("renders the rejection warning only when rejection is email_not_approved", () => {
     const { rerender } = renderWithProviders(<SignInScreen me={meData()} rejection={null} />);

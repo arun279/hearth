@@ -130,6 +130,30 @@ Each entry names the **pinned tool**, the **condition** that triggers a reassess
 - **Action**: don't ship it. Tailwind's `text-[var(--color-foo)]` lets any palette token be applied to any text element with no per-call-site review, so a sub-AA token in the shared palette is a foot-gun: the caller cannot tell from the class name that the contrast is unsafe, and a single muted-text token can produce dozens of AA-failing surfaces before anyone notices. If a specific call site genuinely needs sub-AA contrast under a 1.4.3 exemption (decorative non-text, brand mark, etc.), declare the hex inline at the call site with the rationale visible — keep the palette honest. The `tokens.test.ts` Layer-A gate enforces the rule at `pnpm test`.
 - **Location**: `packages/ui/src/tokens.ts` (FOREGROUNDS), `packages/ui/src/styles.css` (palette declarations), `packages/ui/test/tokens.test.ts` (the gate).
 
+### Token mirror — `tokens.ts` is hand-synced to `styles.css`
+
+- **Trigger**: the palette in `packages/ui/src/styles.css` `@theme` grows past the point where keeping `packages/ui/src/tokens.ts` in sync by hand is reliable (frequent drift between the two, or a noticeably larger set of values to mirror).
+- **Action**: generate `tokens.ts` from `styles.css` with a tiny in-repo script that parses the `@theme` block. Do **not** reach for Style Dictionary — the mirror is one CSS source to one TS consumer, not a multi-platform interchange.
+- **Location**: `packages/ui/src/styles.css` (source), `packages/ui/src/tokens.ts` (manual mirror).
+
+### DTCG / design-token interchange format
+
+- **Trigger**: a genuine second non-CSS token consumer appears — a native app, an email / PDF renderer, or Figma-as-source — that needs the palette in a non-CSS form.
+- **Action**: adopt DTCG **properly** — author real `*.tokens.json` source files and add a Style Dictionary build that generates the Tailwind `@theme` block. Never put the DTCG name on a prose doc or relabel `tokens.ts` as DTCG. Until a second consumer exists there is nothing to interchange, so the format buys nothing.
+- **Location**: `packages/ui/src/styles.css` (today's single source), `packages/ui/src/tokens.ts`.
+
+### Page-width literal — no standing width lint
+
+- **Trigger**: a route reintroduces a bare page-width literal (a hand-written `mx-auto max-w-*` measure instead of composing `<PageContainer>`) that `/design-review` does not catch.
+- **Action**: with explicit maintainer approval, add a narrow scoped `check:conventions` rule for that literal. A standing width lint is deferred on purpose: it matches text rather than the React tree, needs several carve-outs at birth for the legit `max-w-md` card surfaces, and cannot tell the measure primitive from a component that inlines the measure. The primitive is the structural fix; a lint is the response of last resort.
+- **Location**: `packages/ui/src/page-container.tsx` (the primitive routes compose), `scripts/check-conventions.mjs` (where such a rule would live).
+
+### Per-theme semantic alias — use `@theme inline`
+
+- **Trigger**: a new semantic alias must re-point to a different underlying token per theme (light vs dark) rather than resolving once at build time.
+- **Action**: declare it with `@theme inline` so the alias reads the live custom property at use time instead of being frozen to the light value. There is no automated guard for this — eyeball it when adding a per-theme alias.
+- **Location**: `packages/ui/src/styles.css` (`@theme` block + `.dark` override).
+
 ## Repository internals — opportunistic migrations
 
 ### `Write<F>` brand on repository ports — opportunistic migration (currently applied to: `LibraryItemRepository`, `LearningActivityRepository`, `ActivityRecordRepository`)

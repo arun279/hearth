@@ -193,20 +193,17 @@ function GroupHomeBody({
               <p className="mt-1 text-[13px] text-[var(--color-ink-2)]">{g.description}</p>
             ) : null}
           </div>
-          <div className="flex shrink-0 items-center gap-1.5">
+          <div className="flex shrink-0 flex-wrap items-center gap-1.5">
             {archived ? <Badge tone="warn">archived</Badge> : <Badge tone="good">active</Badge>}
             <Badge>{g.admissionPolicy.replace("_", " ")}</Badge>
+            {caps.canArchive || caps.canUnarchive || caps.canUpdateMetadata ? (
+              <Button variant="secondary" size="sm" onClick={onOpenSettings}>
+                <Settings size={12} strokeWidth={1.75} aria-hidden="true" />
+                Group settings
+              </Button>
+            ) : null}
           </div>
         </div>
-
-        {caps.canArchive || caps.canUnarchive || caps.canUpdateMetadata ? (
-          <div>
-            <Button variant="secondary" size="sm" onClick={onOpenSettings}>
-              <Settings size={12} strokeWidth={1.75} aria-hidden="true" />
-              Group settings
-            </Button>
-          </div>
-        ) : null}
       </header>
 
       {archived ? (

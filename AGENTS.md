@@ -52,7 +52,7 @@ Additional:
 
 - New domain concept → `packages/domain/src/<aggregate>/`, then add a port in `packages/ports/`, then a use case in `packages/core/`.
 - New API endpoint → `packages/api/src/routes/<namespace>.ts`, mount under `/api/v1/*` (Better Auth lives at `/api/auth/*`).
-- New SPA screen → `apps/web/src/routes/<path>.tsx` (TanStack Router file-based).
+- New SPA screen → `apps/web/src/routes/<path>.tsx` (TanStack Router file-based); compose `<PageContainer>` for the content measure and match `docs/design-language.md`.
 - New D1 table → `packages/db/src/schema/<aggregate>.ts`, export from `packages/db/src/schema.ts` barrel, relations in `packages/db/src/relations.ts`.
 
 ## Non-negotiable conventions (enforced by checks)
