@@ -40,6 +40,13 @@ type Props = {
 
 const FALLBACK_TOAST_KEY = "activity-player-bad-part";
 
+// Off-Part notices (pre-open, locked, record-error, empty-Parts) read as text
+// and take the narrow reading measure unconditionally — never the active Part's
+// tier, which widens to max-w-3xl for media Parts. They live inside the player's
+// own padded column, so they compose the bare measure here rather than
+// <PageContainer> (whose gutters would double-apply).
+const NARROW_NOTICE = "mx-auto w-full max-w-2xl";
+
 /**
  * Top-level composition for the Activity Player route. Reads the
  * projection from React Query, picks the active Part from the
@@ -172,7 +179,7 @@ function PlayerBody({
           measure="max-w-2xl"
         />
         <div className="flex-1 overflow-y-auto px-5 py-8 md:px-8 md:py-10">
-          <div className="mx-auto w-full max-w-2xl">
+          <div className={NARROW_NOTICE}>
             <AccessStateNotice tone="neutral" title="This activity isn't open yet" body={body} />
           </div>
         </div>
@@ -203,9 +210,7 @@ function PlayerBody({
 
   const historyPart = historyPartId !== null ? partById.get(historyPartId) : undefined;
   // Header, body, and footer all centre this one measure inside the post-rail
-  // column, so the three share a left edge for every Part kind. Off-Part states
-  // (the locked notice, the record-error surface, the empty-Parts line) read as
-  // text and keep the narrow reading measure regardless of the active tier.
+  // column, so the three share a left edge for every Part kind.
   const activeMeasure = activePart ? partMeasure(activePart) : "max-w-2xl";
 
   return (
@@ -254,12 +259,12 @@ function PlayerBody({
           />
           <div className="flex-1 overflow-y-auto px-5 py-8 md:px-8 md:py-10">
             {accessState === "locked" ? (
-              <div className="mx-auto w-full max-w-2xl">
+              <div className={NARROW_NOTICE}>
                 <AccessStateNotice tone="warn" title="This activity is closed" body={lockedBody} />
               </div>
             ) : null}
             {recordQuery.isError ? (
-              <div className="mx-auto w-full max-w-2xl">
+              <div className={NARROW_NOTICE}>
                 <RecordErrorState
                   error={recordQuery.error}
                   onRetry={() => void recordQuery.refetch()}
@@ -280,7 +285,7 @@ function PlayerBody({
                 />
               </div>
             ) : (
-              <p className="mx-auto w-full max-w-2xl text-[13px] text-[var(--color-ink-2)]">
+              <p className={cn(NARROW_NOTICE, "text-[13px] text-[var(--color-ink-2)]")}>
                 This activity has no Parts yet.
               </p>
             )}
