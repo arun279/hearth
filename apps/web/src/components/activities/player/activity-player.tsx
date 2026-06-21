@@ -1,5 +1,5 @@
 import type { ActivityPart, ActivityPlayerProjection, PartProgressState } from "@hearth/domain";
-import { Button, Callout, cn } from "@hearth/ui";
+import { Button, Callout, cn, PageContainer } from "@hearth/ui";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -382,18 +382,18 @@ export function ErrorState({
   const status = errorStatus(error);
   if (status === 404) {
     return (
-      <div className="mx-auto max-w-2xl px-5 py-12 md:px-8">
+      <PageContainer measure="prose">
         <Callout tone="neutral" title="This activity isn't available">
           <p>
             It may have been removed, closed, or scoped to a different audience. The link may also
             be stale.
           </p>
         </Callout>
-      </div>
+      </PageContainer>
     );
   }
   return (
-    <div className="mx-auto max-w-2xl px-5 py-12 md:px-8">
+    <PageContainer measure="prose">
       <Callout tone="danger" title="Couldn't open this activity">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <span>
@@ -407,7 +407,7 @@ export function ErrorState({
           </Button>
         </div>
       </Callout>
-    </div>
+    </PageContainer>
   );
 }
 

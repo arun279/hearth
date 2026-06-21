@@ -158,9 +158,9 @@ test.describe("M9 — Activity player (passive Parts)", () => {
     await expect(breadcrumb.getByRole("link", { name: /Beginner Spanish/i })).toBeVisible();
     await expect(breadcrumb.getByRole("link", { name: /Your groups/i })).toBeVisible();
 
-    // At 390px the focus mode previously had NO path back to the global nav —
-    // a one-way island. The hamburger now opens the nav Drawer so the app is
-    // reachable, then the wordmark returns home.
+    // At 390px the hamburger opens the nav Drawer so the global nav (the
+    // wordmark home link, group/admin/account) is reachable from the focus-mode
+    // island rather than being a one-way dead end.
     await page.setViewportSize({ width: 390, height: 760 });
     await page.getByRole("button", { name: /Open navigation/i }).click();
     const drawer = page.getByRole("dialog", { name: /navigation/i });

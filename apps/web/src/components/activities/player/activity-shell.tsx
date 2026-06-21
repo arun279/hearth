@@ -22,8 +22,8 @@ type Props = {
  * persistent desktop nav sidebar so the activity owns the screen; orientation
  * and recoverability come from a thin top strip instead:
  *
- *   - a hamburger (below `md`) that opens the global nav in a Drawer, so the
- *     app is never a one-way island on mobile;
+ *   - a hamburger (below `lg`, wherever the Part rail is absent) that opens the
+ *     global nav in a Drawer, so the app is never a one-way island;
  *   - an orientation breadcrumb (Your groups / group / track) so the deepest
  *     screen still shows where it sits;
  *   - the standing "Back to track" focus-exit;
@@ -47,7 +47,7 @@ export function ActivityShell({ groupId, trackId, groupName, trackName, me, chil
       </a>
 
       <header className="flex h-12 shrink-0 items-center gap-2 border-[var(--color-rule)] border-b bg-[var(--color-surface)] px-3 md:px-5">
-        <div className="md:hidden">
+        <div className="lg:hidden">
           <IconButton label="Open navigation" onClick={() => setDrawerOpen(true)}>
             <Menu size={16} strokeWidth={1.5} />
           </IconButton>
