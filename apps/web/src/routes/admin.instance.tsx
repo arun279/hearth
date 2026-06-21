@@ -1,4 +1,4 @@
-import { AppShell, Callout, panelIdFor, TabBar, tabIdFor } from "@hearth/ui";
+import { AppShell, Callout, PageContainer, panelIdFor, TabBar, tabIdFor } from "@hearth/ui";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -57,7 +57,7 @@ function InstanceAdminPage() {
 
   return (
     <AppShell sidebar={<Sidebar me={ctx.data?.data ?? me} />} mobileTitle={instanceName}>
-      <div className="mx-auto max-w-3xl space-y-6 px-5 py-8 md:px-8">
+      <PageContainer className="space-y-6">
         <header className="space-y-2">
           <div className="font-medium text-[11px] text-[var(--color-ink-2)] uppercase tracking-wide">
             Admin
@@ -100,7 +100,7 @@ function InstanceAdminPage() {
           {active === "operators" ? <OperatorsTab currentUserId={me.user?.id ?? ""} /> : null}
           {active === "emails" ? <ApprovedEmailsTab /> : null}
         </div>
-      </div>
+      </PageContainer>
     </AppShell>
   );
 }

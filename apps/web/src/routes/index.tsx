@@ -1,5 +1,5 @@
 import type { GroupMembership } from "@hearth/domain";
-import { AppShell, Button, EmptyState, Skeleton } from "@hearth/ui";
+import { AppShell, Button, EmptyState, PageContainer, Skeleton } from "@hearth/ui";
 import { createFileRoute } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { useState } from "react";
@@ -87,7 +87,7 @@ function SignedInHome({
   ) : null;
 
   return (
-    <div className="mx-auto max-w-3xl px-5 py-8 md:px-8">
+    <PageContainer>
       <header className="space-y-2">
         <h1 className="font-serif text-[28px] text-[var(--color-ink)] leading-tight">
           Your groups
@@ -138,6 +138,6 @@ function SignedInHome({
           setCreateOpen(false);
         }}
       />
-    </div>
+    </PageContainer>
   );
 }

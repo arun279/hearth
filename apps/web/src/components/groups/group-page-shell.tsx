@@ -1,5 +1,5 @@
 import type { MeContext } from "@hearth/domain";
-import { AppShell, EmptyState, Skeleton } from "@hearth/ui";
+import { AppShell, EmptyState, PageContainer, Skeleton } from "@hearth/ui";
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import type { GroupDetail } from "../../hooks/use-groups.ts";
@@ -39,10 +39,10 @@ export function GroupPageShell({ me, group, children }: Props) {
   if (group.isLoading) {
     return (
       <AppShell sidebar={sidebar} mobileTitle={instanceTitle}>
-        <div className="mx-auto max-w-3xl space-y-3 px-5 py-8 md:px-8">
+        <PageContainer className="space-y-3">
           <Skeleton className="h-6 w-32" />
           <Skeleton className="h-32 w-full" />
-        </div>
+        </PageContainer>
       </AppShell>
     );
   }
@@ -50,7 +50,7 @@ export function GroupPageShell({ me, group, children }: Props) {
   if (group.isError || !group.data) {
     return (
       <AppShell sidebar={sidebar} mobileTitle={instanceTitle}>
-        <div className="mx-auto max-w-2xl px-5 py-12 md:px-8">
+        <PageContainer measure="prose">
           <EmptyState
             title="Group not found"
             description="This group may have been removed, or you may not be a member."
@@ -63,7 +63,7 @@ export function GroupPageShell({ me, group, children }: Props) {
               Back to your groups
             </Link>
           </EmptyState>
-        </div>
+        </PageContainer>
       </AppShell>
     );
   }

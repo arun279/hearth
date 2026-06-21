@@ -5,6 +5,7 @@ import {
   Button,
   Callout,
   EmptyState,
+  PageContainer,
   panelIdFor,
   TabBar,
   tabIdFor,
@@ -195,7 +196,7 @@ function TrackHomeBody({
   ];
 
   return (
-    <div className="mx-auto max-w-3xl px-5 py-8 md:px-8">
+    <PageContainer>
       {groupArchived ? (
         <Callout tone="warn" title="The parent group is archived" className="mb-4">
           Tracks inside an archived group are read-only. A Group Admin can unarchive the group to
@@ -351,7 +352,7 @@ function TrackHomeBody({
         groupId={group.id}
         track={track}
       />
-    </div>
+    </PageContainer>
   );
 }
 

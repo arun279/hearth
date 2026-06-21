@@ -1,5 +1,5 @@
 import type { TrackEnrollment } from "@hearth/domain";
-import { Button, Callout, EmptyState, Skeleton } from "@hearth/ui";
+import { Button, Callout, EmptyState, PageContainer, Skeleton } from "@hearth/ui";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { LogOut, Shield, ShieldOff, UserMinus, UserPlus } from "lucide-react";
 import { useState } from "react";
@@ -126,21 +126,21 @@ function TrackPeopleBody({
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-3xl space-y-3 px-5 py-8 md:px-8">
+      <PageContainer className="space-y-3">
         <Skeleton className="h-6 w-24" />
         <Skeleton className="h-32 w-full" />
-      </div>
+      </PageContainer>
     );
   }
 
   if (isError || !people) {
     return (
-      <div className="mx-auto max-w-2xl px-5 py-12 md:px-8">
+      <PageContainer measure="prose">
         <EmptyState
           title="Couldn't load people"
           description="Try refreshing — the list reads from the track itself, so an empty result usually means a transient error."
         />
-      </div>
+      </PageContainer>
     );
   }
 
@@ -148,7 +148,7 @@ function TrackPeopleBody({
   const participants = people.entries.filter((e) => e.enrollment.role === "participant");
 
   return (
-    <div className="mx-auto max-w-3xl px-5 py-8 md:px-8">
+    <PageContainer>
       <nav
         aria-label="Breadcrumb"
         className="flex items-center gap-2 text-[12px] text-[var(--color-ink-2)]"
@@ -365,7 +365,7 @@ function TrackPeopleBody({
           }
         }}
       />
-    </div>
+    </PageContainer>
   );
 }
 

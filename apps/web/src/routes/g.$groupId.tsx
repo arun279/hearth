@@ -5,7 +5,7 @@ import type {
   StudyGroup,
   TrackEnrollment,
 } from "@hearth/domain";
-import { Avatar, Badge, Button, Callout, EmptyState } from "@hearth/ui";
+import { Avatar, Badge, Button, Callout, EmptyState, PageContainer } from "@hearth/ui";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { Plus, Settings } from "lucide-react";
 import { useState } from "react";
@@ -171,7 +171,7 @@ function GroupHomeBody({
   );
 
   return (
-    <div className="mx-auto max-w-3xl px-5 py-8 md:px-8">
+    <PageContainer>
       <nav
         aria-label="Breadcrumb"
         className="flex items-center gap-2 text-[12px] text-[var(--color-ink-2)]"
@@ -340,7 +340,7 @@ function GroupHomeBody({
           </p>
         )}
       </section>
-    </div>
+    </PageContainer>
   );
 }
 

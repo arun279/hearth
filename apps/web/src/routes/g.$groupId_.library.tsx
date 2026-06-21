@@ -1,5 +1,5 @@
 import type { LibraryItemId } from "@hearth/domain";
-import { Button, Callout, cn, EmptyState, Input, Skeleton } from "@hearth/ui";
+import { Button, Callout, cn, EmptyState, Input, PageContainer, Skeleton } from "@hearth/ui";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { Plus, Search, X } from "lucide-react";
 import { useState } from "react";
@@ -103,7 +103,7 @@ function LibraryPage() {
 
         return (
           <>
-            <div className="mx-auto max-w-3xl px-5 py-8 md:px-8">
+            <PageContainer>
               <GroupSubpageBreadcrumb groupId={g.id} groupName={g.name} currentLabel="Library" />
 
               <header className="mt-3 flex flex-col items-start gap-2 md:flex-row md:items-center md:gap-3">
@@ -267,7 +267,7 @@ function LibraryPage() {
                   )}
                 </div>
               </section>
-            </div>
+            </PageContainer>
 
             <UploadDialog open={uploadOpen} onClose={closeUpload} groupId={params.groupId} />
 

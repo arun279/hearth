@@ -1,5 +1,5 @@
 import type { GroupMembership } from "@hearth/domain";
-import { Button, Callout, EmptyState, Skeleton } from "@hearth/ui";
+import { Button, Callout, EmptyState, PageContainer, Skeleton } from "@hearth/ui";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { LogOut, Settings } from "lucide-react";
 import { useState } from "react";
@@ -80,7 +80,7 @@ function PeoplePage() {
 
         return (
           <>
-            <div className="mx-auto max-w-3xl px-5 py-8 md:px-8">
+            <PageContainer>
               <GroupSubpageBreadcrumb groupId={g.id} groupName={g.name} currentLabel="People" />
 
               <header className="mt-3 flex flex-col items-start gap-2 md:flex-row md:items-center md:gap-3">
@@ -195,7 +195,7 @@ function PeoplePage() {
                   </div>
                 </div>
               ) : null}
-            </div>
+            </PageContainer>
 
             <GroupMembersDialog
               open={membersDialogOpen}
