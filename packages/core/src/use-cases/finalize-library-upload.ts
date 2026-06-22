@@ -227,6 +227,15 @@ export async function finalizeLibraryUpload(
     // resolves to this item across all activities using it — prior work is
     // archived as Part History (reason = revision_bump). Idempotent per
     // (record, newRevisionId), so a retried finalize is a no-op.
+    //
+    // This fan-out runs synchronously inside the finalize request. Its D1 query
+    // cost grows per affected activity (byId + paged listByActivity) and per
+    // record (reopenAgainstRevision's reads + batch), so a heavily-used item
+    // (many activities × many participant records) can approach D1's hard
+    // 50-queries-per-Worker-invocation limit. Bounded and correct for v1 track
+    // sizes; the restart is idempotent per (record, newRevisionId), so when the
+    // ceiling is in reach it can be drained off the request path by a Scheduler
+    // queue/cron consumer without changing semantics.
     const usingActivities = await deps.activities.activitiesUsingLibraryItem(itemId);
     for (const { id: activityId } of usingActivities) {
       await revisionBumpRestart(

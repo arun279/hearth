@@ -45,7 +45,14 @@
   --color-scrim: rgb(0 0 0 / 0.35);
 
   /* Background + foreground tokens map to the shadcn convention so third-party
-     components we vendor later don't require a rewrite. */
+     components we vendor later don't require a rewrite. A semantic alias whose
+     value is `var(--other-token)` that re-points per theme (light vs dark) must
+     be declared in a separate `@theme inline` block, not here: a plain `@theme`
+     alias bakes the light value into the generated utility class and never picks
+     up the `.dark` override at use time. These aliases have no utility-class
+     consumers yet (the app reads palette tokens via `[var(--color-*)]` directly,
+     which always resolves live), so move them under `@theme inline` when the
+     first vendored component starts using a `bg-background`-style class. */
   --color-background: var(--color-bg);
   --color-foreground: var(--color-ink);
   --color-muted: var(--color-surface-2);
