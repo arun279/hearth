@@ -130,36 +130,6 @@ Each entry names the **pinned tool**, the **condition** that triggers a reassess
 - **Action**: don't ship it. Tailwind's `text-[var(--color-foo)]` lets any palette token be applied to any text element with no per-call-site review, so a sub-AA token in the shared palette is a foot-gun: the caller cannot tell from the class name that the contrast is unsafe, and a single muted-text token can produce dozens of AA-failing surfaces before anyone notices. If a specific call site genuinely needs sub-AA contrast under a 1.4.3 exemption (decorative non-text, brand mark, etc.), declare the hex inline at the call site with the rationale visible — keep the palette honest. The `tokens.test.ts` Layer-A gate enforces the rule at `pnpm test`.
 - **Location**: `packages/ui/src/tokens.ts` (FOREGROUNDS), `packages/ui/src/styles.css` (palette declarations), `packages/ui/test/tokens.test.ts` (the gate).
 
-### Token mirror — `tokens.ts` is hand-synced to `styles.css`
-
-- **Trigger**: the palette in `packages/ui/src/styles.css` `@theme` grows past the point where keeping `packages/ui/src/tokens.ts` in sync by hand is reliable (frequent drift between the two, or a noticeably larger set of values to mirror).
-- **Action**: generate `tokens.ts` from `styles.css` with a tiny in-repo script that parses the `@theme` block. Do **not** reach for Style Dictionary — the mirror is one CSS source to one TS consumer, not a multi-platform interchange.
-- **Location**: `packages/ui/src/styles.css` (source), `packages/ui/src/tokens.ts` (manual mirror).
-
-### DTCG / design-token interchange format
-
-- **Trigger**: a genuine second non-CSS token consumer appears — a native app, an email / PDF renderer, or Figma-as-source — that needs the palette in a non-CSS form.
-- **Action**: adopt DTCG **properly** — author real `*.tokens.json` source files and add a Style Dictionary build that generates the Tailwind `@theme` block. Never put the DTCG name on a prose doc or relabel `tokens.ts` as DTCG. Until a second consumer exists there is nothing to interchange, so the format buys nothing.
-- **Location**: `packages/ui/src/styles.css` (today's single source), `packages/ui/src/tokens.ts`.
-
-### Page-width literal — no standing width lint
-
-- **Trigger**: a route reintroduces a bare page-width literal (a hand-written `mx-auto max-w-*` measure instead of composing `<PageContainer>`) that `/design-review` does not catch.
-- **Action**: with explicit maintainer approval, add a narrow scoped `check:conventions` rule for that literal. A standing width lint is deferred on purpose: it matches text rather than the React tree, needs several carve-outs at birth for the legit `max-w-md` card surfaces, and cannot tell the measure primitive from a component that inlines the measure. The primitive is the structural fix; a lint is the response of last resort.
-- **Location**: `packages/ui/src/page-container.tsx` (the primitive routes compose), `scripts/check-conventions.mjs` (where such a rule would live).
-
-### Page header (title + breadcrumb + actions) is hand-assembled per route — no `<PageHeader>` primitive yet
-
-- **Trigger**: a second route needs a non-trivial breadcrumb / title / action-row header variation that a third route would also want — i.e. a real second consumer of a shared header shape, not a speculative one.
-- **Action**: extract a `<PageHeader>` primitive (composing the existing `GroupSubpageBreadcrumb`) then, not before — no prop ahead of a consumer. Today the route headers vary enough (some carry an action button, some a description `<p>`, some only a title) that a single component would be all optional props; the breadcrumb is already shared (`GroupSubpageBreadcrumb`), which is the part that actually repeated. This is a deliberate don't-build-yet, not hidden milestone work: no failure has fired, and the in-app page-title canon is one fixed class string (`font-serif text-[1.75rem] text-[var(--color-ink)] leading-tight` at weight 400) applied directly in each route, so the hand-written titles stay consistent without a component.
-- **Location**: route headers in `apps/web/src/routes/g.$groupId.tsx`, `g.$groupId_.t.$trackId.tsx`, `g.$groupId_.library.tsx`, `g.$groupId_.people.tsx`, `admin.instance.tsx`; the existing `apps/web/src/components/groups/group-subpage-breadcrumb.tsx`; a future `packages/ui` primitive.
-
-### Per-theme semantic alias — use `@theme inline`
-
-- **Trigger**: a new semantic alias must re-point to a different underlying token per theme (light vs dark) rather than resolving once at build time.
-- **Action**: declare it with `@theme inline` so the alias reads the live custom property at use time instead of being frozen to the light value. There is no automated guard for this — eyeball it when adding a per-theme alias.
-- **Location**: `packages/ui/src/styles.css` (`@theme` block + `.dark` override).
-
 ## Repository internals — opportunistic migrations
 
 ### `Write<F>` brand on repository ports — opportunistic migration (currently applied to: `LibraryItemRepository`, `LearningActivityRepository`, `ActivityRecordRepository`)
@@ -184,12 +154,6 @@ Each entry names the **pinned tool**, the **condition** that triggers a reassess
 - **Action**: M17 (a) replaces the no-op adapter body with the batched `INSERT … ON CONFLICT … DO UPDATE` UPSERT behind the limiter and adds the budget CI test — no enqueue-site change needed, the call sites already pass the computed values; (b) re-introduces the read surface only when an analytics/auto-complete consumer actually reads it: `EvidenceSignal` (domain `record/types.ts` + `record/index.ts` barrel) and `listEvidenceSignals` on the port + adapter, alongside the throttled flush wrapper if a non-repository entry point is needed.
 - **Location**: `packages/core/src/use-cases/save-reflection-draft.ts`, `packages/core/src/use-cases/submit-quiz-answers.ts` (enqueue call sites); `packages/adapters/cloudflare/src/activity-record-repository.ts` (`flushEvidenceSignals` no-op body); `packages/ports/src/activity-record-repository.ts` (port) and `packages/domain/src/record/types.ts` (where the read DTO returns).
 
-### Revision-bump fan-out runs synchronously on the finalize request path
-
-- **Trigger**: a Library Item is used by enough activities × participant records that one `finalize-library-upload` request's revision-bump fan-out approaches D1's **50-queries-per-invocation** limit (`docs/free-tier-guardrails.md` § 1). The fan-out cost is per-record (2 reads + 1 batch in `reopenAgainstRevision`) plus per-activity (`byId` + paged `listByActivity` in `revisionBumpRestart`), all issued inside the single finalize request that publishes the new revision.
-- **Action**: move the fan-out off the request path (a queue or cron consumer that drains the affected activities/records), deriving any batching threshold from the observed D1 query-per-invocation limit rather than a guessed constant. The restart is already idempotent per (record, newRevisionId), so an off-request retry is safe. Bounded and correct for v1 track sizes; this entry exists so the scale ceiling is found before it bites a finalize request.
-- **Location**: `packages/core/src/use-cases/finalize-library-upload.ts` (the synchronous `for (… of usingActivities)` loop calling `revisionBumpRestart`); `packages/core/src/use-cases/revision-bump-restart.ts`.
-
 ## Convention check tooling
 
 ### `no-stale-milestone-todo` inspects only the first milestone marker per line
@@ -197,12 +161,6 @@ Each entry names the **pinned tool**, the **condition** that triggers a reassess
 - **Trigger**: a single committed line legitimately carries two or more milestone markers where an earlier one is still-open (milestone not yet shipped) but a later one on the same line is stale (already shipped). The non-global `RegExp.exec` scan in `findStaleMilestoneTodos` reads only the first match per line, so the later stale marker is never flagged.
 - **Action**: switch the per-line scan to a global `matchAll` and evaluate every marker on the line. Fixing it may surface previously-hidden legitimate stale markers — evaluate those separately rather than bundling. Low priority: real lines almost never carry two milestone markers.
 - **Location**: `scripts/check-conventions.mjs` (`findStaleMilestoneTodos`).
-
-### Both `TODO(` scanners skip markdown by file type (accepted blind spot)
-
-- **Trigger**: someone records genuine deferred-work debt as a `TODO(mN)` marker inside a `.md`/`.mdx` file (against convention) and expects a gate to flag it when the milestone ships.
-- **Action**: it will not be flagged, by design. Both `findUnscopedTodos` (`no-unscoped-todo`) and `findStaleMilestoneTodos` (`no-stale-milestone-todo`) skip markdown by file type. Markdown is prose _about_ the convention — the AGENTS.md syntax illustrations (e.g. `TODO(m11)`), the `§ Scaffolding-temporary` table's still-future `TODO(m13)` / `TODO(m18)` rows, tripwire write-ups — never a trackable code-borne marker. This matches the project debt model: trackable debt is code-only; prose debt lives in this file or the `§ Scaffolding-temporary` table, not a `TODO(`. Put real deferred work at a code call site (`TODO(mN)`) or as a prose entry here — never as a `TODO(` inside markdown.
-- **Location**: `scripts/check-conventions.mjs` (`findUnscopedTodos`, `findStaleMilestoneTodos` — both gate on `/\.(md|mdx)$/`).
 
 ## How to remove an entry
 
