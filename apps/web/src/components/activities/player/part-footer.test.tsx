@@ -295,9 +295,9 @@ function hasText(node: unknown, needle: string): boolean {
 }
 
 describe("<PartFooter> activity-level completion (manual_mark)", () => {
-  it("renders a 'Mark activity complete' CTA when an incomplete activityCompletion is passed", () => {
+  it("renders a 'Complete activity' CTA when an incomplete activityCompletion is passed", () => {
     const subtree = activityBannerSubtree({ completed: false, pending: false, onComplete: noop });
-    expect(hasText(subtree, "Mark activity complete")).toBe(true);
+    expect(hasText(subtree, "Complete activity")).toBe(true);
     expect(hasText(subtree, "Activity complete —")).toBe(false);
   });
 
@@ -325,7 +325,7 @@ describe("<PartFooter> activity-level completion (manual_mark)", () => {
   it("flips to a 'good'-tone confirmation once the activity is complete (no CTA)", () => {
     const subtree = activityBannerSubtree({ completed: true, pending: false, onComplete: noop });
     expect(hasText(subtree, "Activity complete —")).toBe(true);
-    expect(hasText(subtree, "Mark activity complete")).toBe(false);
+    expect(hasText(subtree, "Complete activity")).toBe(false);
   });
 });
 
