@@ -6,7 +6,6 @@ import type {
   LearningActivityId,
   LearningTrackId,
   LibraryRevisionId,
-  PartHistory,
   TrackEnrollment,
 } from "@hearth/domain";
 import { markWrite } from "@hearth/ports";
@@ -243,21 +242,10 @@ describe("gradeQuizAnswers (re-grade on mount, no write)", () => {
 
 describe("viewActivityRecord", () => {
   it("projects the full view with history rollups for the participant", async () => {
-    const history: PartHistory[] = [
-      {
-        id: "ph_1",
-        activityRecordId: RECORD_ID,
-        partId: "p_reflect" as ActivityPartId,
-        snapshot: { kind: "write_reflection", completed: false, text: "old" },
-        reason: "retry",
-        revisionIdAtTime: null,
-        recordedAt: TEST_NOW,
-      },
-    ];
     const records = makeRecords({
       byId: vi.fn(async () => record()),
       countPartHistory: vi.fn(async () => 1),
-      listPartHistory: vi.fn(async () => history),
+      partsWithHistory: vi.fn(async () => ["p_reflect" as ActivityPartId]),
     });
     const deps = { users: makeUsers(ACTOR), records };
     const view = await viewActivityRecord({ actor: ACTOR_ID, recordId: RECORD_ID }, deps);
@@ -445,7 +433,7 @@ describe("revisionBumpRestart", () => {
   const OLD_REV = "lr_old" as LibraryRevisionId;
   const NEW_REV = "lr_new" as LibraryRevisionId;
 
-  function libraryBackedActivity(): LearningActivity {
+  function libraryBackedActivity(pinnedRevisionId: string | null = null): LearningActivity {
     return makeActivity({
       parts: [
         {
@@ -453,6 +441,14 @@ describe("revisionBumpRestart", () => {
           id: "p_read",
           libraryItemId: ITEM_ID,
         } as never,
+      ],
+      libraryRefs: [
+        {
+          id: "ref_1",
+          activityId: ACTIVITY_ID,
+          libraryItemId: ITEM_ID,
+          pinnedRevisionId,
+        },
       ],
     });
   }
@@ -507,5 +503,27 @@ describe("revisionBumpRestart", () => {
     expect(result.reopenedRecordCount).toBe(0);
     expect(records.reopenAgainstRevision).not.toHaveBeenCalled();
     expect(records.listByActivity).not.toHaveBeenCalled();
+  });
+
+  it("does not reopen a Part pinned via libraryRefs after creation", async () => {
+    const records = makeRecords({
+      listByActivity: vi.fn(async () => ({ records: [record()], nextCursor: null })),
+    });
+    const deps = {
+      activities: makeActivities({ byId: vi.fn(async () => libraryBackedActivity("lr_pin")) }),
+      records,
+    };
+    const result = await revisionBumpRestart(
+      {
+        activityId: ACTIVITY_ID,
+        libraryItemId: ITEM_ID,
+        previousRevisionId: OLD_REV,
+        newRevisionId: NEW_REV,
+      },
+      deps,
+    );
+    expect(result.affectedPartIds).toEqual([]);
+    expect(result.reopenedRecordCount).toBe(0);
+    expect(records.reopenAgainstRevision).not.toHaveBeenCalled();
   });
 });

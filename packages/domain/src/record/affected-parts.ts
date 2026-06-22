@@ -22,10 +22,16 @@ const LIBRARY_BACKED_KINDS = new Set(["read_library_item", "listen_audio", "watc
  * A Part is affected iff ALL hold:
  *  1. its kind is Library-backed (`read_library_item` / `listen_audio` /
  *     `watch_video`);
- *  2. it is NOT pinned to a specific revision — a pinned Part deliberately
- *     holds its revision and is immune to bumps;
+ *  2. its Library Item is NOT pinned to a specific revision — a pinned item
+ *     deliberately holds its revision and is immune to bumps;
  *  3. its Library Item's resolved current revision differs between the
  *     before and after maps.
+ *
+ * Pinning is read from `activity.libraryRefs` keyed by `libraryItemId` —
+ * the authoritative store that `pinLibraryRevision` / `setLibraryRefs`
+ * write and that `get-activity-for-player` resolves against. The Part-level
+ * `pinnedRevisionId` baked into `partsJson` at create time is a stale
+ * mirror once a ref is (un)pinned, so it is deliberately not consulted.
  *
  * Returns the affected Part ids in the activity's Part order. Reflection /
  * quiz / embed / attend-session Parts are excluded by construction (rule
@@ -38,11 +44,16 @@ export function affectedPartIdsForRevisionBump(
   oldRevisions: RevisionMap,
   newRevisions: RevisionMap,
 ): readonly ActivityPartId[] {
+  const pinnedByItem = new Map<string, string | null>();
+  for (const ref of activity.libraryRefs) {
+    pinnedByItem.set(ref.libraryItemId, ref.pinnedRevisionId);
+  }
+
   const affected: ActivityPartId[] = [];
   for (const part of activity.parts) {
     if (!LIBRARY_BACKED_KINDS.has(part.kind)) continue;
-    const backed = part as { id: string; libraryItemId: string; pinnedRevisionId?: string };
-    if (backed.pinnedRevisionId !== undefined) continue;
+    const backed = part as { id: string; libraryItemId: string };
+    if (pinnedByItem.get(backed.libraryItemId)) continue;
     const before = oldRevisions.get(backed.libraryItemId) ?? null;
     const after = newRevisions.get(backed.libraryItemId) ?? null;
     if (before !== after) {

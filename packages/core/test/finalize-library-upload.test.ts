@@ -166,6 +166,14 @@ describe("finalizeLibraryUpload", () => {
     const libraryBackedActivity: LearningActivity = {
       id: "act_1" as LearningActivityId,
       parts: [{ kind: "read_library_item", id: "p_read", libraryItemId: itemId }],
+      libraryRefs: [
+        {
+          id: "ref_1",
+          activityId: "act_1" as LearningActivityId,
+          libraryItemId: itemId,
+          pinnedRevisionId: null,
+        },
+      ],
     } as unknown as LearningActivity;
     const record: ActivityRecord = {
       id: "ar_1" as ActivityRecordId,

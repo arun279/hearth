@@ -1,12 +1,24 @@
 import { describe, expect, it } from "vitest";
-import type { LearningActivity } from "../../src/activity/types.ts";
+import type { ActivityLibraryRef, LearningActivity } from "../../src/activity/types.ts";
 import type { LearningActivityId, LearningTrackId } from "../../src/ids.ts";
 import type { ActivityPart } from "../../src/parts/index.ts";
 import { affectedPartIdsForRevisionBump } from "../../src/record/affected-parts.ts";
 
 const now = new Date("2026-06-01T00:00:00.000Z");
 
-function activityWith(parts: readonly ActivityPart[]): LearningActivity {
+function refFor(libraryItemId: string, pinnedRevisionId: string | null = null): ActivityLibraryRef {
+  return {
+    id: `ref_${libraryItemId}`,
+    activityId: "a_1" as LearningActivityId,
+    libraryItemId,
+    pinnedRevisionId,
+  };
+}
+
+function activityWith(
+  parts: readonly ActivityPart[],
+  libraryRefs: readonly ActivityLibraryRef[] = [],
+): LearningActivity {
   return {
     id: "a_1" as LearningActivityId,
     trackId: "t_1" as LearningTrackId,
@@ -19,7 +31,7 @@ function activityWith(parts: readonly ActivityPart[]): LearningActivity {
     postClosePolicy: null,
     completionRule: { kind: "manual_mark" },
     participationMode: "individual",
-    libraryRefs: [],
+    libraryRefs,
     prerequisiteActivityIds: [],
     suggestedNextActivityIds: [],
     createdAt: now,
@@ -67,16 +79,50 @@ describe("affectedPartIdsForRevisionBump", () => {
     expect(result).toEqual([]);
   });
 
-  it("excludes a pinned Library-backed Part even when the item's current revision changed", () => {
-    const activity = activityWith([
-      { kind: "read_library_item", id: "p1", libraryItemId: "li1", pinnedRevisionId: "rev_pin" },
-    ]);
+  it("excludes a Part whose item is pinned via libraryRefs even when the current revision changed", () => {
+    const activity = activityWith(
+      [{ kind: "read_library_item", id: "p1", libraryItemId: "li1" }],
+      [refFor("li1", "rev_pin")],
+    );
     const result = affectedPartIdsForRevisionBump(
       activity,
       new Map([["li1", "rev_a"]]),
       new Map([["li1", "rev_b"]]),
     );
     expect(result).toEqual([]);
+  });
+
+  it("excludes a Part pinned after creation — libraryRefs is pinned, stale partsJson has no pin", () => {
+    const activity = activityWith(
+      [{ kind: "read_library_item", id: "p1", libraryItemId: "li1" }],
+      [refFor("li1", "rev_pin")],
+    );
+    const result = affectedPartIdsForRevisionBump(
+      activity,
+      new Map([["li1", "rev_a"]]),
+      new Map([["li1", "rev_b"]]),
+    );
+    expect(result).toEqual([]);
+  });
+
+  it("includes a Part unpinned after creation — libraryRefs has no pin, stale partsJson still does", () => {
+    const activity = activityWith(
+      [
+        {
+          kind: "read_library_item",
+          id: "p1",
+          libraryItemId: "li1",
+          pinnedRevisionId: "rev_stale",
+        },
+      ],
+      [refFor("li1", null)],
+    );
+    const result = affectedPartIdsForRevisionBump(
+      activity,
+      new Map([["li1", "rev_a"]]),
+      new Map([["li1", "rev_b"]]),
+    );
+    expect(result).toEqual(["p1"]);
   });
 
   it("excludes non-Library-backed Parts (reflection, quiz, embed, attend_session)", () => {
@@ -107,12 +153,15 @@ describe("affectedPartIdsForRevisionBump", () => {
   });
 
   it("returns affected ids in activity Part order across a mixed Flow", () => {
-    const activity = activityWith([
-      { kind: "write_reflection", id: "p_reflect", prompt: "?" },
-      { kind: "read_library_item", id: "p_read", libraryItemId: "li1" },
-      { kind: "watch_video", id: "p_watch", libraryItemId: "li2", pinnedRevisionId: "rev_pin" },
-      { kind: "listen_audio", id: "p_audio", libraryItemId: "li3" },
-    ]);
+    const activity = activityWith(
+      [
+        { kind: "write_reflection", id: "p_reflect", prompt: "?" },
+        { kind: "read_library_item", id: "p_read", libraryItemId: "li1" },
+        { kind: "watch_video", id: "p_watch", libraryItemId: "li2" },
+        { kind: "listen_audio", id: "p_audio", libraryItemId: "li3" },
+      ],
+      [refFor("li1"), refFor("li2", "rev_pin"), refFor("li3")],
+    );
     const result = affectedPartIdsForRevisionBump(
       activity,
       new Map([
