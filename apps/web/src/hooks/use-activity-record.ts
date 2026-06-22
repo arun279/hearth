@@ -121,13 +121,22 @@ export function useSubmitQuiz(activityId: string) {
   });
 }
 
+type SetPartCompletedResponse = {
+  readonly partId: string;
+  readonly completed: boolean;
+  /** Present iff this flip auto-completed the activity (the
+   * `all_parts_complete` rule fired on the last Part), so the SPA flips the
+   * completed chrome without a follow-up GET. */
+  readonly record?: { readonly completionState: CompletionState };
+};
+
 export function useSetPartCompleted(activityId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: {
       readonly partId: string;
       readonly completed: boolean;
-    }): Promise<{ readonly partId: string; readonly completed: boolean }> => {
+    }): Promise<SetPartCompletedResponse> => {
       const res = await api.activities[":activityId"]["my-record"].parts[":partId"].completion.$put(
         {
           param: { activityId, partId: input.partId },
@@ -135,9 +144,20 @@ export function useSetPartCompleted(activityId: string) {
         },
       );
       await assertOk(res);
-      return (await res.json()) as { readonly partId: string; readonly completed: boolean };
+      return (await res.json()) as SetPartCompletedResponse;
     },
-    onSuccess: () => invalidateRecord(qc, activityId),
+    // Seed the record cache with the activity-level rollup the server already
+    // returned on an inline auto-complete so the completed chrome flips
+    // immediately, then invalidate so the per-Part completion chips refetch.
+    onSuccess: (result) => {
+      if (result.record) {
+        const completionState = result.record.completionState;
+        qc.setQueryData<MyActivityRecordView>(recordKey(activityId), (prev) =>
+          prev ? { ...prev, completionState } : prev,
+        );
+      }
+      invalidateRecord(qc, activityId);
+    },
   });
 }
 

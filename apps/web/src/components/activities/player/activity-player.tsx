@@ -471,7 +471,7 @@ function AccessStateNotice({
   readonly body: string;
 }) {
   return (
-    <Callout tone={tone === "warn" ? "warn" : "neutral"} title={title}>
+    <Callout tone={tone} title={title}>
       <p>{body}</p>
     </Callout>
   );
