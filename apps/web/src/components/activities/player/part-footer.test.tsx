@@ -12,7 +12,10 @@ import { PartFooter } from "./part-footer.tsx";
  *
  *   - At most one filled-primary control per state. While the active Part is
  *     incomplete, Mark-complete is the only primary; once it's complete on the
- *     last Part, "Back to track" takes primary and Mark-complete steps down.
+ *     last Part, "Back to track" takes primary and Mark-complete steps down. The
+ *     activity-close CTA goes filled-primary only on the last Part (the readiness
+ *     signal); mid-flow it stays an enabled secondary so the per-Part toggle
+ *     leads.
  *   - The honor-system toggle is a single `<Button>` whose `variant` /
  *     `aria-pressed` flip in place (focus retention across activation is then
  *     verified end-to-end in Playwright, since SSR has no event loop).
@@ -262,12 +265,18 @@ type TestActivityCompletion = { completed: boolean; pending: boolean; onComplete
  * footer tree, so resolve it and invoke its component to get the rendered
  * `<Callout>`/`<Button>` subtree — the same approach the MarkCompleteButton
  * helpers use (the banner has no router `<Link>`, so it SSRs cleanly).
+ *
+ * `nextPartId` drives the readiness signal: `null` (last Part) flips the CTA to
+ * filled-primary, any other id (mid-flow) keeps it secondary.
  */
-function activityBannerSubtree(activityCompletion: TestActivityCompletion): unknown {
+function activityBannerSubtree(
+  activityCompletion: TestActivityCompletion,
+  nextPartId: string | null = "p2",
+): unknown {
   const tree = PartFooter({
     measure: "max-w-2xl",
     previousPartId: null,
-    nextPartId: "p2",
+    nextPartId,
     onNavigate: noop,
     groupId: "g_1",
     trackId: "t_1",
@@ -282,6 +291,10 @@ function activityBannerSubtree(activityCompletion: TestActivityCompletion): unkn
   if (!banner) throw new Error("ActivityCompletionBanner not found");
   const Component = banner.type as (p: unknown) => ReactElement;
   return Component(banner.props);
+}
+
+function lastPartActivityBannerSubtree(activityCompletion: TestActivityCompletion): unknown {
+  return activityBannerSubtree(activityCompletion, null);
 }
 
 function hasText(node: unknown, needle: string): boolean {
@@ -301,7 +314,7 @@ describe("<PartFooter> activity-level completion (manual_mark)", () => {
     expect(hasText(subtree, "Activity complete —")).toBe(false);
   });
 
-  it("the incomplete activity CTA owns the footer's single primary slot; the per-Part toggle steps down", () => {
+  it("mid-flow: the incomplete activity CTA stays a calm secondary; the per-Part toggle leads", () => {
     const tree = PartFooter({
       measure: "max-w-2xl",
       previousPartId: null,
@@ -313,12 +326,38 @@ describe("<PartFooter> activity-level completion (manual_mark)", () => {
       activityCompletion: { completed: false, pending: false, onComplete: noop },
       completion: baseCompletion,
     });
-    // The Next button (the only other rendered control) must be secondary.
+    // Mid-flow, readiness isn't signalled yet, so the activity CTA renders
+    // secondary and the per-Part toggle reclaims the single primary slot while
+    // the Part is incomplete. Next (the only other rendered control) is secondary
+    // and the banner CTA carries no filled-primary.
+    expect(collect(tree, isPrimary)).toHaveLength(0);
+    expect(markCompleteVariant(tree)).toBe("primary");
+    const subtree = activityBannerSubtree({ completed: false, pending: false, onComplete: noop });
+    expect(collect(subtree, isPrimary)).toHaveLength(0);
+  });
+
+  it("last Part: the incomplete activity CTA owns the footer's single primary slot; the per-Part toggle steps down", () => {
+    const tree = PartFooter({
+      measure: "max-w-2xl",
+      previousPartId: "p1",
+      nextPartId: null,
+      onNavigate: noop,
+      groupId: "g_1",
+      trackId: "t_1",
+      allPartsComplete: false,
+      activityCompletion: { completed: false, pending: false, onComplete: noop },
+      completion: baseCompletion,
+    });
+    // The Back-to-track Link (the only other rendered control) must be secondary.
     expect(collect(tree, isPrimary)).toHaveLength(0);
     // And the per-Part Mark-complete wrapper demotes while the activity CTA leads.
     expect(markCompleteVariant(tree)).toBe("secondary");
-    // The banner itself carries the single filled-primary CTA.
-    const subtree = activityBannerSubtree({ completed: false, pending: false, onComplete: noop });
+    // The banner itself carries the single filled-primary CTA on the last Part.
+    const subtree = lastPartActivityBannerSubtree({
+      completed: false,
+      pending: false,
+      onComplete: noop,
+    });
     expect(collect(subtree, isPrimary)).toHaveLength(1);
   });
 

@@ -56,12 +56,17 @@ type Props = {
 
 /**
  * Sticky footer for the Activity Player, stacked top-to-bottom in the active
- * Part's measure: the activity-close banner, the all-parts-complete note, the
- * per-Part "Mark this part done" toggle on its own full-width line, and finally
- * the Previous/Next navigation row. The per-Part toggle is a Part-scoped state
- * action, so it sits with the Part content it governs rather than among the
+ * Part's measure, granular-work-first so the terminal close action sits last
+ * (SAP Fiori / wizard-checkout convention; Shneiderman rule 4 closure): the
+ * all-parts-complete note, the per-Part "Mark this part done" toggle on its own
+ * line, the activity-close banner, and finally the Previous/Next navigation row.
+ * The per-Part toggle is a Part-scoped state action, so it sits with the Part
+ * content it governs, above the activity-close banner and apart from the
  * navigation pair (NN/G Gestalt-Proximity: grouping a different-type action with
- * Previous/Next reads as one cluster and hurts both).
+ * Previous/Next reads as one cluster and hurts both). The toggle rides in its
+ * own neutral Callout so it reads as the same visual species as the banner
+ * directly below it — a bare button there reads as orphaned / top-light against
+ * the framed callout (NN/G consistency; Rams "aesthetic").
  *
  * Completion is honor-system: the toggle is always enabled regardless of a
  * reflection's `minWords` or a quiz's score — it stays live so the
@@ -73,11 +78,14 @@ type Props = {
  * The Previous/Next labels collapse to icon-only below `sm` (their accessible
  * name stays via `aria-label`) and the rows wrap if they still can't fit, so
  * nothing overflows down to a 320px viewport. At most one filled-primary button
- * per state: an incomplete activity-close CTA leads when shown; otherwise while
- * the active Part is still markable and incomplete the per-Part toggle is
- * primary and the forward affordance steps down; once the Part is done (or the
- * viewer can't mark), the forward affordance (Next, or "Back to track" on the
- * last Part) takes primary.
+ * per state. The activity-close CTA goes filled-primary only on the last Part —
+ * the position that signals the participant is plausibly ready to finish; before
+ * then it stays an enabled SECONDARY (never disabled) so "Next" / "Mark this
+ * part done" leads while content remains. So: on the last Part the incomplete
+ * activity-close CTA is the single primary; mid-flow while the active Part is
+ * still markable and incomplete the per-Part toggle is primary and the forward
+ * affordance steps down; once the Part is done (or the viewer can't mark), the
+ * forward affordance (Next, or "Back to track" on the last Part) takes primary.
  */
 export function PartFooter({
   measure,
@@ -92,11 +100,15 @@ export function PartFooter({
 }: Props) {
   const isLastPart = nextPartId === null;
   const activePartComplete = completion?.completed ?? false;
-  // An incomplete activity-level CTA owns the footer's single primary slot — it
-  // is the headline close action — so every per-Part/forward control steps down
-  // while it shows. Once the activity is complete (or there is no manual CTA),
-  // the per-Part hierarchy below resumes.
-  const activityCtaIsPrimary = activityCompletion !== null && !activityCompletion.completed;
+  // The activity-close CTA claims the footer's single primary slot only once the
+  // participant is plausibly ready to finish — last-Part POSITION is the
+  // readiness signal. On the last Part the incomplete CTA is the headline close
+  // action and every per-Part/forward control steps down. Before then it renders
+  // an enabled SECONDARY (the banner stays visible, never disabled), so the
+  // per-Part hierarchy below leads while content remains. Once the activity is
+  // complete (or there is no manual CTA), that hierarchy resumes regardless.
+  const activityCtaIsPrimary =
+    activityCompletion !== null && !activityCompletion.completed && isLastPart;
   // The forward affordance ("Back to track" on the last Part, "Next" otherwise)
   // claims primary emphasis only once there's nothing left to mark here — while
   // the active Part is still incomplete (and the viewer may mark it),
@@ -110,12 +122,6 @@ export function PartFooter({
   return (
     <footer className="sticky bottom-0 z-10 shrink-0 border-[var(--color-rule)] border-t bg-[var(--color-surface)] px-5 py-3 md:px-8">
       <div className={cn("mx-auto flex w-full flex-col gap-2", measure)}>
-        {activityCompletion ? (
-          <ActivityCompletionBanner
-            activityCompletion={activityCompletion}
-            ctaIsPrimary={activityCtaIsPrimary}
-          />
-        ) : null}
         {allPartsComplete ? (
           // The strongest closure signal carries the strongest onward action so
           // it's reachable from any Part. On the last Part the footer's own
@@ -137,9 +143,19 @@ export function PartFooter({
           </Callout>
         ) : null}
         {completion?.canMark ? (
-          <div className="flex">
+          // The per-Part toggle rides in a neutral Callout matching the
+          // activity-close banner's frame so the two read as one coherent stack
+          // (a bare button here reads orphaned / top-light against the framed
+          // banner below — NN/G consistency, Rams "aesthetic").
+          <Callout tone="neutral" className="py-2">
             <MarkCompleteButton completion={completion} demoteToSecondary={markCompleteDemoted} />
-          </div>
+          </Callout>
+        ) : null}
+        {activityCompletion ? (
+          <ActivityCompletionBanner
+            activityCompletion={activityCompletion}
+            ctaIsPrimary={activityCtaIsPrimary}
+          />
         ) : null}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <Button
@@ -181,10 +197,13 @@ export function PartFooter({
 
 /**
  * Activity-level completion closure for `manual_mark`. Incomplete: a callout
- * carrying the primary "Complete activity" CTA — the single action that closes a
- * manual-mark record (per-Part marks never auto-complete it). A Flag glyph marks
- * it as the finalize action, distinct from the per-Part checkbox and the
- * read-only status checks. Complete: a "good"-tone confirmation so the
+ * carrying the "Complete activity" CTA — the single action that closes a
+ * manual-mark record (per-Part marks never auto-complete it). The CTA renders
+ * filled-primary only on the last Part (`ctaIsPrimary`, the readiness signal);
+ * before then it is an enabled SECONDARY in the same visible callout — never
+ * disabled — so the per-Part / Next actions lead while content remains. A Flag
+ * glyph marks it as the finalize action, distinct from the per-Part checkbox and
+ * the read-only status checks. Complete: a "good"-tone confirmation so the
  * participant gets the dialog-closure signal the per-Part marks alone never
  * provided (Shneiderman rule 4). The button stays ENABLED while pending (a
  * disabled focused button drops focus to `<body>`); `aria-busy` announces the
@@ -246,9 +265,10 @@ function ActivityCompletionBanner({
  * the control (WCAG 2.4.7).
  *
  * `demoteToSecondary` forces the button to render secondary whenever the forward
- * affordance (Next / Back to track) or the activity-close CTA owns the footer's
- * single primary slot; otherwise the incomplete per-Part toggle is the footer's
- * primary call to action.
+ * affordance (Next / Back to track) or the last-Part activity-close CTA owns the
+ * footer's single primary slot; otherwise the incomplete per-Part toggle is the
+ * footer's primary call to action (including mid-flow, where the activity-close
+ * CTA stays secondary).
  */
 function MarkCompleteButton({
   completion,
