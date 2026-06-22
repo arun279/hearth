@@ -97,7 +97,7 @@ test.describe("M11 — Activity Records, Part Progress & Part History", () => {
     await expect(page.getByText(/0 of 2 Parts complete/i)).toBeVisible();
 
     // Mark the reading Part complete.
-    await page.getByRole("button", { name: /^Mark complete$/i }).click();
+    await page.getByRole("button", { name: /^Mark this part done$/i }).click();
     await expect(page.getByText(/1 of 2 Parts complete/i)).toBeVisible();
 
     // Move to the reflection Part and mark it complete — the last Part flips
@@ -105,7 +105,7 @@ test.describe("M11 — Activity Records, Part Progress & Part History", () => {
     const sidebar = page.getByRole("navigation", { name: /Activity Parts/i }).first();
     await sidebar.getByRole("button").nth(1).click();
     await expect(page.getByText(/Part 2 of 2/i)).toBeVisible();
-    await page.getByRole("button", { name: /^Mark complete$/i }).click();
+    await page.getByRole("button", { name: /^Mark this part done$/i }).click();
     await expect(page.getByText(/2 of 2 Parts complete/i)).toBeVisible();
     await expect(page.getByText(/All parts complete/i)).toBeVisible();
   });
@@ -207,7 +207,7 @@ test.describe("M11 — Activity Records, Part Progress & Part History", () => {
     // non-reading Part). Only the reading Part should reopen on the bump.
     await page.getByRole("button", { name: /Open activity: Living unit/i }).click();
     await expect(page.getByText(/Part 1 of 2/i)).toBeVisible();
-    await page.getByRole("button", { name: /^Mark complete$/i }).click();
+    await page.getByRole("button", { name: /^Mark this part done$/i }).click();
     await expect(page.getByText(/1 of 2 Parts complete/i)).toBeVisible();
 
     const sidebar = page.getByRole("navigation", { name: /Activity Parts/i }).first();

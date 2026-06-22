@@ -4,10 +4,13 @@ import { Popover } from "../src/popover.tsx";
 import { renderPrimitive } from "../src/test/render.tsx";
 
 /**
- * Popover is a non-modal disclosure with internal `open`/`placeAbove` state and
+ * Popover is a non-modal disclosure with internal open state and
  * effect-installed global listeners (Escape, outside-mousedown, resize/scroll
- * reposition). These are the focus-management + listener-lifecycle branches the
- * SSR-string layer cannot drive — they need a mounted DOM with real events.
+ * reposition). The panel renders through a portal to `document.body` with
+ * `position: fixed`, positioned from the trigger's viewport rect so it escapes
+ * any `overflow` scroll ancestor. These are the focus-management +
+ * listener-lifecycle + collision-flip branches the SSR-string layer cannot
+ * drive — they need a mounted DOM with real events.
  */
 
 function Fixture() {
@@ -101,36 +104,81 @@ describe("Popover", () => {
       </div>,
     );
     await user.click(screen.getByRole("button", { name: "Visibility: Track" }));
+    const panel = document.getElementById(
+      screen.getByRole("button", { name: "Visibility: Track" }).getAttribute("aria-controls") ?? "",
+    );
     expect(screen.getByRole("button", { name: "first" })).toHaveFocus();
 
     await user.tab();
     expect(screen.getByRole("button", { name: "second" })).toHaveFocus();
     await user.tab();
-    // Focus reaches the element after the popover — Tab is free, not trapped.
-    expect(screen.getByRole("button", { name: "after" })).toHaveFocus();
+    // Tab is free, not trapped: focus moves out of the panel. The panel renders
+    // through a portal at the end of `document.body`, so DOM tab order carries
+    // focus past it rather than back to a trigger sibling.
+    expect(panel?.contains(document.activeElement)).toBe(false);
   });
 
-  it("flips placeAbove when the panel overflows the space below and more space sits above", async () => {
+  it("flips above the trigger when the panel overflows the space below and more space sits above", async () => {
     const innerHeight = window.innerHeight;
     const { user } = renderPrimitive(<Fixture />);
     const trigger = screen.getByRole("button", { name: "Visibility: Track" });
 
     // Anchor the trigger near the bottom edge: small space below, large above.
+    const triggerTop = innerHeight - 20;
     trigger.getBoundingClientRect = () =>
-      ({ top: innerHeight - 20, bottom: innerHeight - 10 }) as DOMRect;
+      ({ top: triggerTop, bottom: innerHeight - 10, left: 0, right: 240 }) as DOMRect;
 
     await user.click(trigger);
     const panel = document.getElementById(trigger.getAttribute("aria-controls") ?? "");
     expect(panel).not.toBeNull();
-    // happy-dom reports offsetHeight 0 by default; force a tall panel so the
+    // happy-dom reports offset sizes 0 by default; force a tall panel so the
     // reposition predicate (panel height > space-below && space-above larger)
     // resolves true and the panel renders above the trigger.
-    Object.defineProperty(panel, "offsetHeight", { configurable: true, value: 400 });
+    const panelHeight = 400;
+    Object.defineProperty(panel, "offsetHeight", { configurable: true, value: panelHeight });
+    Object.defineProperty(panel, "offsetWidth", { configurable: true, value: 240 });
+    window.dispatchEvent(new Event("resize"));
+
+    // The portal panel is `position: fixed`; flipped-above means its top sits a
+    // GAP above the trigger's top (rect.top - panelHeight - GAP), i.e. well
+    // above the trigger rather than below it.
+    await waitFor(() => {
+      expect(panel?.style.position).toBe("fixed");
+      expect(Number.parseFloat(panel?.style.top ?? "")).toBeLessThan(triggerTop);
+    });
+  });
+
+  it("anchors below the trigger when there is room below", async () => {
+    const { user } = renderPrimitive(<Fixture />);
+    const trigger = screen.getByRole("button", { name: "Visibility: Track" });
+
+    const triggerBottom = 60;
+    trigger.getBoundingClientRect = () =>
+      ({ top: 40, bottom: triggerBottom, left: 0, right: 240 }) as DOMRect;
+
+    await user.click(trigger);
+    const panel = document.getElementById(trigger.getAttribute("aria-controls") ?? "");
+    expect(panel).not.toBeNull();
+    Object.defineProperty(panel, "offsetHeight", { configurable: true, value: 120 });
+    Object.defineProperty(panel, "offsetWidth", { configurable: true, value: 240 });
     window.dispatchEvent(new Event("resize"));
 
     await waitFor(() => {
-      expect(panel?.className).toContain("bottom-full");
-      expect(panel?.className).not.toContain("top-full");
+      expect(panel?.style.position).toBe("fixed");
+      // Placed below: top is a GAP under the trigger's bottom edge.
+      expect(Number.parseFloat(panel?.style.top ?? "")).toBeGreaterThan(triggerBottom);
     });
+  });
+
+  it("renders the panel through a portal to document.body, outside the trigger wrapper", async () => {
+    const { user } = renderPrimitive(<Fixture />);
+    const trigger = screen.getByRole("button", { name: "Visibility: Track" });
+    await user.click(trigger);
+    const panel = document.getElementById(trigger.getAttribute("aria-controls") ?? "");
+    expect(panel).not.toBeNull();
+    // The panel escapes any scroll ancestor: it is a direct child of body, not
+    // nested under the trigger.
+    expect(panel?.parentElement).toBe(document.body);
+    expect(trigger.contains(panel)).toBe(false);
   });
 });

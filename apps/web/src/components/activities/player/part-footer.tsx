@@ -20,7 +20,7 @@ type Completion = {
  * The activity-level completion affordance for the `manual_mark` Completion
  * Rule (the v1 composer default). Absent (`null`) for `all_parts_complete`
  * (the server auto-completes on the last Part) and for read-only / non-author
- * viewers. `completed` flips the closure banner from a "Mark activity complete"
+ * viewers. `completed` flips the closure banner from a "Complete activity"
  * call to action to a "good"-tone confirmation, giving the participant the
  * dialog-closure signal the per-Part marks alone never provided.
  */

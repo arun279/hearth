@@ -79,7 +79,7 @@ test.describe("M9 — Activity player (passive Parts)", () => {
     await expect(page.getByText(/Part 2 of 2/i)).toBeVisible();
 
     // On the LAST Part the footer shows a live "Back to track" closure link
-    // alongside a live "Mark complete" toggle — the link navigates without
+    // alongside a live "Mark this part done" toggle — the link navigates without
     // claiming completion; the toggle is the honest completion action. There
     // are now two "Back to track" links on this Part: the persistent header
     // one and the footer closure one; on a non-final Part only the header
@@ -89,11 +89,11 @@ test.describe("M9 — Activity player (passive Parts)", () => {
     // The track creator is auto-enrolled as a facilitator (a current
     // enrollment), so they may author honor-system completion. The
     // mark-complete toggle is enabled on every Part regardless of `minWords`.
-    await expect(page.getByRole("button", { name: /^Mark complete$/i })).toBeEnabled();
+    await expect(page.getByRole("button", { name: /^Mark this part done$/i })).toBeEnabled();
     await page.getByRole("button", { name: /^Previous/i }).click();
     await expect(page.getByText(/Part 1 of 2/i)).toBeVisible();
     await expect(page.getByRole("link", { name: /Back to track/i })).toHaveCount(1);
-    await expect(page.getByRole("button", { name: /^Mark complete$/i })).toBeEnabled();
+    await expect(page.getByRole("button", { name: /^Mark this part done$/i })).toBeEnabled();
   });
 
   test("player route returns 404 (not 403) for a non-existent activity id", async ({ browser }) => {
