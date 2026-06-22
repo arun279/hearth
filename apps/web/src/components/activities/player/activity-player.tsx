@@ -297,6 +297,10 @@ function PlayerBody({
             onNavigate={onChangeActivePartId}
             groupId={groupId}
             trackId={trackId}
+            // A Quiz renders its own filled-primary "Submit" only for an
+            // authoring participant; the footer then cedes its primary slot so
+            // the surface shows one blue CTA (the Submit), never two.
+            bodyOwnsPrimary={activePart?.kind === "quiz" && canAuthor}
             allPartsComplete={
               activity.completionRule.kind === "all_parts_complete" &&
               orderedPartIds.length > 0 &&

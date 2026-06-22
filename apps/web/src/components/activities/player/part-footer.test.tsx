@@ -82,6 +82,7 @@ describe("<PartFooter> visual hierarchy", () => {
       trackId: "t_1",
       allPartsComplete: false,
       activityCompletion: null,
+      bodyOwnsPrimary: false,
       completion: baseCompletion,
     });
     // The MarkCompleteButton wrapper is unrendered, so resolve its variant from
@@ -102,6 +103,7 @@ describe("<PartFooter> visual hierarchy", () => {
       trackId: "t_1",
       allPartsComplete: false,
       activityCompletion: null,
+      bodyOwnsPrimary: false,
       completion: { ...baseCompletion, completed: true },
     });
     expect(markCompleteVariant(tree)).toBe("secondary");
@@ -119,6 +121,7 @@ describe("<PartFooter> visual hierarchy", () => {
       trackId: "t_1",
       allPartsComplete: false,
       activityCompletion: null,
+      bodyOwnsPrimary: false,
       completion: { ...baseCompletion, canMark: false },
     });
     // No Mark-complete control renders; Next is the footer's primary.
@@ -135,6 +138,7 @@ describe("<PartFooter> visual hierarchy", () => {
       trackId: "t_1",
       allPartsComplete: false,
       activityCompletion: null,
+      bodyOwnsPrimary: false,
       completion: baseCompletion,
     });
     expect(markCompleteVariant(tree)).toBe("primary");
@@ -153,6 +157,7 @@ describe("<PartFooter> visual hierarchy", () => {
       trackId: "t_1",
       allPartsComplete: true,
       activityCompletion: null,
+      bodyOwnsPrimary: false,
       completion: { ...baseCompletion, completed: true },
     });
     expect(markCompleteVariant(tree)).toBe("secondary");
@@ -172,6 +177,7 @@ describe("<PartFooter> all-parts-complete closure", () => {
       trackId: "t_1",
       allPartsComplete: true,
       activityCompletion: null,
+      bodyOwnsPrimary: false,
       completion: { ...baseCompletion, completed: true },
     });
     const note = collect(tree, (el) => {
@@ -193,6 +199,7 @@ describe("<PartFooter> all-parts-complete closure", () => {
       trackId: "t_1",
       allPartsComplete: true,
       activityCompletion: null,
+      bodyOwnsPrimary: false,
       completion: { ...baseCompletion, completed: true },
     });
     const links = collect(tree, (el) => {
@@ -214,6 +221,7 @@ describe("<PartFooter> all-parts-complete closure", () => {
       trackId: "t_1",
       allPartsComplete: true,
       activityCompletion: null,
+      bodyOwnsPrimary: false,
       completion: { ...baseCompletion, completed: true },
     });
     const links = collect(tree, (el) => {
@@ -233,6 +241,7 @@ describe("<PartFooter> all-parts-complete closure", () => {
       trackId: "t_1",
       allPartsComplete: false,
       activityCompletion: null,
+      bodyOwnsPrimary: false,
       completion: baseCompletion,
     });
     const note = collect(tree, (el) => {
@@ -240,6 +249,55 @@ describe("<PartFooter> all-parts-complete closure", () => {
       return typeof text === "string" && text.includes("All parts complete");
     });
     expect(note).toHaveLength(0);
+  });
+});
+
+describe("<PartFooter> cedes the primary slot when the body owns it", () => {
+  // The exact two-blue-CTA scenario the surface-level guarantee fixes: a last
+  // Part whose body is a Quiz (filled "Submit") under manual_mark. The footer's
+  // own flip would put "Complete activity" filled-primary here; bodyOwnsPrimary
+  // must suppress it so the Quiz Submit is the lone blue CTA.
+  it("last Part, incomplete activity CTA, body owns primary: no footer control is primary", () => {
+    const tree = PartFooter({
+      measure: "max-w-2xl",
+      previousPartId: "p1",
+      nextPartId: null,
+      onNavigate: noop,
+      groupId: "g_1",
+      trackId: "t_1",
+      allPartsComplete: false,
+      activityCompletion: { completed: false, pending: false, onComplete: noop },
+      bodyOwnsPrimary: true,
+      completion: baseCompletion,
+    });
+    expect(collect(tree, isPrimary)).toHaveLength(0);
+    expect(markCompleteVariant(tree)).toBe("secondary");
+    // Even the activity banner CTA — primary on a last Part by its own rule —
+    // stays secondary because the footer ceded the slot to the body.
+    const subtree = lastPartActivityBannerSubtree(
+      { completed: false, pending: false, onComplete: noop },
+      true,
+    );
+    expect(collect(subtree, isPrimary)).toHaveLength(0);
+  });
+
+  // The other surface clash: a completed last Part with a Quiz body would flip
+  // "Back to track" filled-primary, tying with the Quiz "Re-submit". The body
+  // still owns the slot, so Back-to-track stays secondary.
+  it("last Part, active complete, body owns primary: Back to track stays secondary", () => {
+    const tree = PartFooter({
+      measure: "max-w-2xl",
+      previousPartId: "p2",
+      nextPartId: null,
+      onNavigate: noop,
+      groupId: "g_1",
+      trackId: "t_1",
+      allPartsComplete: true,
+      activityCompletion: null,
+      bodyOwnsPrimary: true,
+      completion: { ...baseCompletion, completed: true },
+    });
+    expect(collect(tree, isPrimary)).toHaveLength(0);
   });
 });
 
@@ -272,6 +330,7 @@ type TestActivityCompletion = { completed: boolean; pending: boolean; onComplete
 function activityBannerSubtree(
   activityCompletion: TestActivityCompletion,
   nextPartId: string | null = "p2",
+  bodyOwnsPrimary = false,
 ): unknown {
   const tree = PartFooter({
     measure: "max-w-2xl",
@@ -282,6 +341,7 @@ function activityBannerSubtree(
     trackId: "t_1",
     allPartsComplete: false,
     activityCompletion,
+    bodyOwnsPrimary,
     completion: baseCompletion,
   });
   const banner = collect(tree, (el) => {
@@ -293,8 +353,11 @@ function activityBannerSubtree(
   return Component(banner.props);
 }
 
-function lastPartActivityBannerSubtree(activityCompletion: TestActivityCompletion): unknown {
-  return activityBannerSubtree(activityCompletion, null);
+function lastPartActivityBannerSubtree(
+  activityCompletion: TestActivityCompletion,
+  bodyOwnsPrimary = false,
+): unknown {
+  return activityBannerSubtree(activityCompletion, null, bodyOwnsPrimary);
 }
 
 function hasText(node: unknown, needle: string): boolean {
@@ -324,6 +387,7 @@ describe("<PartFooter> activity-level completion (manual_mark)", () => {
       trackId: "t_1",
       allPartsComplete: false,
       activityCompletion: { completed: false, pending: false, onComplete: noop },
+      bodyOwnsPrimary: false,
       completion: baseCompletion,
     });
     // Mid-flow, readiness isn't signalled yet, so the activity CTA renders
@@ -346,6 +410,7 @@ describe("<PartFooter> activity-level completion (manual_mark)", () => {
       trackId: "t_1",
       allPartsComplete: false,
       activityCompletion: { completed: false, pending: false, onComplete: noop },
+      bodyOwnsPrimary: false,
       completion: baseCompletion,
     });
     // The Back-to-track Link (the only other rendered control) must be secondary.
@@ -379,6 +444,7 @@ function markCompleteWrapper(completion: TestCompletion): ReactElement {
     trackId: "t_1",
     allPartsComplete: false,
     activityCompletion: null,
+    bodyOwnsPrimary: false,
     completion,
   });
   const wrapper = collect(tree, (el) => {

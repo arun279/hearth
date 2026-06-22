@@ -52,6 +52,17 @@ type Props = {
   readonly allPartsComplete: boolean;
   /** Activity-level completion (the `manual_mark` close affordance + state). */
   readonly activityCompletion: ActivityCompletion | null;
+  /**
+   * True when the active Part's body renders its own filled-primary action (a
+   * Quiz's "Submit"). The footer's flip is footer-local: it guarantees one
+   * primary among ITS controls but can't see the body. When the body owns a
+   * primary, the footer cedes the slot entirely — every footer control stays
+   * secondary — so the whole surface shows exactly one filled-primary (the
+   * body Submit), and "Complete activity" / "Back to track" can't out-shout the
+   * unsatisfied quiz submission (Nielsen #8, Rams #3; error prevention,
+   * Shneiderman #5).
+   */
+  readonly bodyOwnsPrimary: boolean;
 };
 
 /**
@@ -86,6 +97,12 @@ type Props = {
  * still markable and incomplete the per-Part toggle is primary and the forward
  * affordance steps down; once the Part is done (or the viewer can't mark), the
  * forward affordance (Next, or "Back to track" on the last Part) takes primary.
+ *
+ * "One filled-primary" is a WHOLE-SURFACE guarantee, not footer-local: when the
+ * active Part body owns its own primary (`bodyOwnsPrimary` — a Quiz "Submit"),
+ * the footer cedes the slot and every footer control stays secondary, so the
+ * body Submit is the lone blue CTA and out-ranks (never ties with) the close
+ * action.
  */
 export function PartFooter({
   measure,
@@ -97,6 +114,7 @@ export function PartFooter({
   completion,
   allPartsComplete,
   activityCompletion,
+  bodyOwnsPrimary,
 }: Props) {
   const isLastPart = nextPartId === null;
   const activePartComplete = completion?.completed ?? false;
@@ -107,18 +125,25 @@ export function PartFooter({
   // an enabled SECONDARY (the banner stays visible, never disabled), so the
   // per-Part hierarchy below leads while content remains. Once the activity is
   // complete (or there is no manual CTA), that hierarchy resumes regardless.
+  // When the body owns the surface's primary, no footer control takes it.
   const activityCtaIsPrimary =
-    activityCompletion !== null && !activityCompletion.completed && isLastPart;
+    !bodyOwnsPrimary && activityCompletion !== null && !activityCompletion.completed && isLastPart;
   // The forward affordance ("Back to track" on the last Part, "Next" otherwise)
   // claims primary emphasis only once there's nothing left to mark here — while
   // the active Part is still incomplete (and the viewer may mark it),
   // Mark-complete owns the single primary slot so the two never render
   // filled-blue at once (one primary per footer; visual-hierarchy rule). Once
   // the Part is complete, Mark-complete steps down and the forward action leads.
+  // When the body owns the surface's primary, no footer control takes it.
   const forwardIsPrimary =
-    !activityCtaIsPrimary && (activePartComplete || !(completion?.canMark ?? false));
+    !bodyOwnsPrimary &&
+    !activityCtaIsPrimary &&
+    (activePartComplete || !(completion?.canMark ?? false));
   const finishIsPrimary = isLastPart && forwardIsPrimary;
-  const markCompleteDemoted = forwardIsPrimary || activityCtaIsPrimary;
+  // The per-Part toggle is the footer's primary only when nothing else claims
+  // it; the body owning the surface primary demotes the toggle along with the
+  // rest of the footer.
+  const markCompleteDemoted = bodyOwnsPrimary || forwardIsPrimary || activityCtaIsPrimary;
   return (
     <footer className="sticky bottom-0 z-10 shrink-0 border-[var(--color-rule)] border-t bg-[var(--color-surface)] px-5 py-3 md:px-8">
       <div className={cn("mx-auto flex w-full flex-col gap-2", measure)}>
