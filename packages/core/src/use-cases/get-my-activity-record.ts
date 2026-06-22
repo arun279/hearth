@@ -35,10 +35,10 @@ export async function getMyActivityRecord(
       partsWithHistory: [],
     };
   }
-  const [parts, partHistoryCount, history] = await Promise.all([
+  const [parts, partHistoryCount, partsWithHistory] = await Promise.all([
     deps.records.listPartProgress(record.id),
     deps.records.countPartHistory(record.id),
-    deps.records.listPartHistory(record.id),
+    deps.records.partsWithHistory(record.id),
   ]);
   return {
     canParticipate: ctx.participation.ok,
@@ -46,6 +46,6 @@ export async function getMyActivityRecord(
     visibilityOverride: record.visibilityOverride,
     parts: parts.map((p) => ({ partId: p.partId, state: p.state })),
     partHistoryCount,
-    partsWithHistory: [...new Set(history.map((h) => h.partId))],
+    partsWithHistory,
   };
 }

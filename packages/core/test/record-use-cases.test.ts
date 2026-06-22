@@ -181,15 +181,6 @@ describe("getMyActivityRecord", () => {
       state: { kind: "write_reflection", completed: false, text: "draft" },
       updatedAt: TEST_NOW,
     };
-    const historyRow = {
-      id: "ph_1",
-      activityRecordId: RECORD_ID,
-      partId: "p_quiz" as ActivityPartId,
-      snapshot: { kind: "quiz" as const, completed: true, answers: [] },
-      reason: "retry" as const,
-      revisionIdAtTime: null,
-      recordedAt: TEST_NOW,
-    };
     const deps = depsOk({
       records: makeRecords({
         byParticipantAndActivity: vi.fn(async () =>
@@ -197,7 +188,7 @@ describe("getMyActivityRecord", () => {
         ),
         listPartProgress: vi.fn(async () => [progress]),
         countPartHistory: vi.fn(async () => 2),
-        listPartHistory: vi.fn(async () => [historyRow, { ...historyRow, id: "ph_2" }]),
+        partsWithHistory: vi.fn(async () => ["p_quiz" as ActivityPartId]),
       }),
     });
     const view = await getMyActivityRecord({ actor: ACTOR_ID, activityId: ACTIVITY_ID }, deps);

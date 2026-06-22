@@ -55,10 +55,6 @@ export interface ActivityRecordRepository {
     activityId: LearningActivityId,
     opts?: { cursor?: string; limit?: number },
   ): Promise<{ records: readonly ActivityRecord[]; nextCursor: string | null }>;
-  listByParticipant(
-    userId: UserId,
-    opts?: { recent?: boolean; limit?: number },
-  ): Promise<readonly ActivityRecord[]>;
 
   setCompletion: Write<
     (args: { id: ActivityRecordId; state: CompletionState; at: Date }) => Promise<void>
@@ -87,7 +83,7 @@ export interface ActivityRecordRepository {
    * envelope — so a concurrent in-flight autosave can never be clobbered by
    * a stale client-supplied value when a learner marks a Part complete mid
    * autosave-debounce. The adapter patches the persisted JSON server-side
-   * (D1 `json_set` on the existing `valueJson` column). Creates the row at
+   * (D1 `json_set` on the existing `state_json` column). Creates the row at
    * the Part's initial state first if none exists yet.
    */
   setPartCompletion: Write<
@@ -114,6 +110,13 @@ export interface ActivityRecordRepository {
     opts?: { partId?: ActivityPartId },
   ): Promise<readonly PartHistory[]>;
   countPartHistory(activityRecordId: ActivityRecordId): Promise<number>;
+  /**
+   * The distinct Part ids that have at least one history row, projected via
+   * `SELECT DISTINCT part_id` so a record read can flag which Parts carry a
+   * history affordance without decoding every archived `state_json`
+   * envelope. Backed by the `(activity_record_id, part_id)` index.
+   */
+  partsWithHistory(activityRecordId: ActivityRecordId): Promise<readonly ActivityPartId[]>;
 
   // Revision restart (one transaction; archives affected progress into
   // history and resets it, so prior work is never silently destroyed)

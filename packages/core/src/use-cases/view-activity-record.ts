@@ -51,12 +51,11 @@ export async function viewActivityRecord(
     throw new DomainError("NOT_FOUND", "Record not found.", "not_found");
   }
 
-  const [progress, partHistoryCount, history] = await Promise.all([
+  const [progress, partHistoryCount, partsWithHistory] = await Promise.all([
     deps.records.listPartProgress(record.id),
     deps.records.countPartHistory(record.id),
-    deps.records.listPartHistory(record.id),
+    deps.records.partsWithHistory(record.id),
   ]);
-  const partsWithHistory = [...new Set(history.map((h) => h.partId))];
 
   return projectRecordFull({ record, progress, partHistoryCount, partsWithHistory });
 }

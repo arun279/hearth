@@ -19,7 +19,7 @@ import { createStudyGroupRepository } from "../../src/study-group-repository.ts"
 import { createSystemFlagRepository } from "../../src/system-flag-repository.ts";
 
 /**
- * Real-D1 coverage for the M10 ActivityRecord adapter. This is the
+ * Real-D1 coverage for the M11 ActivityRecord adapter. This is the
  * empirical check that composite-UNIQUE-index `onConflict` behaves on the
  * deployed SQLite shape: `upsert` idempotency rides the
  * UNIQUE(activity_id, participant_id) DO NOTHING, and `savePartProgress`
@@ -349,6 +349,54 @@ describe("activity-record adapter (real D1)", () => {
     expect(progress?.state).toEqual({ kind: "quiz", completed: true, answers: [] });
   });
 
+  it("setPartCompletion advances the parent updatedAt atomically with the flag — patch and insert branches", async () => {
+    const repos = buildRepos();
+    const { participant, activityId } = await setup(repos, "setpctouch");
+    const record = await repos.records.upsert({ activityId, participantId: participant });
+
+    const parentUpdatedAt = async () =>
+      (
+        await repos.records.byParticipantAndActivity(activityId, participant)
+      )?.updatedAt.getTime() ?? 0;
+    const childUpdatedAt = async (partId: ActivityPartId) =>
+      (
+        await repos.db
+          .select()
+          .from(schema.partProgress)
+          .where(
+            and(
+              eq(schema.partProgress.activityRecordId, record.id),
+              eq(schema.partProgress.partId, partId),
+            ),
+          )
+      )[0]?.updatedAt.getTime() ?? -1;
+
+    // Insert branch: no progress row yet, so setPartCompletion creates one.
+    const pInsert = "p_insert" as ActivityPartId;
+    await repos.records.setPartCompletion({
+      activityRecordId: record.id,
+      partId: pInsert,
+      completed: true,
+      initialState: { kind: "write_reflection", completed: false, text: "" },
+    });
+    expect(await parentUpdatedAt()).toBe(await childUpdatedAt(pInsert));
+
+    // Patch branch: a row already exists from an autosave, so the flip patches it.
+    const pPatch = "p_patch" as ActivityPartId;
+    await repos.records.savePartProgress({
+      activityRecordId: record.id,
+      partId: pPatch,
+      state: { kind: "write_reflection", completed: false, text: "draft" },
+    });
+    await repos.records.setPartCompletion({
+      activityRecordId: record.id,
+      partId: pPatch,
+      completed: true,
+      initialState: { kind: "write_reflection", completed: false, text: "" },
+    });
+    expect(await parentUpdatedAt()).toBe(await childUpdatedAt(pPatch));
+  });
+
   it("setPartCompletion + concurrent autosave: final row carries both latest text AND toggled completed", async () => {
     const repos = buildRepos();
     const { participant, activityId } = await setup(repos, "clobber");
@@ -516,13 +564,49 @@ describe("activity-record adapter (real D1)", () => {
     expect(reset?.state).toEqual({ kind: "write_reflection", completed: false, text: "" });
   });
 
-  it("listByActivity paginates by id keyset; listByParticipant returns recent-first", async () => {
+  it("partsWithHistory projects each Part with history exactly once", async () => {
+    const repos = buildRepos();
+    const { participant, activityId } = await setup(repos, "partswith");
+    const record = await repos.records.upsert({ activityId, participantId: participant });
+    const p1 = "p1" as ActivityPartId;
+    const p2 = "p2" as ActivityPartId;
+
+    // p1 accrues two history rows (two resets); p2 accrues one; p3 has none.
+    for (const text of ["a", "b"]) {
+      await repos.records.savePartProgress({
+        activityRecordId: record.id,
+        partId: p1,
+        state: { kind: "write_reflection", completed: true, text },
+      });
+      await repos.records.reopenAgainstRevision({
+        recordId: record.id,
+        newRevisionId: null,
+        affectedPartIds: [p1],
+        reason: "facilitator_reset",
+      });
+    }
+    await repos.records.savePartProgress({
+      activityRecordId: record.id,
+      partId: p2,
+      state: { kind: "write_reflection", completed: true, text: "c" },
+    });
+    await repos.records.reopenAgainstRevision({
+      recordId: record.id,
+      newRevisionId: null,
+      affectedPartIds: [p2],
+      reason: "facilitator_reset",
+    });
+
+    expect(await repos.records.countPartHistory(record.id)).toBe(3);
+    const parts = await repos.records.partsWithHistory(record.id);
+    expect([...parts].sort()).toEqual([p1, p2]);
+  });
+
+  it("listByActivity paginates by id keyset", async () => {
     const repos = buildRepos();
     const { activityId } = await setup(repos, "page");
-    const participants: UserId[] = [];
     for (let i = 0; i < 3; i++) {
       const u = await seedUser(repos.db, `u_page_${i}`, `page_${i}@x.com`);
-      participants.push(u);
       await repos.records.upsert({ activityId, participantId: u });
     }
 
@@ -537,10 +621,6 @@ describe("activity-record adapter (real D1)", () => {
     expect(second.nextCursor).toBeNull();
     const ids = [...first.records, ...second.records].map((r) => r.id);
     expect(new Set(ids).size).toBe(3);
-
-    const byPart = await repos.records.listByParticipant(participants[0] as UserId);
-    expect(byPart).toHaveLength(1);
-    expect(byPart[0]?.participantId).toBe(participants[0]);
   });
 
   it("flushEvidenceSignals gates on the killswitch but writes no D1 row in M11", async () => {

@@ -108,7 +108,7 @@ export async function setPartCompleted(
     record.completionState !== "completed" &&
     (await allPartsComplete(record.id, ctx.activity, deps.records))
   ) {
-    const completed = await completeRecord(ctx.actor, record, ctx.activity, deps);
+    const completed = await completeRecord(ctx.actor, record, ctx.activity, deps, true);
     return { partId: part.id, completed: input.completed, record: completed };
   }
 

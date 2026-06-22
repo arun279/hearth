@@ -51,24 +51,30 @@ export async function markActivityComplete(
 
 /**
  * Shared completion step, reused by `mark-activity-complete` (explicit
- * complete) and `save-part-progress` (inline auto-complete on the last
+ * complete) and `set-part-completed` (inline auto-complete on the last
  * Part). Runs the policy gate, no-ops when already complete, otherwise
  * writes the rollup with `completedAt = clock.now()` and returns the
  * resulting record. The caller has already loaded `record` + `activity`
  * and authorized the actor as a participant.
+ *
+ * `allPartsAlreadyVerified` lets a caller that has just proven every Part is
+ * complete against the post-write state skip the redundant `listPartProgress`
+ * re-read here. `set-part-completed` passes it; `markActivityComplete` does
+ * not (it has not proven completion), so the default keeps the live check.
  */
 export async function completeRecord(
   actor: User,
   record: ActivityRecord,
   activity: LearningActivity,
   deps: { readonly records: ActivityRecordRepository; readonly clock: Clock },
+  allPartsAlreadyVerified = false,
 ): Promise<ActivityRecord> {
   if (record.completionState === "completed") return record;
 
   const now = deps.clock.now();
   const accessState = computeActivityAccessState(activity.window, activity.postClosePolicy, now);
   const allComplete =
-    activity.completionRule.kind === "manual_mark"
+    activity.completionRule.kind === "manual_mark" || allPartsAlreadyVerified
       ? true
       : await allPartsComplete(record.id, activity, deps.records);
 

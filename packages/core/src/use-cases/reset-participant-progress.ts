@@ -75,12 +75,11 @@ export async function resetParticipantProgress(
     resetRecord = { ...record, completionState: "in_progress", completedAt: null, updatedAt: now };
   }
 
-  const [progress, partHistoryCount, history] = await Promise.all([
+  const [progress, partHistoryCount, partsWithHistory] = await Promise.all([
     deps.records.listPartProgress(resetRecord.id),
     deps.records.countPartHistory(resetRecord.id),
-    deps.records.listPartHistory(resetRecord.id),
+    deps.records.partsWithHistory(resetRecord.id),
   ]);
-  const partsWithHistory = [...new Set(history.map((h) => h.partId))];
   return projectRecordFull({
     record: resetRecord,
     progress,

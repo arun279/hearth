@@ -244,7 +244,6 @@ function viewablePorts(opts: {
       byId: vi.fn(async () => null),
       byParticipantAndActivity: vi.fn(async () => null),
       listByActivity: vi.fn(async () => ({ records: [], nextCursor: null })),
-      listByParticipant: vi.fn(async () => []),
       getPartProgress: vi.fn(async () => null),
       listPartProgress: vi.fn(async () => []),
       savePartProgress: vi.fn(),
@@ -254,6 +253,7 @@ function viewablePorts(opts: {
       appendPartHistory: vi.fn(),
       listPartHistory: vi.fn(async () => []),
       countPartHistory: vi.fn(async () => 0),
+      partsWithHistory: vi.fn(async () => []),
       reopenAgainstRevision: vi.fn(),
       flushEvidenceSignals: vi.fn(),
       ...opts.records,
@@ -299,17 +299,7 @@ describe("GET /api/v1/activities/:id/my-record", () => {
         byParticipantAndActivity: vi.fn(async () => record),
         listPartProgress: vi.fn(async () => []),
         countPartHistory: vi.fn(async () => 2),
-        listPartHistory: vi.fn(async () => [
-          {
-            id: "ph_1",
-            activityRecordId: record.id,
-            partId: "p_quiz" as never,
-            snapshot: { kind: "quiz" as const, completed: true, answers: [] },
-            reason: "retry" as const,
-            revisionIdAtTime: null,
-            recordedAt: now,
-          },
-        ]),
+        partsWithHistory: vi.fn(async () => ["p_quiz" as never]),
       },
     });
     const app = harness({ userId: actorId, ports });
@@ -648,17 +638,8 @@ describe("POST /api/v1/activities/:id/my-record/complete", () => {
 
 describe("GET /api/v1/records/:id", () => {
   it("returns the full view with partHistoryCount + partsWithHistory", async () => {
-    const partHistory = {
-      id: "ph_1",
-      activityRecordId: record.id,
-      partId: "p_quiz" as never,
-      snapshot: { kind: "quiz" as const, completed: true, answers: [] },
-      reason: "retry" as const,
-      revisionIdAtTime: null,
-      recordedAt: now,
-    };
     const countPartHistory = vi.fn(async () => 1);
-    const listPartHistory = vi.fn(async () => [partHistory]);
+    const partsWithHistory = vi.fn(async () => ["p_quiz" as never]);
     const app = harness({
       userId: actorId,
       ports: viewablePorts({
@@ -666,7 +647,7 @@ describe("GET /api/v1/records/:id", () => {
           byId: vi.fn(async () => record),
           listPartProgress: vi.fn(async () => []),
           countPartHistory,
-          listPartHistory,
+          partsWithHistory,
         },
       }),
     });

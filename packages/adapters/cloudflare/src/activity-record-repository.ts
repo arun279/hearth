@@ -143,17 +143,6 @@ export function createActivityRecordRepository(
       return { records: page.map(decodeRecord), nextCursor };
     },
 
-    async listByParticipant(userId, opts) {
-      const limit = opts?.limit ?? DEFAULT_PAGE_LIMIT;
-      const rows = await deps.db
-        .select()
-        .from(activityRecords)
-        .where(eq(activityRecords.participantId, userId))
-        .orderBy(opts?.recent ? desc(activityRecords.updatedAt) : asc(activityRecords.id))
-        .limit(limit);
-      return rows.map(decodeRecord);
-    },
-
     setCompletion: markWrite(async ({ id, state, at }) => {
       await deps.gate.assertWritable();
       const completedAt = state === "completed" ? at : null;
@@ -239,35 +228,53 @@ export function createActivityRecordRepository(
       const setCompletedJson = sql`json_set(${partProgress.stateJson}, '$.data.completed', json(${
         completed ? "true" : "false"
       }))`;
+      const touchParent = () =>
+        deps.db
+          .update(activityRecords)
+          .set({ updatedAt: now })
+          .where(eq(activityRecords.id, activityRecordId));
       // Targeted patch: flip only `$.data.completed` on whatever envelope is
       // currently persisted, so a concurrent in-flight reflection autosave
       // can never be clobbered by a stale client-supplied envelope. The
       // `.returning()` distinguishes "patched an existing row" from "no row
       // yet" without a prior read (which would reintroduce a race window).
-      const patched = await deps.db
-        .update(partProgress)
-        .set({ stateJson: setCompletedJson, updatedAt: now })
-        .where(
-          and(eq(partProgress.activityRecordId, activityRecordId), eq(partProgress.partId, partId)),
-        )
-        .returning({ id: partProgress.id });
+      // Batch the part write with the parent updatedAt touch (mirroring
+      // savePartProgress) so the (participantId, updatedAt) "recent records"
+      // ordering can never fall behind, and a partial failure can't leave the
+      // parent stale relative to the part.
+      const [patched] = (await deps.db.batch(
+        asBatch([
+          deps.db
+            .update(partProgress)
+            .set({ stateJson: setCompletedJson, updatedAt: now })
+            .where(
+              and(
+                eq(partProgress.activityRecordId, activityRecordId),
+                eq(partProgress.partId, partId),
+              ),
+            )
+            .returning({ id: partProgress.id }),
+          touchParent(),
+        ]),
+      )) as readonly [ReadonlyArray<{ readonly id: string }>, unknown];
 
       if (patched.length === 0) {
         const stateJson = JSON.stringify(
           partProgressEnvelopeSchema.parse({ v: 1, data: { ...initialState, completed } }),
         );
-        await deps.db
-          .insert(partProgress)
-          .values({ id: ids.generate(), activityRecordId, partId, stateJson, updatedAt: now })
-          .onConflictDoUpdate({
-            target: [partProgress.activityRecordId, partProgress.partId],
-            set: { stateJson: setCompletedJson, updatedAt: now },
-          });
+        await deps.db.batch(
+          asBatch([
+            deps.db
+              .insert(partProgress)
+              .values({ id: ids.generate(), activityRecordId, partId, stateJson, updatedAt: now })
+              .onConflictDoUpdate({
+                target: [partProgress.activityRecordId, partProgress.partId],
+                set: { stateJson: setCompletedJson, updatedAt: now },
+              }),
+            touchParent(),
+          ]),
+        );
       }
-      await deps.db
-        .update(activityRecords)
-        .set({ updatedAt: now })
-        .where(eq(activityRecords.id, activityRecordId));
     }),
 
     appendPartHistory: markWrite(
@@ -303,6 +310,14 @@ export function createActivityRecordRepository(
         .from(partHistory)
         .where(eq(partHistory.activityRecordId, activityRecordId));
       return Number(rows[0]?.n ?? 0);
+    },
+
+    async partsWithHistory(activityRecordId) {
+      const rows = await deps.db
+        .selectDistinct({ partId: partHistory.partId })
+        .from(partHistory)
+        .where(eq(partHistory.activityRecordId, activityRecordId));
+      return rows.map((r) => r.partId as ActivityPartId);
     },
 
     reopenAgainstRevision: markWrite(
