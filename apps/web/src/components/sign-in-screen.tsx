@@ -64,10 +64,12 @@ export function SignInScreen({ me, rejection }: Props) {
   return (
     <div className="flex min-h-screen flex-col">
       <header className="flex items-center gap-2 px-5 py-4">
-        <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--color-ink)] font-bold text-[11px] text-[var(--color-bg)]">
+        <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--color-ink)] font-bold text-[0.6875rem] text-[var(--color-bg)]">
           H
         </div>
-        <div className="font-semibold font-serif text-[15px] text-[var(--color-ink)]">Hearth</div>
+        <div className="font-semibold font-serif text-[0.9375rem] text-[var(--color-ink)]">
+          Hearth
+        </div>
         <div className="ml-auto">
           <ThemeToggle />
         </div>
@@ -78,7 +80,7 @@ export function SignInScreen({ me, rejection }: Props) {
           <h1 className="font-semibold font-serif text-3xl text-[var(--color-ink)]">
             Welcome to {me.instance.name}
           </h1>
-          <p className="mt-2 text-[13px] text-[var(--color-ink-2)]">
+          <p className="mt-2 text-[0.8125rem] text-[var(--color-ink-2)]">
             A calm place for small groups to learn together.
           </p>
         </div>

@@ -141,7 +141,7 @@ export function QuizPart({ activityId, part, partState, canParticipate }: Props)
       {verdictQuery.isError && feedback === null ? (
         <span
           role="alert"
-          className="inline-flex items-center gap-1 text-[12px] text-[var(--color-ink-2)]"
+          className="inline-flex items-center gap-1 text-[0.75rem] text-[var(--color-ink-2)]"
         >
           Couldn't load your earlier grade.
           <button
@@ -160,7 +160,7 @@ export function QuizPart({ activityId, part, partState, canParticipate }: Props)
             {submit.isPending ? "Submitting…" : feedback ? "Re-submit" : "Submit"}
           </Button>
           {emptyWarning ? (
-            <span role="alert" className="text-[12px] text-[var(--color-ink-2)]">
+            <span role="alert" className="text-[0.75rem] text-[var(--color-ink-2)]">
               Answer at least one question before submitting.
             </span>
           ) : null}
@@ -172,7 +172,7 @@ export function QuizPart({ activityId, part, partState, canParticipate }: Props)
           {submit.isError && !submit.isPending ? (
             <span
               role="alert"
-              className="inline-flex items-center gap-1 text-[12px] text-[var(--color-danger)]"
+              className="inline-flex items-center gap-1 text-[0.75rem] text-[var(--color-danger)]"
             >
               Couldn't submit your answers — your answers are still here.
               <button
@@ -187,7 +187,7 @@ export function QuizPart({ activityId, part, partState, canParticipate }: Props)
           {score ? <ScoreSummary score={score} /> : null}
         </div>
       ) : (
-        <p className="text-[13px] text-[var(--color-ink-2)]">
+        <p className="text-[0.8125rem] text-[var(--color-ink-2)]">
           Only enrolled participants can submit answers.
         </p>
       )}
@@ -200,13 +200,13 @@ function ScoreSummary({ score }: { readonly score: QuizSubmitResult["autoScore"]
   // on submit — the visual badges per question aren't announced on their own.
   if (score.gradeable === 0) {
     return (
-      <span role="status" className="text-[12px] text-[var(--color-ink-2)]">
+      <span role="status" className="text-[0.75rem] text-[var(--color-ink-2)]">
         Submitted — this quiz has no auto-graded questions.
       </span>
     );
   }
   return (
-    <span role="status" className="text-[12px] text-[var(--color-ink-2)]">
+    <span role="status" className="text-[0.75rem] text-[var(--color-ink-2)]">
       <span className="font-medium text-[var(--color-ink)]">
         {score.correct} of {score.gradeable}
       </span>{" "}
@@ -276,7 +276,7 @@ function QuestionCard({
 }) {
   return (
     <div className="rounded-[var(--radius-md)] border border-[var(--color-rule)] bg-[var(--color-surface)] p-3.5">
-      <p className="mb-2.5 font-medium text-[13px] text-[var(--color-ink)]">
+      <p className="mb-2.5 font-medium text-[0.8125rem] text-[var(--color-ink)]">
         <span className="text-[var(--color-ink-2)]">{index + 1}.</span> {question.prompt}
       </p>
       {question.shape.kind === "multiple_choice" ? (
@@ -351,7 +351,7 @@ function Feedback({
         <Badge tone={badge.tone}>{badge.label}</Badge>
       </div>
       {question.explainAfterAnswer ? (
-        <p className="text-[12px] text-[var(--color-ink-2)] leading-relaxed">
+        <p className="text-[0.75rem] text-[var(--color-ink-2)] leading-relaxed">
           {question.explainAfterAnswer}
         </p>
       ) : null}

@@ -25,7 +25,7 @@ export function AppShell({ sidebar, headerRight, mobileTitle, children }: AppShe
           target lets the link move focus to a non-focusable landmark. */}
       <a
         href="#main"
-        className="sr-only focus-visible:not-sr-only focus-visible:fixed focus-visible:top-2 focus-visible:left-2 focus-visible:z-[60] focus-visible:rounded-[var(--radius-sm)] focus-visible:bg-[var(--color-accent)] focus-visible:px-3 focus-visible:py-1.5 focus-visible:font-medium focus-visible:text-[13px] focus-visible:text-[var(--color-accent-on)] focus-visible:shadow-lg"
+        className="sr-only focus-visible:not-sr-only focus-visible:fixed focus-visible:top-2 focus-visible:left-2 focus-visible:z-[60] focus-visible:rounded-[var(--radius-sm)] focus-visible:bg-[var(--color-accent)] focus-visible:px-3 focus-visible:py-1.5 focus-visible:font-medium focus-visible:text-[0.8125rem] focus-visible:text-[var(--color-accent-on)] focus-visible:shadow-lg"
       >
         Skip to main content
       </a>
@@ -35,7 +35,7 @@ export function AppShell({ sidebar, headerRight, mobileTitle, children }: AppShe
         <IconButton label="Open navigation" onClick={() => setDrawerOpen(true)}>
           <Menu size={16} strokeWidth={1.5} />
         </IconButton>
-        <div className="min-w-0 flex-1 truncate font-medium text-[13px] text-[var(--color-ink)]">
+        <div className="min-w-0 flex-1 truncate font-medium text-[0.8125rem] text-[var(--color-ink)]">
           {mobileTitle ?? "Hearth"}
         </div>
         <div className="flex items-center gap-1">

@@ -59,13 +59,13 @@ function InstanceAdminPage() {
     <AppShell sidebar={<Sidebar me={ctx.data?.data ?? me} />} mobileTitle={instanceName}>
       <PageContainer className="space-y-6">
         <header className="space-y-2">
-          <div className="font-medium text-[11px] text-[var(--color-ink-2)] uppercase tracking-wide">
+          <div className="font-medium text-[0.6875rem] text-[var(--color-ink-2)] uppercase tracking-wide">
             Admin
           </div>
-          <h1 className="font-serif text-[28px] text-[var(--color-ink)] leading-tight">
+          <h1 className="font-serif text-[1.75rem] text-[var(--color-ink)] leading-tight">
             Instance settings
           </h1>
-          <p className="text-[13px] text-[var(--color-ink-2)]">
+          <p className="text-[0.8125rem] text-[var(--color-ink-2)]">
             Rename the instance, manage who can sign in, and delegate operator authority.
           </p>
         </header>

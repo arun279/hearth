@@ -215,7 +215,7 @@ function TrackHomeBody({
 
       <nav
         aria-label="Breadcrumb"
-        className="flex items-center gap-2 text-[12px] text-[var(--color-ink-2)]"
+        className="flex items-center gap-2 text-[0.75rem] text-[var(--color-ink-2)]"
       >
         <Link to="/" search={{}} className="hover:text-[var(--color-ink-2)]">
           Your groups
@@ -242,13 +242,13 @@ function TrackHomeBody({
         <div className="flex flex-col items-start gap-2 md:flex-row md:items-start md:gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <h1 className="font-serif text-[28px] text-[var(--color-ink)] leading-tight">
+              <h1 className="font-serif text-[1.75rem] text-[var(--color-ink)] leading-tight">
                 {track.name}
               </h1>
               <TrackStatusBadge status={track.status} />
             </div>
             {track.description ? (
-              <p className="mt-1 text-[13px] text-[var(--color-ink-2)]">{track.description}</p>
+              <p className="mt-1 text-[0.8125rem] text-[var(--color-ink-2)]">{track.description}</p>
             ) : null}
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-1.5">
@@ -285,7 +285,7 @@ function TrackHomeBody({
             <Link
               to="/g/$groupId/t/$trackId/people"
               params={{ groupId: group.id, trackId: track.id }}
-              className="inline-flex h-7 items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--color-rule)] bg-[var(--color-surface)] px-2.5 text-[12px] text-[var(--color-ink-2)] hover:bg-[var(--color-surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
+              className="inline-flex h-7 items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--color-rule)] bg-[var(--color-surface)] px-2.5 text-[0.75rem] text-[var(--color-ink-2)] hover:bg-[var(--color-surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
             >
               <Users size={12} strokeWidth={1.75} aria-hidden="true" />
               People
@@ -370,7 +370,7 @@ function TabCounter({ count }: { readonly count: number }) {
   return (
     <span
       aria-hidden="true"
-      className="ml-1 inline-flex min-w-[18px] items-center justify-center rounded-full bg-[var(--color-warn-soft)] px-1.5 font-mono font-semibold text-[10px] text-[var(--color-warn)]"
+      className="ml-1 inline-flex min-w-[18px] items-center justify-center rounded-full bg-[var(--color-warn-soft)] px-1.5 font-mono font-semibold text-[0.625rem] text-[var(--color-warn)]"
     >
       {count}
     </span>
@@ -385,7 +385,7 @@ function FacilitatorBar({
   readonly facilitatorCount: number;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-[var(--color-ink-2)]">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.75rem] text-[var(--color-ink-2)]">
       <div className="flex items-center gap-2">
         <span className="text-[var(--color-ink-2)]">Facilitators</span>
         <span className="font-mono tabular-nums">{facilitatorCount}</span>
@@ -420,7 +420,7 @@ function LibraryEmpty({ groupId }: { readonly groupId: string }) {
           to="/g/$groupId"
           params={{ groupId }}
           search={{}}
-          className="text-[12px] text-[var(--color-accent)] hover:underline"
+          className="text-[0.75rem] text-[var(--color-accent)] hover:underline"
         >
           Open the group Library →
         </Link>

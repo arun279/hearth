@@ -60,7 +60,7 @@ export function PartHistoryDrawer({ open, onClose, activityId, partId, partLabel
 
   return (
     <Drawer open={open} onClose={onClose} label={title} side="right" header={title}>
-      <p className="mb-3 text-[12px] text-[var(--color-ink-2)]">
+      <p className="mb-3 text-[0.75rem] text-[var(--color-ink-2)]">
         Prior attempts on this part, preserved whenever it's retried, reopened by a new revision, or
         reset by a facilitator.
       </p>
@@ -81,7 +81,7 @@ function PartHistoryBody({
   const query = useMyPartHistory(activityId, partId, open);
 
   if (query.isLoading) {
-    return <p className="text-[13px] text-[var(--color-ink-2)]">Loading history…</p>;
+    return <p className="text-[0.8125rem] text-[var(--color-ink-2)]">Loading history…</p>;
   }
 
   if (query.isError) {
@@ -112,7 +112,9 @@ function PartHistoryBody({
   const entries = query.data ?? [];
   if (entries.length === 0) {
     return (
-      <p className="text-[13px] text-[var(--color-ink-2)]">No prior attempts on this part yet.</p>
+      <p className="text-[0.8125rem] text-[var(--color-ink-2)]">
+        No prior attempts on this part yet.
+      </p>
     );
   }
 
@@ -134,7 +136,7 @@ function HistoryEntry({ entry }: { readonly entry: PartHistory }) {
         <Badge tone={entry.reason === "facilitator_reset" ? "warn" : "neutral"}>
           {REASON_LABEL[entry.reason]}
         </Badge>
-        <span className="text-[12px] text-[var(--color-ink-2)]">
+        <span className="text-[0.75rem] text-[var(--color-ink-2)]">
           {recordedAtLabel(entry.recordedAt)}
         </span>
       </header>
@@ -169,19 +171,21 @@ function SnapshotView({ snapshot }: { readonly snapshot: PartProgressState }) {
       return (
         <div className="space-y-1">
           {snapshot.text.trim().length > 0 ? (
-            <p className="whitespace-pre-wrap text-[13px] text-[var(--color-ink)]">
+            <p className="whitespace-pre-wrap text-[0.8125rem] text-[var(--color-ink)]">
               {snapshot.text}
             </p>
           ) : (
-            <p className="text-[13px] text-[var(--color-ink-3)] italic">No text was written.</p>
+            <p className="text-[0.8125rem] text-[var(--color-ink-3)] italic">
+              No text was written.
+            </p>
           )}
-          <p className="text-[11px] text-[var(--color-ink-3)]">{completedNote}.</p>
+          <p className="text-[0.6875rem] text-[var(--color-ink-3)]">{completedNote}.</p>
         </div>
       );
     case "quiz": {
       const n = snapshot.answers.length;
       return (
-        <p className="text-[13px] text-[var(--color-ink-2)]">
+        <p className="text-[0.8125rem] text-[var(--color-ink-2)]">
           {n === 0
             ? "No answers were submitted"
             : `${n} ${n === 1 ? "answer" : "answers"} submitted`}
@@ -190,6 +194,6 @@ function SnapshotView({ snapshot }: { readonly snapshot: PartProgressState }) {
       );
     }
     default:
-      return <p className="text-[13px] text-[var(--color-ink-2)]">{completedNote}.</p>;
+      return <p className="text-[0.8125rem] text-[var(--color-ink-2)]">{completedNote}.</p>;
   }
 }

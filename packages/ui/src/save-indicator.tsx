@@ -21,7 +21,7 @@ export type SaveIndicatorProps = {
  */
 export function SaveIndicator({ status, onRetry, className }: SaveIndicatorProps) {
   if (status === "idle") return null;
-  const base = "inline-flex items-center gap-1 text-[11px]";
+  const base = "inline-flex items-center gap-1 text-[0.6875rem]";
   if (status === "saving") {
     return (
       <span className={cn(base, "text-[var(--color-ink-2)]", className)} aria-live="polite">

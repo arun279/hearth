@@ -41,7 +41,7 @@ export function ActivityShell({ groupId, trackId, groupName, trackName, me, chil
     <div className="flex h-dvh flex-col overflow-hidden bg-[var(--color-bg)]">
       <a
         href="#main"
-        className="sr-only focus-visible:not-sr-only focus-visible:fixed focus-visible:top-2 focus-visible:left-2 focus-visible:z-[60] focus-visible:rounded-[var(--radius-sm)] focus-visible:bg-[var(--color-accent)] focus-visible:px-3 focus-visible:py-1.5 focus-visible:font-medium focus-visible:text-[13px] focus-visible:text-[var(--color-accent-on)] focus-visible:shadow-lg"
+        className="sr-only focus-visible:not-sr-only focus-visible:fixed focus-visible:top-2 focus-visible:left-2 focus-visible:z-[60] focus-visible:rounded-[var(--radius-sm)] focus-visible:bg-[var(--color-accent)] focus-visible:px-3 focus-visible:py-1.5 focus-visible:font-medium focus-visible:text-[0.8125rem] focus-visible:text-[var(--color-accent-on)] focus-visible:shadow-lg"
       >
         Skip to main content
       </a>
@@ -56,7 +56,7 @@ export function ActivityShell({ groupId, trackId, groupName, trackName, me, chil
           to="/g/$groupId/t/$trackId"
           params={{ groupId, trackId }}
           search={{}}
-          className="inline-flex min-w-0 shrink-0 items-center gap-1.5 rounded-[var(--radius-sm)] px-2 py-1 text-[13px] text-[var(--color-ink-2)] transition-colors hover:bg-[var(--color-surface-2)] hover:text-[var(--color-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
+          className="inline-flex min-w-0 shrink-0 items-center gap-1.5 rounded-[var(--radius-sm)] px-2 py-1 text-[0.8125rem] text-[var(--color-ink-2)] transition-colors hover:bg-[var(--color-surface-2)] hover:text-[var(--color-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
         >
           <ChevronLeft size={14} strokeWidth={1.5} aria-hidden="true" />
           <span className="truncate">Back to track</span>
@@ -107,7 +107,7 @@ function PlayerBreadcrumb({
   return (
     <nav
       aria-label="Breadcrumb"
-      className="hidden min-w-0 items-center gap-2 text-[12px] text-[var(--color-ink-2)] md:flex"
+      className="hidden min-w-0 items-center gap-2 text-[0.75rem] text-[var(--color-ink-2)] md:flex"
     >
       <span aria-hidden="true">/</span>
       <Link to="/" search={{}} className="shrink-0 hover:text-[var(--color-ink)]">

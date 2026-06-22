@@ -74,19 +74,19 @@ export function ActivityHeader({
     <header className="shrink-0 border-[var(--color-rule)] border-b px-5 py-5 md:px-8 md:py-7">
       <div className={cn("mx-auto w-full space-y-3", measure)}>
         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h1 className="font-serif text-[28px] text-[var(--color-ink)] leading-tight">
+          <h1 className="font-serif text-[1.75rem] text-[var(--color-ink)] leading-tight">
             {activity.title}
           </h1>
           {activityCompleted ? <Badge tone="good">Completed</Badge> : null}
           {stateBadge ? <Badge tone={stateBadge.tone}>{stateBadge.label}</Badge> : null}
         </div>
         {activity.description ? (
-          <p className="text-[13px] text-[var(--color-ink-2)] leading-relaxed">
+          <p className="text-[0.8125rem] text-[var(--color-ink-2)] leading-relaxed">
             {activity.description}
           </p>
         ) : null}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <span className="font-mono text-[11px] text-[var(--color-ink-2)] tabular-nums">
+          <span className="font-mono text-[0.6875rem] text-[var(--color-ink-2)] tabular-nums">
             Part {Math.min(currentPartIndex + 1, denominator)} of {denominator}
           </span>
           <div
@@ -103,7 +103,7 @@ export function ActivityHeader({
               style={{ width: `${completionPercent}%` }}
             />
           </div>
-          <span className="text-[11px] text-[var(--color-ink-2)] tabular-nums">
+          <span className="text-[0.6875rem] text-[var(--color-ink-2)] tabular-nums">
             {completionText}
           </span>
           {priorAttemptsCount > 0 ? (

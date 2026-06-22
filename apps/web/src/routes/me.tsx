@@ -14,7 +14,7 @@ function AccountComponent() {
   // the themed AppShell (or at minimum mount useTheme + a back affordance).
   return (
     <PageContainer as="main" measure="prose">
-      <h1 className="font-serif text-[28px] text-[var(--color-ink)] leading-tight">Account</h1>
+      <h1 className="font-serif text-[1.75rem] text-[var(--color-ink)] leading-tight">Account</h1>
     </PageContainer>
   );
 }

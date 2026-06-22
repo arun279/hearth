@@ -259,7 +259,7 @@ export function TrackSettingsDialog({
 
         {!archived ? (
           <fieldset className="space-y-2">
-            <legend className="font-medium text-[12px] text-[var(--color-ink)] uppercase tracking-wide">
+            <legend className="font-medium text-[0.75rem] text-[var(--color-ink)] uppercase tracking-wide">
               Status
             </legend>
             <div className="space-y-1.5">
@@ -278,10 +278,10 @@ export function TrackSettingsDialog({
                     className="mt-1"
                   />
                   <div>
-                    <div className="font-medium text-[13px] text-[var(--color-ink)]">
+                    <div className="font-medium text-[0.8125rem] text-[var(--color-ink)]">
                       {STATUS_LABEL[status]}
                     </div>
-                    <div className="text-[12px] text-[var(--color-ink-2)]">
+                    <div className="text-[0.75rem] text-[var(--color-ink-2)]">
                       {STATUS_HINT[status]}
                     </div>
                   </div>
@@ -293,10 +293,10 @@ export function TrackSettingsDialog({
 
         {!archived ? (
           <fieldset className="space-y-2">
-            <legend className="font-medium text-[12px] text-[var(--color-ink)] uppercase tracking-wide">
+            <legend className="font-medium text-[0.75rem] text-[var(--color-ink)] uppercase tracking-wide">
               Contribution policy
             </legend>
-            <p className="text-[12px] text-[var(--color-ink-2)]">
+            <p className="text-[0.75rem] text-[var(--color-ink-2)]">
               Decides what happens when a non-facilitator publishes an activity.
             </p>
             <div className="space-y-1.5">
@@ -317,10 +317,10 @@ export function TrackSettingsDialog({
                       className="mt-1"
                     />
                     <div>
-                      <div className="font-medium text-[13px] text-[var(--color-ink)]">
+                      <div className="font-medium text-[0.8125rem] text-[var(--color-ink)]">
                         {copy.label}
                       </div>
-                      <div className="text-[12px] text-[var(--color-ink-2)]">{copy.hint}</div>
+                      <div className="text-[0.75rem] text-[var(--color-ink-2)]">{copy.hint}</div>
                     </div>
                   </label>
                 );
@@ -331,10 +331,10 @@ export function TrackSettingsDialog({
 
         {!archived && caps.canArchive ? (
           <div className="rounded-[var(--radius-md)] border border-[var(--color-danger-border)] bg-[var(--color-danger-soft)] p-3">
-            <div className="font-medium text-[12px] text-[var(--color-ink)] uppercase tracking-wide">
+            <div className="font-medium text-[0.75rem] text-[var(--color-ink)] uppercase tracking-wide">
               Danger zone
             </div>
-            <p className="mt-1 text-[12px] text-[var(--color-ink-2)]">
+            <p className="mt-1 text-[0.75rem] text-[var(--color-ink-2)]">
               Archiving freezes the track for good. History stays readable; nothing new can be added
               or changed.
             </p>

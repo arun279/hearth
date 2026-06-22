@@ -108,10 +108,10 @@ function LibraryPage() {
 
               <header className="mt-3 flex flex-col items-start gap-2 md:flex-row md:items-center md:gap-3">
                 <div className="min-w-0 flex-1">
-                  <h1 className="font-serif text-[28px] text-[var(--color-ink)] leading-tight">
+                  <h1 className="font-serif text-[1.75rem] text-[var(--color-ink)] leading-tight">
                     Library
                   </h1>
-                  <p className="mt-1 text-[13px] text-[var(--color-ink-2)]">
+                  <p className="mt-1 text-[0.8125rem] text-[var(--color-ink-2)]">
                     Shared materials for {g.name}. Activities reference items here so a steward can
                     update one source and every track stays in sync.
                   </p>
@@ -173,7 +173,7 @@ function LibraryPage() {
                   {isSubMinLength ? (
                     <p
                       id="library-search-hint"
-                      className="mt-1.5 text-[12px] text-[var(--color-ink-2)]"
+                      className="mt-1.5 text-[0.75rem] text-[var(--color-ink-2)]"
                     >
                       Keep typing — search starts at {SEARCH_MIN_LENGTH} characters.
                     </p>

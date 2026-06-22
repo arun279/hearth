@@ -151,12 +151,12 @@ export function GroupSettingsDialog({ open, onClose, group, caps }: Props) {
 
         {caps.canArchive || caps.canUnarchive ? (
           <div className="mt-4 rounded-[var(--radius-md)] border border-[var(--color-danger-border)] bg-[var(--color-danger-soft)] p-3">
-            <div className="font-medium text-[12px] text-[var(--color-ink)] uppercase tracking-wide">
+            <div className="font-medium text-[0.75rem] text-[var(--color-ink)] uppercase tracking-wide">
               Danger zone
             </div>
             {archived ? (
               <>
-                <p className="mt-1 text-[12px] text-[var(--color-ink-2)]">
+                <p className="mt-1 text-[0.75rem] text-[var(--color-ink-2)]">
                   This group is archived. Unarchiving lets members resume work; history is preserved
                   either way.
                 </p>
@@ -172,7 +172,7 @@ export function GroupSettingsDialog({ open, onClose, group, caps }: Props) {
               </>
             ) : (
               <>
-                <p className="mt-1 text-[12px] text-[var(--color-ink-2)]">
+                <p className="mt-1 text-[0.75rem] text-[var(--color-ink-2)]">
                   Archiving freezes new tracks, activities, and contributions. Members can still
                   read everything that already exists.
                 </p>

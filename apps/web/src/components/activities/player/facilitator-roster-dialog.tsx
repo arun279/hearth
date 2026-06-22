@@ -56,11 +56,11 @@ export function FacilitatorRosterDialog({ open, onClose, activityId, activityTit
         }
       >
         {query.isLoading ? (
-          <p className="text-[13px] text-[var(--color-ink-2)]">Loading participants…</p>
+          <p className="text-[0.8125rem] text-[var(--color-ink-2)]">Loading participants…</p>
         ) : query.isError ? (
           <RosterError query={query} />
         ) : entries.length === 0 ? (
-          <p className="text-[13px] text-[var(--color-ink-2)]">
+          <p className="text-[0.8125rem] text-[var(--color-ink-2)]">
             No participants have started this activity yet.
           </p>
         ) : (
@@ -74,7 +74,7 @@ export function FacilitatorRosterDialog({ open, onClose, activityId, activityTit
                 className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5"
               >
                 <div className="min-w-0 space-y-0.5">
-                  <p className="truncate font-medium text-[13px] text-[var(--color-ink)]">
+                  <p className="truncate font-medium text-[0.8125rem] text-[var(--color-ink)]">
                     {row.displayName}
                   </p>
                   <div className="flex flex-wrap items-center gap-1.5">
@@ -82,7 +82,7 @@ export function FacilitatorRosterDialog({ open, onClose, activityId, activityTit
                       {row.completionState === "completed" ? "Completed" : "In progress"}
                     </Badge>
                     {row.partHistoryCount > 0 ? (
-                      <span className="text-[11px] text-[var(--color-ink-3)]">
+                      <span className="text-[0.6875rem] text-[var(--color-ink-3)]">
                         {row.partHistoryCount} prior{" "}
                         {row.partHistoryCount === 1 ? "attempt" : "attempts"} preserved
                       </span>

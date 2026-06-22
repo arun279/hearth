@@ -19,10 +19,10 @@ export function NotYetImplemented({ kind }: Props) {
   return (
     <div className="flex h-full min-h-[40vh] flex-col items-center justify-center gap-3 px-6 text-center text-[var(--color-ink-2)]">
       <PartIcon kind={kind} size={22} className="text-[var(--color-ink-2)]" />
-      <p className="font-medium text-[14px]">
+      <p className="font-medium text-[0.875rem]">
         {partKindLabel(kind)} Part — coming in a later milestone.
       </p>
-      <p className="max-w-md text-[12px] text-[var(--color-ink-2)]">
+      <p className="max-w-md text-[0.75rem] text-[var(--color-ink-2)]">
         The player chrome you see here is final. The interactive surface for this Part kind ships in
         an upcoming release alongside Activity Records.
       </p>

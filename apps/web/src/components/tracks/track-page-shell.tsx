@@ -52,7 +52,7 @@ export function TrackPageShell({ me, track, children }: Props) {
             <Link
               to="/"
               search={{}}
-              className="text-[13px] text-[var(--color-accent)] underline-offset-2 hover:underline"
+              className="text-[0.8125rem] text-[var(--color-accent)] underline-offset-2 hover:underline"
             >
               Back to your groups
             </Link>

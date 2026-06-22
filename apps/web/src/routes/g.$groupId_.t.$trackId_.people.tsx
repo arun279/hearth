@@ -151,7 +151,7 @@ function TrackPeopleBody({
     <PageContainer>
       <nav
         aria-label="Breadcrumb"
-        className="flex items-center gap-2 text-[12px] text-[var(--color-ink-2)]"
+        className="flex items-center gap-2 text-[0.75rem] text-[var(--color-ink-2)]"
       >
         <Link to="/" search={{}} className="hover:text-[var(--color-ink-2)]">
           Your groups
@@ -185,8 +185,10 @@ function TrackPeopleBody({
 
       <header className="mt-3 flex items-start justify-between gap-3">
         <div>
-          <h1 className="font-serif text-[28px] text-[var(--color-ink)] leading-tight">People</h1>
-          <p className="mt-1 text-[13px] text-[var(--color-ink-2)]">
+          <h1 className="font-serif text-[1.75rem] text-[var(--color-ink)] leading-tight">
+            People
+          </h1>
+          <p className="mt-1 text-[0.8125rem] text-[var(--color-ink-2)]">
             Facilitators curate this Learning Track; enrollees take part.
           </p>
         </div>
@@ -243,7 +245,7 @@ function TrackPeopleBody({
       {isCurrentEnrollee ? (
         <Callout tone="neutral" className="mt-6">
           <div className="flex items-start justify-between gap-3">
-            <p className="text-[12px] text-[var(--color-ink-2)]">
+            <p className="text-[0.75rem] text-[var(--color-ink-2)]">
               {isLastFacilitator
                 ? "You're the only facilitator on this track. Promote another facilitator before leaving — otherwise the track would be left without supervision."
                 : "Leaving the track preserves your past activity records."}
@@ -371,7 +373,7 @@ function TrackPeopleBody({
 
 function SectionHeading({ children }: { readonly children: React.ReactNode }) {
   return (
-    <h2 className="mt-6 mb-2 font-medium text-[11px] text-[var(--color-ink-2)] uppercase tracking-wide">
+    <h2 className="mt-6 mb-2 font-medium text-[0.6875rem] text-[var(--color-ink-2)] uppercase tracking-wide">
       {children}
     </h2>
   );

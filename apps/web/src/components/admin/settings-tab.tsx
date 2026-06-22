@@ -45,7 +45,7 @@ export function SettingsTab() {
   }
   if (query.isError || !query.data) {
     return (
-      <p className="text-[13px] text-[var(--color-danger)]">
+      <p className="text-[0.8125rem] text-[var(--color-danger)]">
         Couldn't load instance settings. Reload to retry.
       </p>
     );

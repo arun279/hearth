@@ -26,7 +26,7 @@ export function KindBadge({ kind, className }: Props) {
     <div
       aria-hidden="true"
       className={cn(
-        "flex h-10 w-9 shrink-0 items-end justify-center rounded-[var(--radius-sm)] bg-[var(--color-surface-2)] pb-0.5 font-mono font-semibold text-[9px] text-[var(--color-ink-2)] uppercase tracking-wider",
+        "flex h-10 w-9 shrink-0 items-end justify-center rounded-[var(--radius-sm)] bg-[var(--color-surface-2)] pb-0.5 font-mono font-semibold text-[0.5625rem] text-[var(--color-ink-2)] uppercase tracking-wider",
         className,
       )}
     >

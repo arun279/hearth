@@ -88,18 +88,18 @@ export function Modal({
           <h2
             id={titleId}
             tabIndex={-1}
-            className="font-serif text-[20px] text-[var(--color-ink)] leading-tight outline-none"
+            className="font-serif text-[1.25rem] text-[var(--color-ink)] leading-tight outline-none"
           >
             {title}
           </h2>
           {description ? (
-            <p id={descId} className="text-[13px] text-[var(--color-ink-2)]">
+            <p id={descId} className="text-[0.8125rem] text-[var(--color-ink-2)]">
               {description}
             </p>
           ) : null}
         </div>
         {children !== undefined && children !== null && children !== false ? (
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4 text-[13px]">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4 text-[0.8125rem]">
             {children}
           </div>
         ) : null}

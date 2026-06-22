@@ -23,11 +23,11 @@ export function GroupCard({ group, myRole }: Props) {
     >
       <div className="flex items-center gap-2">
         <div className="min-w-0 flex-1">
-          <div className="truncate font-medium font-serif text-[15px] text-[var(--color-ink)]">
+          <div className="truncate font-medium font-serif text-[0.9375rem] text-[var(--color-ink)]">
             {group.name}
           </div>
           {group.description ? (
-            <p className="mt-0.5 line-clamp-2 text-[12px] text-[var(--color-ink-2)]">
+            <p className="mt-0.5 line-clamp-2 text-[0.75rem] text-[var(--color-ink-2)]">
               {group.description}
             </p>
           ) : null}

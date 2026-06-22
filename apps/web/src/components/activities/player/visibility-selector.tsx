@@ -55,7 +55,7 @@ export function VisibilitySelector({ activityId, value }: Props) {
   return (
     <Popover
       align="end"
-      triggerClassName="inline-flex items-center gap-1 rounded-[var(--radius-sm)] px-1.5 py-0.5 text-[11px] text-[var(--color-ink-2)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
+      triggerClassName="inline-flex items-center gap-1 rounded-[var(--radius-sm)] px-1.5 py-0.5 text-[0.6875rem] text-[var(--color-ink-2)] hover:bg-[var(--color-surface-2)] hover:text-[var(--color-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
       label={
         <>
           Visibility:{" "}
@@ -87,7 +87,7 @@ export function VisibilitySelector({ activityId, value }: Props) {
           description: VISIBILITY_LABELS[p].description,
         }))}
       />
-      <p className="mt-2 text-[11px] text-[var(--color-ink-2)]">
+      <p className="mt-2 text-[0.6875rem] text-[var(--color-ink-2)]">
         Your track's facilitators always see your full work.
       </p>
       {value !== null ? (
@@ -95,7 +95,7 @@ export function VisibilitySelector({ activityId, value }: Props) {
           type="button"
           onClick={() => pick(null)}
           disabled={setVisibility.isPending}
-          className="mt-1.5 rounded-[var(--radius-sm)] text-[11px] text-[var(--color-accent)] underline hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] disabled:opacity-60"
+          className="mt-1.5 rounded-[var(--radius-sm)] text-[0.6875rem] text-[var(--color-accent)] underline hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] disabled:opacity-60"
         >
           Use my default ({VISIBILITY_LABELS.default.label})
         </button>

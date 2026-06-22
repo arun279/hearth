@@ -45,7 +45,7 @@ export function TrackEnrolleeRow({
         <Avatar name={displayName} src={avatarSrc} size={32} />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="truncate text-[13px] text-[var(--color-ink)]">{displayName}</span>
+            <span className="truncate text-[0.8125rem] text-[var(--color-ink)]">{displayName}</span>
             {isMe ? <Badge tone="accent">you</Badge> : null}
             {/* Role pill stays neutral so it doesn't fight the accent-tone
                 `you` badge for visual prominence — the personal indicator

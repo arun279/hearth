@@ -37,7 +37,7 @@ export function WatchPart({ activityId, part, readUrl }: Props) {
     return (
       <div className="flex flex-col items-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-warn-border)] bg-[var(--color-warn-soft)] px-5 py-6 text-center text-[var(--color-warn)]">
         <FileWarning size={18} strokeWidth={1.5} aria-hidden="true" />
-        <p className="font-medium text-[13px]">Video isn't available right now.</p>
+        <p className="font-medium text-[0.8125rem]">Video isn't available right now.</p>
       </div>
     );
   }

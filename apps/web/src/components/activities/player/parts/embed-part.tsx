@@ -45,7 +45,7 @@ export function EmbedPart({ activityId, part }: Props) {
   if (src === null) {
     return (
       <div className="rounded-[var(--radius-md)] border border-[var(--color-warn-border)] bg-[var(--color-warn-soft)] px-5 py-6 text-center text-[var(--color-warn)]">
-        <p className="font-medium text-[13px]">This embed URL doesn't match the provider.</p>
+        <p className="font-medium text-[0.8125rem]">This embed URL doesn't match the provider.</p>
       </div>
     );
   }
@@ -74,7 +74,7 @@ export function EmbedPart({ activityId, part }: Props) {
         href={part.url}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-center gap-1 self-start text-[11px] text-[var(--color-ink-2)] hover:text-[var(--color-accent)]"
+        className="inline-flex items-center gap-1 self-start text-[0.6875rem] text-[var(--color-ink-2)] hover:text-[var(--color-accent)]"
       >
         <Link2 size={11} strokeWidth={1.5} aria-hidden="true" />
         Open in a new tab

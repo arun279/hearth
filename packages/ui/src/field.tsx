@@ -41,7 +41,7 @@ export function Field({ label, hint, error, required = false, children, classNam
   return (
     <div className={cn("space-y-1.5", className)}>
       <label htmlFor={id} className="block space-y-1.5">
-        <span className="block font-medium text-[11px] text-[var(--color-ink-2)] uppercase tracking-wide">
+        <span className="block font-medium text-[0.6875rem] text-[var(--color-ink-2)] uppercase tracking-wide">
           {label}
           {required ? (
             <span aria-hidden="true" className="ml-1 text-[var(--color-danger)]">
@@ -55,12 +55,12 @@ export function Field({ label, hint, error, required = false, children, classNam
         <span
           id={describedBy}
           role="alert"
-          className="block text-[11px] text-[var(--color-danger)]"
+          className="block text-[0.6875rem] text-[var(--color-danger)]"
         >
           {error}
         </span>
       ) : hint ? (
-        <span id={describedBy} className="block text-[11px] text-[var(--color-ink-2)]">
+        <span id={describedBy} className="block text-[0.6875rem] text-[var(--color-ink-2)]">
           {hint}
         </span>
       ) : null}

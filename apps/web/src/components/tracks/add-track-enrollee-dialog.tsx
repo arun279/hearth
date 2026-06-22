@@ -136,11 +136,11 @@ export function AddTrackEnrolleeDialog({
                 <div className="flex min-w-0 items-center gap-3 sm:flex-1">
                   <Avatar name={c.displayName} src={avatarSrc} size={32} />
                   <div className="min-w-0 flex-1">
-                    <span className="block truncate text-[13px] text-[var(--color-ink)]">
+                    <span className="block truncate text-[0.8125rem] text-[var(--color-ink)]">
                       {c.displayName}
                     </span>
                     {c.previouslyEnrolled ? (
-                      <span className="block text-[12px] text-[var(--color-ink-2)]">
+                      <span className="block text-[0.75rem] text-[var(--color-ink-2)]">
                         previously enrolled
                       </span>
                     ) : null}

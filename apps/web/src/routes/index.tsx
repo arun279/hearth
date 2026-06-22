@@ -42,7 +42,7 @@ function HomeComponent() {
       <div className="flex min-h-screen items-center justify-center px-6 text-center">
         <div>
           <div className="font-serif text-[var(--color-ink)] text-xl">Hearth is unreachable</div>
-          <p className="mt-1 text-[13px] text-[var(--color-ink-2)]">
+          <p className="mt-1 text-[0.8125rem] text-[var(--color-ink-2)]">
             The API did not respond. Please retry in a moment.
           </p>
         </div>
@@ -89,10 +89,10 @@ function SignedInHome({
   return (
     <PageContainer>
       <header className="space-y-2">
-        <h1 className="font-serif text-[28px] text-[var(--color-ink)] leading-tight">
+        <h1 className="font-serif text-[1.75rem] text-[var(--color-ink)] leading-tight">
           Your groups
         </h1>
-        <p className="text-[13px] text-[var(--color-ink-2)]">
+        <p className="text-[0.8125rem] text-[var(--color-ink-2)]">
           A small, trusted space for learning together inside {me.instance.name}. Pick a group to
           continue{me.isOperator ? ", or start a new one" : ""}.
         </p>

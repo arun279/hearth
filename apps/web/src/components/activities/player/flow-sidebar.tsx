@@ -75,7 +75,7 @@ export function FlowSidebar({
               >
                 <PartStatusDot complete={isComplete} />
                 <PartIcon kind={part.kind} size={13} />
-                <div className="min-w-0 flex-1 truncate text-[12px]">
+                <div className="min-w-0 flex-1 truncate text-[0.75rem]">
                   {label}
                   {isComplete ? <span className="sr-only"> (completed)</span> : null}
                 </div>

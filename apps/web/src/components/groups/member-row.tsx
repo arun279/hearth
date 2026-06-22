@@ -43,10 +43,10 @@ export function MemberRow({
       <Avatar name={displayName} src={avatarSrc} size={avatarSize} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <span className="truncate text-[13px] text-[var(--color-ink)]">{displayName}</span>
+          <span className="truncate text-[0.8125rem] text-[var(--color-ink)]">{displayName}</span>
           {isMe ? <Badge tone="accent">you</Badge> : null}
         </div>
-        <div className="mt-0.5 truncate text-[11px] text-[var(--color-ink-2)]">
+        <div className="mt-0.5 truncate text-[0.6875rem] text-[var(--color-ink-2)]">
           {membership.role === "admin" ? (
             <span className="inline-flex items-center gap-1">
               <Shield size={11} aria-hidden="true" /> Group Admin

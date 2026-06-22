@@ -285,7 +285,7 @@ function PlayerBody({
                 />
               </div>
             ) : (
-              <p className={cn(NARROW_NOTICE, "text-[13px] text-[var(--color-ink-2)]")}>
+              <p className={cn(NARROW_NOTICE, "text-[0.8125rem] text-[var(--color-ink-2)]")}>
                 This activity has no Parts yet.
               </p>
             )}
@@ -365,7 +365,7 @@ function FullViewport({ children }: { readonly children: React.ReactNode }) {
 
 function LoadingState() {
   return (
-    <div className="flex h-full flex-1 items-center justify-center px-5 py-12 text-[13px] text-[var(--color-ink-2)] md:px-8">
+    <div className="flex h-full flex-1 items-center justify-center px-5 py-12 text-[0.8125rem] text-[var(--color-ink-2)] md:px-8">
       Loading activity…
     </div>
   );

@@ -49,12 +49,12 @@ export function LibraryItemCard({ entry, onSelect }: Props) {
       <KindBadge kind={entry.displayKind} />
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <span className="truncate font-medium text-[13px] text-[var(--color-ink)]">
+          <span className="truncate font-medium text-[0.8125rem] text-[var(--color-ink)]">
             {item.title}
           </span>
           {isRetired ? <Badge tone="neutral">retired</Badge> : null}
         </div>
-        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] text-[var(--color-ink-2)]">
+        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[0.75rem] text-[var(--color-ink-2)]">
           <span className="font-mono">{revisionLabel}</span>
           {/* Size + steward count are background context — hidden at narrow
            * widths so the search-affordance (tags, used-in count) survives a

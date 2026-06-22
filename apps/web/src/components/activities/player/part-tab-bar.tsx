@@ -74,7 +74,7 @@ export function PartTabBar({
                 onClick={() => onSelectPart(partId)}
                 data-active-pill={isActive || undefined}
                 className={cn(
-                  "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-[12px] transition-colors",
+                  "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-[0.75rem] transition-colors",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]",
                   isActive
                     ? "border-[var(--color-accent-border)] bg-[var(--color-accent-soft)] text-[var(--color-accent)]"

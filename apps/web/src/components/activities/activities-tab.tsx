@@ -72,7 +72,7 @@ export function ActivitiesTab({ groupId, trackId, canCreate }: Props) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-[12px] text-[var(--color-ink-2)]">
+        <p className="text-[0.75rem] text-[var(--color-ink-2)]">
           {showSkeleton
             ? "Loading…"
             : showError

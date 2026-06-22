@@ -77,7 +77,7 @@ export function TabBar<Value extends string>({
       role="tablist"
       aria-label={ariaLabel}
       className={cn(
-        "flex items-center gap-5 border-[var(--color-rule)] border-b text-[13px]",
+        "flex items-center gap-5 border-[var(--color-rule)] border-b text-[0.8125rem]",
         className,
       )}
     >
