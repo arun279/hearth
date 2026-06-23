@@ -137,7 +137,7 @@ function RequiredLabel({ children }: { readonly children: ReactNode }) {
       </span>
       <span
         aria-hidden="true"
-        className="rounded-full bg-[var(--color-danger-soft)] px-1.5 py-px font-medium text-[10px] text-[var(--color-danger)] normal-case tracking-normal"
+        className="rounded-full bg-[var(--color-danger-soft)] px-1.5 py-px font-medium text-[0.625rem] text-[var(--color-danger)] normal-case tracking-normal"
       >
         Required
       </span>
@@ -204,14 +204,16 @@ type AuthorablePartKind = (typeof AUTHORABLE_PART_KINDS)[number];
  * tab set is sized once there against the full section roster — with
  * M11 (the dependency that makes the Flow tab worth sizing) landed.
  *
- * TODO(m11): the Draft state carries `hardEdges` (the intra-Part
+ * TODO(m19): the Draft state carries `hardEdges` (the intra-Part
  * `flow.prereqs[]` projection) and the serializer round-trips them,
  * but no UI exposes wiring an edge between two Parts. The schema
- * supports it; M8 simply ships no Flow editor. M11 is the consumer of
- * `flow.prereqs[]`: `canMarkPartComplete` rejects `prereq_not_met`, and
- * the PartFooter Mark Complete control disables when prereqs are unmet
- * — without that consumer, a Flow editor would write data nothing
- * reads. Wire the editor as a sibling section / tab when M11 lands.
+ * supports it; M8 simply ships no Flow editor. M11 wired the consumer
+ * of `flow.prereqs[]` (the player's `canMarkPartComplete` prereq gate),
+ * so an authored edge now reads — but the editor itself is composer
+ * authoring UI: it belongs in the `Flow` tab M19 sizes against the full
+ * section roster, and its keyboard reorder rides M19's dnd-kit
+ * KeyboardSensor. Wire the editor as a sibling section / tab when M19
+ * restructures the composer.
  *
  * Compose or edit a Learning Activity. The dialog mirrors the design
  * prototype: a single scrolled modal with discrete sections (Parts /
@@ -532,7 +534,7 @@ export function ActivityComposer({
               <select
                 id={id}
                 aria-describedby={describedBy}
-                className="h-9 w-full rounded-[var(--radius-sm)] border border-[var(--color-rule)] bg-[var(--color-bg)] px-3 text-[13px]"
+                className="h-9 w-full rounded-[var(--radius-sm)] border border-[var(--color-rule)] bg-[var(--color-bg)] px-3 text-[0.8125rem]"
                 value={draft.completionRule}
                 disabled={submitting}
                 onChange={(e) =>
@@ -629,7 +631,7 @@ function PartsEditor({
             ) : null}
             <div className="overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-rule)]">
               {parts.length === 0 ? (
-                <div className="px-3 py-4 text-[12px] text-[var(--color-ink-3)]">
+                <div className="px-3 py-4 text-[0.75rem] text-[var(--color-ink-3)]">
                   No Parts yet. Add one from the palette below.
                 </div>
               ) : (
@@ -728,7 +730,7 @@ function PartRow({
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <span
           className={cn(
-            "font-mono text-[11px]",
+            "font-mono text-[0.6875rem]",
             // ink-3 fails WCAG 1.4.3 on danger-soft; the error row uses
             // ink-2 (which passes) so the index stays legible when tinted.
             error ? "text-[var(--color-ink-2)]" : "text-[var(--color-ink-3)]",
@@ -775,7 +777,7 @@ function PartRow({
         registerAnchor={registerAnchor}
       />
       {rowMessage ? (
-        <p id={errorId} role="alert" className="text-[12px] text-[var(--color-danger)]">
+        <p id={errorId} role="alert" className="text-[0.75rem] text-[var(--color-danger)]">
           {rowMessage}
         </p>
       ) : null}
@@ -843,7 +845,7 @@ function PartBody({
       );
     case "attend_session":
       return (
-        <p className="text-[11px] text-[var(--color-ink-3)]">
+        <p className="text-[0.6875rem] text-[var(--color-ink-3)]">
           Sessions ship in a follow-up milestone. Add this Part now and pick the session once the
           Sessions surface lands.
         </p>
@@ -880,7 +882,7 @@ function EmbedPartBody({
 }) {
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-3 text-[11px] text-[var(--color-ink-2)]">
+      <div className="flex items-center gap-3 text-[0.6875rem] text-[var(--color-ink-2)]">
         {(["youtube", "spotify", "generic"] as const).map((provider) => (
           <label key={provider} className="inline-flex items-center gap-1.5">
             <input
@@ -1016,7 +1018,7 @@ function QuizQuestionEditor({
   return (
     <div className="space-y-2.5 rounded-[var(--radius-sm)] border border-[var(--color-rule)] p-3">
       <div className="flex items-start gap-2">
-        <span className="mt-1.5 shrink-0 font-mono text-[11px] text-[var(--color-ink-3)]">
+        <span className="mt-1.5 shrink-0 font-mono text-[0.6875rem] text-[var(--color-ink-3)]">
           Q{index + 1}
         </span>
         <div className="min-w-0 flex-1">
@@ -1147,13 +1149,13 @@ function QuizOptionsEditor({
   return (
     <div className="space-y-1.5">
       <fieldset className="space-y-1.5" disabled={disabled}>
-        <legend className="mb-1 block font-medium text-[11px] text-[var(--color-ink-2)] uppercase tracking-wide">
+        <legend className="mb-1 block font-medium text-[0.6875rem] text-[var(--color-ink-2)] uppercase tracking-wide">
           Options · select the correct answer
         </legend>
         {/* Mirror the short-answer "leave blank to leave ungraded" affordance:
             without a keyed option the question still saves, but the player
             can't auto-grade it — say so where the choice is made. */}
-        <p className="text-[11px] text-[var(--color-ink-2)] normal-case tracking-normal">
+        <p className="text-[0.6875rem] text-[var(--color-ink-2)] normal-case tracking-normal">
           Mark one option correct to auto-grade this question. Leave none selected to leave it
           ungraded.
         </p>
@@ -1196,7 +1198,7 @@ function QuizOptionsEditor({
             type="button"
             disabled={disabled}
             onClick={() => onChange([...options], undefined)}
-            className="font-medium text-[11px] text-[var(--color-ink-2)] underline hover:text-[var(--color-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] disabled:pointer-events-none disabled:opacity-60"
+            className="font-medium text-[0.6875rem] text-[var(--color-ink-2)] underline hover:text-[var(--color-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] disabled:pointer-events-none disabled:opacity-60"
           >
             Clear correct answer (leave ungraded)
           </button>
@@ -1301,7 +1303,7 @@ function ShortAnswerKeyEditor({
       </div>
 
       <div className="space-y-1.5">
-        <span className="block font-medium text-[11px] text-[var(--color-ink-2)] uppercase tracking-wide">
+        <span className="block font-medium text-[0.6875rem] text-[var(--color-ink-2)] uppercase tracking-wide">
           Also accept
         </span>
         {accepted.map((value, i) => (
@@ -1337,7 +1339,7 @@ function ShortAnswerKeyEditor({
       </div>
 
       <div className="space-y-1">
-        <label className="flex items-center gap-2 text-[12px] text-[var(--color-ink)]">
+        <label className="flex items-center gap-2 text-[0.75rem] text-[var(--color-ink)]">
           <input
             type="checkbox"
             checked={shape.exactMatch}
@@ -1348,7 +1350,7 @@ function ShortAnswerKeyEditor({
           />
           Match exactly (capitalization &amp; accents)
         </label>
-        <p id={`${questionId}-match-note`} className="text-[11px] text-[var(--color-ink-2)]">
+        <p id={`${questionId}-match-note`} className="text-[0.6875rem] text-[var(--color-ink-2)]">
           {shape.exactMatch
             ? "Answers must match exactly, including capitalization and accents (sí ≠ si, Sí ≠ sí)."
             : "Answers match regardless of capitalization, surrounding spaces, or accents (sí = si)."}
@@ -1386,7 +1388,7 @@ function LibraryItemPickerBody({
   const allowed = library.data?.entries.filter((e) => allowedKinds.includes(e.displayKind));
 
   if (library.isLoading) {
-    return <p className="text-[11px] text-[var(--color-ink-3)]">Loading library…</p>;
+    return <p className="text-[0.6875rem] text-[var(--color-ink-3)]">Loading library…</p>;
   }
   if (library.isError) {
     return (
@@ -1402,7 +1404,7 @@ function LibraryItemPickerBody({
   }
   if (!allowed || allowed.length === 0) {
     return (
-      <p className="text-[11px] text-[var(--color-ink-3)]">
+      <p className="text-[0.6875rem] text-[var(--color-ink-3)]">
         No matching Library Items in this group yet — upload one in the Library tab, then come back.
       </p>
     );
@@ -1412,7 +1414,7 @@ function LibraryItemPickerBody({
     <div className="space-y-2">
       <select
         aria-label="Library Item"
-        className="h-9 w-full rounded-[var(--radius-sm)] border border-[var(--color-rule)] bg-[var(--color-bg)] px-3 text-[13px]"
+        className="h-9 w-full rounded-[var(--radius-sm)] border border-[var(--color-rule)] bg-[var(--color-bg)] px-3 text-[0.8125rem]"
         value={part.libraryItemId}
         disabled={disabled}
         onChange={(e) => onUpdate({ libraryItemId: e.target.value } as Partial<ActivityPart>)}
@@ -1517,7 +1519,7 @@ function WindowFields({
           )}
         </Field>
       </div>
-      <p className="text-[11px] text-[var(--color-ink-3)]">
+      <p className="text-[0.6875rem] text-[var(--color-ink-3)]">
         Times are stored as instants and rendered in each viewer's own zone. You're picking in{" "}
         <span className="font-mono">{localZone}</span>.
       </p>
@@ -1611,8 +1613,8 @@ function PostCloseRadios({
             className="mt-0.5 h-4 w-4"
           />
           <span className="min-w-0 flex-1">
-            <span className="block text-[13px] text-[var(--color-ink)]">{opt.label}</span>
-            <span className="block text-[11px] text-[var(--color-ink-3)]">{opt.hint}</span>
+            <span className="block text-[0.8125rem] text-[var(--color-ink)]">{opt.label}</span>
+            <span className="block text-[0.6875rem] text-[var(--color-ink-3)]">{opt.hint}</span>
           </span>
         </label>
       ))}
@@ -1621,15 +1623,15 @@ function PostCloseRadios({
 }
 
 /**
- * TODO(m11): refresh the prereq + suggested-sequence helper copy
- * once Activity Records (M11) and Visibility (M12) make prereq
- * satisfaction observable to the learner. Today the copy is correct
- * for the static state ("Pick zero or more activities a learner
- * must complete first") because no completion signal exists yet;
- * once records track per-Part progress and visibility ties prereq
- * status to access, the copy gets richer (e.g., "blocks access
- * until the learner has marked all Parts of the prereq complete").
- * Re-evaluate when M11 lands — the truth-table gets more interesting.
+ * TODO(m12): refresh the prereq + suggested-sequence helper copy once
+ * Visibility (M12) ties prereq satisfaction to learner-visible access.
+ * The current copy ("block access" / "Pick zero or more activities a
+ * learner must complete first") is correct after M11 too — M11 tracks
+ * per-Part progress but does not change what the composer copy promises.
+ * The richer truth-table ("blocks access until the learner has marked
+ * all Parts of the prereq complete") only becomes accurate once M12
+ * resolves prereq status into an observable access scope. Re-evaluate
+ * when M12 lands.
  */
 function CrossActivityFields({
   siblings,
@@ -1703,7 +1705,7 @@ function SiblingChecklist({
           const checked = selected.has(s.id);
           return (
             <li key={s.id}>
-              <label className="flex cursor-pointer items-center gap-2 px-3 py-2 text-[13px] hover:bg-[var(--color-surface-2)]">
+              <label className="flex cursor-pointer items-center gap-2 px-3 py-2 text-[0.8125rem] hover:bg-[var(--color-surface-2)]">
                 <input
                   type="checkbox"
                   className="h-4 w-4"
@@ -1761,7 +1763,7 @@ function AudienceFields({
             <select
               id={id}
               aria-describedby={describedBy}
-              className="h-9 w-full rounded-[var(--radius-sm)] border border-[var(--color-rule)] bg-[var(--color-bg)] px-3 text-[13px]"
+              className="h-9 w-full rounded-[var(--radius-sm)] border border-[var(--color-rule)] bg-[var(--color-bg)] px-3 text-[0.8125rem]"
               value={audienceKind}
               disabled={disabled}
               onChange={(e) => onAudienceKindChange(e.target.value as ActivityAudience["kind"])}
@@ -1773,7 +1775,7 @@ function AudienceFields({
             {isSubset ? (
               <div className="overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-rule)]">
                 {people.isLoading ? (
-                  <div className="px-3 py-3 text-[12px] text-[var(--color-ink-3)]">
+                  <div className="px-3 py-3 text-[0.75rem] text-[var(--color-ink-3)]">
                     Loading roster…
                   </div>
                 ) : people.isError ? (
@@ -1791,7 +1793,7 @@ function AudienceFields({
                     </div>
                   </Callout>
                 ) : enrollees.length === 0 ? (
-                  <div className="px-3 py-3 text-[12px] text-[var(--color-ink-3)]">
+                  <div className="px-3 py-3 text-[0.75rem] text-[var(--color-ink-3)]">
                     No current enrollees yet — invite participants first, then narrow audience.
                   </div>
                 ) : (
@@ -1810,7 +1812,7 @@ function AudienceFields({
                               onChange={() => onToggleUser(userId)}
                             />
                             <Avatar name={row.displayName} size={24} src={row.avatarUrl} />
-                            <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--color-ink)]">
+                            <span className="min-w-0 flex-1 truncate text-[0.8125rem] text-[var(--color-ink)]">
                               {row.displayName}
                             </span>
                             {row.enrollment.role === "facilitator" ? (
@@ -1822,7 +1824,7 @@ function AudienceFields({
                     })}
                   </ul>
                 )}
-                <div className="border-[var(--color-rule)] border-t bg-[var(--color-surface)] px-3 py-2 text-[11px] text-[var(--color-ink-3)]">
+                <div className="border-[var(--color-rule)] border-t bg-[var(--color-surface)] px-3 py-2 text-[0.6875rem] text-[var(--color-ink-3)]">
                   {selectedUserIds.size === 0
                     ? "Pick at least one participant before saving."
                     : `${selectedUserIds.size} selected`}

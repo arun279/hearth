@@ -1,13 +1,21 @@
 import type { ActivityPart, ActivityPlayerProjection, PartProgressState } from "@hearth/domain";
-import { Button, Callout } from "@hearth/ui";
-import { useEffect, useMemo } from "react";
+import { Button, Callout, cn, PageContainer } from "@hearth/ui";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { useActivityRecord, useSetPartCompleted } from "../../../hooks/use-activity-record.ts";
+import {
+  useActivityRecord,
+  useMarkActivityComplete,
+  useSetPartCompleted,
+} from "../../../hooks/use-activity-record.ts";
 import { formatRelative, formatShortDate } from "../../../lib/format.ts";
 import { asUserMessage, errorStatus } from "../../../lib/problem.ts";
+import { partMeasure } from "./_lib/part-measure.ts";
+import { partTitle } from "./_lib/part-title.ts";
 import { ActivityHeader } from "./activity-header.tsx";
+import { FacilitatorRosterDialog } from "./facilitator-roster-dialog.tsx";
 import { FlowSidebar } from "./flow-sidebar.tsx";
 import { PartFooter } from "./part-footer.tsx";
+import { PartHistoryDrawer } from "./part-history-drawer.tsx";
 import { PartTabBar } from "./part-tab-bar.tsx";
 import { PartViewport } from "./part-viewport.tsx";
 
@@ -31,6 +39,13 @@ type Props = {
 };
 
 const FALLBACK_TOAST_KEY = "activity-player-bad-part";
+
+// Off-Part notices (pre-open, locked, record-error, empty-Parts) read as text
+// and take the narrow reading measure unconditionally — never the active Part's
+// tier, which widens to max-w-3xl for media Parts. They live inside the player's
+// own padded column, so they compose the bare measure here rather than
+// <PageContainer> (whose gutters would double-apply).
+const NARROW_NOTICE = "mx-auto w-full max-w-2xl";
 
 /**
  * Top-level composition for the Activity Player route. Reads the
@@ -110,7 +125,17 @@ function PlayerBody({
       new Set<string>((record?.parts ?? []).filter((p) => p.state.completed).map((p) => p.partId)),
     [record],
   );
+  const partsWithHistory = useMemo(() => new Set<string>(record?.partsWithHistory ?? []), [record]);
   const setCompleted = useSetPartCompleted(activity.id);
+  const markComplete = useMarkActivityComplete(activity.id);
+
+  // The Part whose history drawer is open, or null when closed. The drawer
+  // reads the owner history route lazily, so it fetches only on open.
+  const [historyPartId, setHistoryPartId] = useState<string | null>(null);
+  // The facilitator participant-roster dialog (reset affordance). Gated below
+  // on the viewer being a facilitator; non-facilitators never see the trigger.
+  const [rosterOpen, setRosterOpen] = useState(false);
+  const isFacilitator = projection.viewer.enrollmentStatus === "facilitator";
 
   const requestedExists = requestedPartId !== null && orderedPartIds.includes(requestedPartId);
   const activePartId = requestedExists ? (requestedPartId as string) : (orderedPartIds[0] ?? "");
@@ -151,9 +176,12 @@ function PlayerBody({
           currentPartIndex={0}
           totalParts={orderedPartIds.length}
           completedCount={0}
+          measure="max-w-2xl"
         />
-        <div className="px-4 py-5 md:px-8 md:py-7">
-          <AccessStateNotice tone="neutral" title="This activity isn't open yet" body={body} />
+        <div className="flex-1 overflow-y-auto px-5 py-8 md:px-8 md:py-10">
+          <div className={NARROW_NOTICE}>
+            <AccessStateNotice tone="neutral" title="This activity isn't open yet" body={body} />
+          </div>
         </div>
       </FullViewport>
     );
@@ -172,42 +200,78 @@ function PlayerBody({
   const canAuthor =
     (record?.canParticipate ?? false) && accessState === "open" && recordQuery.isSuccess;
 
+  const activityCompleted = record?.completionState === "completed";
+  // The `manual_mark` close affordance: shown only for an authoring participant
+  // under the manual rule (under `all_parts_complete` the server auto-completes
+  // on the last Part, so no manual CTA), or once the record is complete (so the
+  // confirmation banner persists across reloads regardless of the rule).
+  const showActivityCompletion =
+    activityCompleted || (canAuthor && activity.completionRule.kind === "manual_mark");
+
+  const historyPart = historyPartId !== null ? partById.get(historyPartId) : undefined;
+  // Header, body, and footer all centre this one measure inside the post-rail
+  // column, so the three share a left edge for every Part kind.
+  const activeMeasure = activePart ? partMeasure(activePart) : "max-w-2xl";
+
   return (
     <FullViewport>
-      <ActivityHeader
-        activity={activity}
-        accessState={accessState}
-        currentPartIndex={Math.max(activeIndex, 0)}
-        totalParts={orderedPartIds.length}
-        completedCount={completedPartIds.size}
-      />
-      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         <FlowSidebar
           parts={activity.parts}
           orderedPartIds={orderedPartIds}
           activePartId={activePartId}
           completedPartIds={completedPartIds}
           onSelectPart={onChangeActivePartId}
+          partsWithHistory={partsWithHistory}
+          onOpenHistory={setHistoryPartId}
         />
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <ActivityHeader
+            activity={activity}
+            accessState={accessState}
+            currentPartIndex={Math.max(activeIndex, 0)}
+            totalParts={orderedPartIds.length}
+            completedCount={completedPartIds.size}
+            activityCompleted={activityCompleted}
+            priorAttemptsCount={record?.partHistoryCount ?? 0}
+            facilitatorAction={
+              isFacilitator ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setRosterOpen(true)}
+                >
+                  Participant progress
+                </Button>
+              ) : null
+            }
+            measure={activeMeasure}
+          />
           <PartTabBar
             parts={activity.parts}
             orderedPartIds={orderedPartIds}
             activePartId={activePartId}
             completedPartIds={completedPartIds}
             onSelectPart={onChangeActivePartId}
+            partsWithHistory={partsWithHistory}
+            onOpenHistory={setHistoryPartId}
           />
-          <div className="flex-1 px-4 py-5 md:px-8 md:py-7">
+          <div className="flex-1 overflow-y-auto px-5 py-8 md:px-8 md:py-10">
             {accessState === "locked" ? (
-              <AccessStateNotice tone="warn" title="This activity is closed" body={lockedBody} />
+              <div className={NARROW_NOTICE}>
+                <AccessStateNotice tone="warn" title="This activity is closed" body={lockedBody} />
+              </div>
             ) : null}
             {recordQuery.isError ? (
-              <RecordErrorState
-                error={recordQuery.error}
-                onRetry={() => void recordQuery.refetch()}
-              />
+              <div className={NARROW_NOTICE}>
+                <RecordErrorState
+                  error={recordQuery.error}
+                  onRetry={() => void recordQuery.refetch()}
+                />
+              </div>
             ) : activePart ? (
-              <div key={activePart.id}>
+              <div key={activePart.id} className={cn("mx-auto w-full", activeMeasure)}>
                 <PartViewport
                   activityId={activity.id}
                   part={activePart}
@@ -221,19 +285,39 @@ function PlayerBody({
                 />
               </div>
             ) : (
-              <p className="text-[13px] text-[var(--color-ink-2)]">
+              <p className={cn(NARROW_NOTICE, "text-[0.8125rem] text-[var(--color-ink-2)]")}>
                 This activity has no Parts yet.
               </p>
             )}
           </div>
           <PartFooter
+            measure={activeMeasure}
             previousPartId={orderedPartIds[activeIndex - 1] ?? null}
             nextPartId={orderedPartIds[activeIndex + 1] ?? null}
             onNavigate={onChangeActivePartId}
             groupId={groupId}
             trackId={trackId}
+            // A Quiz renders its own filled-primary "Submit" only for an
+            // authoring participant; the footer then cedes its primary slot so
+            // the surface shows one blue CTA (the Submit), never two.
+            bodyOwnsPrimary={activePart?.kind === "quiz" && canAuthor}
             allPartsComplete={
-              orderedPartIds.length > 0 && completedPartIds.size === orderedPartIds.length
+              activity.completionRule.kind === "all_parts_complete" &&
+              orderedPartIds.length > 0 &&
+              completedPartIds.size === orderedPartIds.length
+            }
+            activityCompletion={
+              showActivityCompletion
+                ? {
+                    completed: activityCompleted,
+                    pending: markComplete.isPending,
+                    onComplete: () =>
+                      markComplete.mutate(undefined, {
+                        onError: (err) =>
+                          toast.error(asUserMessage(err, "Couldn't mark the activity complete.")),
+                      }),
+                  }
+                : null
             }
             completion={
               activePart
@@ -258,6 +342,23 @@ function PlayerBody({
           />
         </div>
       </div>
+      {historyPart ? (
+        <PartHistoryDrawer
+          open
+          onClose={() => setHistoryPartId(null)}
+          activityId={activity.id}
+          partId={historyPart.id}
+          partLabel={partTitle(historyPart, Math.max(orderedPartIds.indexOf(historyPart.id), 0))}
+        />
+      ) : null}
+      {isFacilitator ? (
+        <FacilitatorRosterDialog
+          open={rosterOpen}
+          onClose={() => setRosterOpen(false)}
+          activityId={activity.id}
+          activityTitle={activity.title}
+        />
+      ) : null}
     </FullViewport>
   );
 }
@@ -268,7 +369,7 @@ function FullViewport({ children }: { readonly children: React.ReactNode }) {
 
 function LoadingState() {
   return (
-    <div className="flex h-full flex-1 items-center justify-center px-5 py-12 text-[13px] text-[var(--color-ink-2)]">
+    <div className="flex h-full flex-1 items-center justify-center px-5 py-12 text-[0.8125rem] text-[var(--color-ink-2)] md:px-8">
       Loading activity…
     </div>
   );
@@ -290,18 +391,18 @@ export function ErrorState({
   const status = errorStatus(error);
   if (status === 404) {
     return (
-      <div className="mx-auto max-w-xl px-5 py-12">
+      <PageContainer measure="prose">
         <Callout tone="neutral" title="This activity isn't available">
           <p>
             It may have been removed, closed, or scoped to a different audience. The link may also
             be stale.
           </p>
         </Callout>
-      </div>
+      </PageContainer>
     );
   }
   return (
-    <div className="mx-auto max-w-xl px-5 py-12">
+    <PageContainer measure="prose">
       <Callout tone="danger" title="Couldn't open this activity">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <span>
@@ -315,7 +416,7 @@ export function ErrorState({
           </Button>
         </div>
       </Callout>
-    </div>
+    </PageContainer>
   );
 }
 
@@ -370,7 +471,7 @@ function AccessStateNotice({
   readonly body: string;
 }) {
   return (
-    <Callout tone={tone === "warn" ? "warn" : "neutral"} title={title}>
+    <Callout tone={tone} title={title}>
       <p>{body}</p>
     </Callout>
   );

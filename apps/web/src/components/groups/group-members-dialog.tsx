@@ -67,7 +67,7 @@ export function GroupMembersDialog({ open, onClose, group }: Props) {
           </Button>
         }
       >
-        <div className="mb-3 flex flex-wrap items-center gap-3 text-[12px] text-[var(--color-ink-2)]">
+        <div className="mb-3 flex flex-wrap items-center gap-3 text-[0.75rem] text-[var(--color-ink-2)]">
           <span className="text-[var(--color-ink-2)]">Status</span>
           <Badge tone={group.status === "archived" ? "warn" : "good"}>{group.status}</Badge>
           <span className="text-[var(--color-ink-2)]">Admins</span>
@@ -75,9 +75,9 @@ export function GroupMembersDialog({ open, onClose, group }: Props) {
         </div>
 
         {members.isLoading ? (
-          <div className="text-[12px] text-[var(--color-ink-2)]">Loading members…</div>
+          <div className="text-[0.75rem] text-[var(--color-ink-2)]">Loading members…</div>
         ) : entries.length === 0 ? (
-          <div className="text-[12px] text-[var(--color-ink-2)]">No active members.</div>
+          <div className="text-[0.75rem] text-[var(--color-ink-2)]">No active members.</div>
         ) : (
           <ul
             aria-label="Group members"

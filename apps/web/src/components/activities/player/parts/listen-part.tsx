@@ -36,7 +36,7 @@ export function ListenPart({ activityId, part, readUrl }: Props) {
     return (
       <div className="flex flex-col items-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-warn-border)] bg-[var(--color-warn-soft)] px-5 py-6 text-center text-[var(--color-warn)]">
         <FileWarning size={18} strokeWidth={1.5} aria-hidden="true" />
-        <p className="font-medium text-[13px]">Audio isn't available right now.</p>
+        <p className="font-medium text-[0.8125rem]">Audio isn't available right now.</p>
       </div>
     );
   }
@@ -58,7 +58,7 @@ export function ListenPart({ activityId, part, readUrl }: Props) {
         <track kind="captions" />
       </audio>
       {part.startSeconds !== undefined || part.endSeconds !== undefined ? (
-        <p className="font-mono text-[10px] text-[var(--color-ink-2)] tabular-nums">
+        <p className="font-mono text-[0.625rem] text-[var(--color-ink-2)] tabular-nums">
           Clip: {formatClip(part.startSeconds, part.endSeconds)}
         </p>
       ) : null}

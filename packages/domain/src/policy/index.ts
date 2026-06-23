@@ -54,3 +54,11 @@ export {
 } from "./helpers.ts";
 export { isAuthorityOverTrack } from "./is-authority-over-track.ts";
 export { isLibraryItemSteward } from "./library-stewardship.ts";
+export {
+  canMarkActivityComplete,
+  canMarkPartComplete,
+  canOverrideActivityRecordVisibility,
+  canResetParticipantProgress,
+  canViewActivityRecord,
+  type ViewActivityRecordResult,
+} from "./record.ts";

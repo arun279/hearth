@@ -79,7 +79,7 @@ test.describe("M9 — Activity player (passive Parts)", () => {
     await expect(page.getByText(/Part 2 of 2/i)).toBeVisible();
 
     // On the LAST Part the footer shows a live "Back to track" closure link
-    // alongside a live "Mark complete" toggle — the link navigates without
+    // alongside a live "Mark this part done" toggle — the link navigates without
     // claiming completion; the toggle is the honest completion action. There
     // are now two "Back to track" links on this Part: the persistent header
     // one and the footer closure one; on a non-final Part only the header
@@ -89,11 +89,11 @@ test.describe("M9 — Activity player (passive Parts)", () => {
     // The track creator is auto-enrolled as a facilitator (a current
     // enrollment), so they may author honor-system completion. The
     // mark-complete toggle is enabled on every Part regardless of `minWords`.
-    await expect(page.getByRole("button", { name: /^Mark complete$/i })).toBeEnabled();
+    await expect(page.getByRole("button", { name: /^Mark this part done$/i })).toBeEnabled();
     await page.getByRole("button", { name: /^Previous/i }).click();
     await expect(page.getByText(/Part 1 of 2/i)).toBeVisible();
     await expect(page.getByRole("link", { name: /Back to track/i })).toHaveCount(1);
-    await expect(page.getByRole("button", { name: /^Mark complete$/i })).toBeEnabled();
+    await expect(page.getByRole("button", { name: /^Mark this part done$/i })).toBeEnabled();
   });
 
   test("player route returns 404 (not 403) for a non-existent activity id", async ({ browser }) => {
@@ -119,5 +119,71 @@ test.describe("M9 — Activity player (passive Parts)", () => {
     await expect(page.getByText(/This activity isn't available/i)).toBeVisible();
     await expect(page.getByRole("link", { name: /Back to track/i })).toBeVisible();
     await expect(page.getByRole("button", { name: /Try again/i })).toBeHidden();
+  });
+
+  test("focus mode keeps global nav reachable at 390px and shows an orientation breadcrumb", async ({
+    browser,
+  }) => {
+    const op = await seedOperator(BOOTSTRAP_USER);
+    const context = await browser.newContext();
+    await attachSession(context, op.cookie);
+    const page = await context.newPage();
+
+    const { groupId, trackId } = await seedGroupWithTrack(context, {
+      groupName: "Tuesday Night Learners",
+      trackName: "Beginner Spanish",
+    });
+    const activityRes = await context.request.post(`/api/v1/tracks/${trackId}/activities`, {
+      data: {
+        trackId,
+        title: "Greetings & introductions",
+        parts: [{ kind: "write_reflection", id: "p_reflect", prompt: "Your favorite phrase?" }],
+        flow: { prereqs: [], displayOrder: ["p_reflect"] },
+        audience: { kind: "everyone_enrolled" },
+        completionRule: { kind: "manual_mark" },
+        libraryRefs: [],
+        prerequisiteActivityIds: [],
+        suggestedNextActivityIds: [],
+      },
+      headers: { "content-type": "application/json" },
+    });
+    expect(activityRes.status()).toBe(201);
+    const { id: activityId } = (await activityRes.json()) as { id: string };
+
+    // The orientation breadcrumb (desktop strip) shows the parent track so the
+    // deepest screen still says where it sits, distinct from the standing
+    // "Back to track" focus-exit.
+    await page.goto(`/g/${groupId}/t/${trackId}/a/${activityId}`);
+    const breadcrumb = page.getByRole("navigation", { name: /Breadcrumb/i });
+    await expect(breadcrumb.getByRole("link", { name: /Beginner Spanish/i })).toBeVisible();
+    await expect(breadcrumb.getByRole("link", { name: /Your groups/i })).toBeVisible();
+
+    // The 768–1023 tablet band is the gap the hamburger guards: the desktop
+    // Part rail is `lg:flex` (visible only ≥1024), so below 1024 the rail is
+    // absent and the hamburger is the sole reach into global nav. Pin the band
+    // explicitly — the default project viewport is ≥1024 (rail shown, hamburger
+    // hidden) and the only other assertion is at 390px (hamburger shown either
+    // way), so without this a regression of the hamburger to `md:hidden` (gone
+    // ≥768) would leave the whole suite green. The FlowSidebar rail (`lg:flex`)
+    // and the PartTabBar pill strip (`lg:hidden`) share `aria-label="Activity
+    // Parts"`; below 1024 the rail is `display:none` (out of the a11y tree), so
+    // exactly one `Activity Parts` nav — the PartTabBar — remains, and it is the
+    // visible Part navigation for the band.
+    await page.setViewportSize({ width: 900, height: 760 });
+    await expect(page.getByRole("button", { name: /Open navigation/i })).toBeVisible();
+    const tabletPartNav = page.getByRole("navigation", { name: /Activity Parts/i });
+    await expect(tabletPartNav).toHaveCount(1);
+    await expect(tabletPartNav).toBeVisible();
+
+    // At 390px the hamburger opens the nav Drawer so the global nav (the
+    // wordmark home link, group/admin/account) is reachable from the focus-mode
+    // island rather than being a one-way dead end.
+    await page.setViewportSize({ width: 390, height: 760 });
+    await page.getByRole("button", { name: /Open navigation/i }).click();
+    const drawer = page.getByRole("dialog", { name: /navigation/i });
+    await expect(drawer).toBeVisible();
+    await expect(drawer.getByRole("link", { name: /Hearth — back to your groups/i })).toBeVisible();
+
+    await context.close();
   });
 });

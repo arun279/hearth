@@ -94,10 +94,10 @@ export function AvatarUploader({
       <div className="flex flex-wrap items-center gap-3">
         <Avatar name={name} src={renderedSrc} size={48} />
         <div className="min-w-0 flex-1">
-          <div className="text-[13px] text-[var(--color-ink)]" data-user-id={userId}>
+          <div className="text-[0.8125rem] text-[var(--color-ink)]" data-user-id={userId}>
             Your avatar in {group.name}
           </div>
-          <div className="text-[11px] text-[var(--color-ink-2)]">
+          <div className="text-[0.6875rem] text-[var(--color-ink-2)]">
             PNG, JPEG, or WebP. Auto-resized to 256×256.
           </div>
         </div>

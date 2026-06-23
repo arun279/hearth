@@ -31,7 +31,7 @@ export function Callout({ tone = "neutral", title, className, children, ...props
   return (
     <div
       className={cn(
-        "rounded-[var(--radius-md)] border px-3 py-2.5 text-[13px]",
+        "rounded-[var(--radius-md)] border px-3 py-2.5 text-[0.8125rem]",
         tones[tone],
         className,
       )}

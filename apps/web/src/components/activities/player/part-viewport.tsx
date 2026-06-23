@@ -60,7 +60,7 @@ export function PartViewport({ activityId, part, resolvedRef, record }: Props) {
       return (
         <Suspense
           fallback={
-            <div className="flex h-32 items-center text-[12px] text-[var(--color-ink-2)]">
+            <div className="flex h-32 items-center text-[0.75rem] text-[var(--color-ink-2)]">
               Loading reader…
             </div>
           }
@@ -119,7 +119,7 @@ export function PartViewport({ activityId, part, resolvedRef, record }: Props) {
 
 function PartLoading() {
   return (
-    <div className="flex h-24 items-center text-[12px] text-[var(--color-ink-2)]">
+    <div className="flex h-24 items-center text-[0.75rem] text-[var(--color-ink-2)]">
       Loading your work…
     </div>
   );

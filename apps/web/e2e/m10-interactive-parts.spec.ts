@@ -116,21 +116,21 @@ test.describe("M10 — Activity rendering: interactive Parts", () => {
 
     // --- Honor-system completion: mark Part 2 done, verify the round-trip ---
     // The toggle is always enabled (no quiz-score / minWords gate); marking
-    // flips it to "Completed", advances the header count, and persists across
+    // flips it to "Part done", advances the header count, and persists across
     // a reload.
     await expect(page.getByText(/0 of 2 Parts complete/i)).toBeVisible();
-    await page.getByRole("button", { name: /^Mark complete$/i }).click();
-    await expect(page.getByRole("button", { name: /^Completed$/i })).toBeVisible();
+    await page.getByRole("button", { name: /^Mark this part done$/i }).click();
+    await expect(page.getByRole("button", { name: /^Part done$/i })).toBeVisible();
     await expect(page.getByText(/1 of 2 Parts complete/i)).toBeVisible();
 
     await page.reload();
     await expect(page.getByText(/Part 2 of 2/i)).toBeVisible();
-    await expect(page.getByRole("button", { name: /^Completed$/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Part done$/i })).toBeVisible();
     await expect(page.getByText(/1 of 2 Parts complete/i)).toBeVisible();
 
     // Un-marking is the reverse of the same toggle — completion is reversible.
-    await page.getByRole("button", { name: /^Completed$/i }).click();
-    await expect(page.getByRole("button", { name: /^Mark complete$/i })).toBeVisible();
+    await page.getByRole("button", { name: /^Part done$/i }).click();
+    await expect(page.getByRole("button", { name: /^Mark this part done$/i })).toBeVisible();
     await expect(page.getByText(/0 of 2 Parts complete/i)).toBeVisible();
   });
 

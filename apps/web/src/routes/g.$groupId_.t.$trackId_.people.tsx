@@ -1,5 +1,5 @@
 import type { TrackEnrollment } from "@hearth/domain";
-import { Button, Callout, EmptyState, Skeleton } from "@hearth/ui";
+import { Button, Callout, EmptyState, PageContainer, Skeleton } from "@hearth/ui";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { LogOut, Shield, ShieldOff, UserMinus, UserPlus } from "lucide-react";
 import { useState } from "react";
@@ -126,21 +126,21 @@ function TrackPeopleBody({
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-3xl space-y-3 px-5 py-8 md:px-8">
+      <PageContainer className="space-y-3">
         <Skeleton className="h-6 w-24" />
         <Skeleton className="h-32 w-full" />
-      </div>
+      </PageContainer>
     );
   }
 
   if (isError || !people) {
     return (
-      <div className="mx-auto max-w-2xl px-5 py-12 md:px-8">
+      <PageContainer measure="prose">
         <EmptyState
           title="Couldn't load people"
           description="Try refreshing — the list reads from the track itself, so an empty result usually means a transient error."
         />
-      </div>
+      </PageContainer>
     );
   }
 
@@ -148,10 +148,10 @@ function TrackPeopleBody({
   const participants = people.entries.filter((e) => e.enrollment.role === "participant");
 
   return (
-    <div className="mx-auto max-w-3xl px-5 py-8 md:px-8">
+    <PageContainer>
       <nav
         aria-label="Breadcrumb"
-        className="flex items-center gap-2 text-[12px] text-[var(--color-ink-2)]"
+        className="flex items-center gap-2 text-[0.75rem] text-[var(--color-ink-2)]"
       >
         <Link to="/" search={{}} className="hover:text-[var(--color-ink-2)]">
           Your groups
@@ -185,8 +185,10 @@ function TrackPeopleBody({
 
       <header className="mt-3 flex items-start justify-between gap-3">
         <div>
-          <h1 className="font-serif text-[28px] text-[var(--color-ink)] leading-tight">People</h1>
-          <p className="mt-1 text-[13px] text-[var(--color-ink-2)]">
+          <h1 className="font-serif text-[1.75rem] text-[var(--color-ink)] leading-tight">
+            People
+          </h1>
+          <p className="mt-1 text-[0.8125rem] text-[var(--color-ink-2)]">
             Facilitators curate this Learning Track; enrollees take part.
           </p>
         </div>
@@ -243,7 +245,7 @@ function TrackPeopleBody({
       {isCurrentEnrollee ? (
         <Callout tone="neutral" className="mt-6">
           <div className="flex items-start justify-between gap-3">
-            <p className="text-[12px] text-[var(--color-ink-2)]">
+            <p className="text-[0.75rem] text-[var(--color-ink-2)]">
               {isLastFacilitator
                 ? "You're the only facilitator on this track. Promote another facilitator before leaving — otherwise the track would be left without supervision."
                 : "Leaving the track preserves your past activity records."}
@@ -365,13 +367,13 @@ function TrackPeopleBody({
           }
         }}
       />
-    </div>
+    </PageContainer>
   );
 }
 
 function SectionHeading({ children }: { readonly children: React.ReactNode }) {
   return (
-    <h2 className="mt-6 mb-2 font-medium text-[11px] text-[var(--color-ink-2)] uppercase tracking-wide">
+    <h2 className="mt-6 mb-2 font-medium text-[0.6875rem] text-[var(--color-ink-2)] uppercase tracking-wide">
       {children}
     </h2>
   );

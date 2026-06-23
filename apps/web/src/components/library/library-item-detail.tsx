@@ -149,9 +149,9 @@ function DetailBody({
         <KindBadge kind={displayKind} />
         <div className="min-w-0 flex-1">
           {item.description ? (
-            <p className="text-[13px] text-[var(--color-ink-2)]">{item.description}</p>
+            <p className="text-[0.8125rem] text-[var(--color-ink-2)]">{item.description}</p>
           ) : (
-            <p className="text-[12px] text-[var(--color-ink-2)] italic">No description.</p>
+            <p className="text-[0.75rem] text-[var(--color-ink-2)] italic">No description.</p>
           )}
           {item.tags.length > 0 ? (
             <div className="mt-2 flex flex-wrap gap-1">
@@ -166,7 +166,7 @@ function DetailBody({
         <a
           href={libraryDownloadUrl(itemId)}
           className={cn(
-            "inline-flex shrink-0 items-center justify-center gap-1.5 self-start whitespace-nowrap rounded-[var(--radius-sm)] border border-[var(--color-rule)] bg-[var(--color-bg)] px-2.5 py-1.5 text-[12px] text-[var(--color-ink-2)]",
+            "inline-flex shrink-0 items-center justify-center gap-1.5 self-start whitespace-nowrap rounded-[var(--radius-sm)] border border-[var(--color-rule)] bg-[var(--color-bg)] px-2.5 py-1.5 text-[0.75rem] text-[var(--color-ink-2)]",
             "hover:bg-[var(--color-surface-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]",
           )}
         >
@@ -183,13 +183,13 @@ function DetailBody({
       <section aria-labelledby="revisions-heading">
         <h3
           id="revisions-heading"
-          className="mb-2 font-medium text-[10px] text-[var(--color-ink-2)] uppercase tracking-wide"
+          className="mb-2 font-medium text-[0.625rem] text-[var(--color-ink-2)] uppercase tracking-wide"
         >
           Revisions
         </h3>
         <div className="overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-rule)]">
           {detail.revisions.length === 0 ? (
-            <p className="p-3 text-[12px] text-[var(--color-ink-2)] italic">No revisions yet.</p>
+            <p className="p-3 text-[0.75rem] text-[var(--color-ink-2)] italic">No revisions yet.</p>
           ) : (
             detail.revisions.map((r, i) => {
               const isCurrent = r.id === item.currentRevisionId;
@@ -204,18 +204,18 @@ function DetailBody({
                 >
                   <span
                     className={cn(
-                      "w-10 shrink-0 font-mono text-[11px]",
+                      "w-10 shrink-0 font-mono text-[0.6875rem]",
                       isCurrent ? "text-[var(--color-accent)]" : "text-[var(--color-ink-2)]",
                     )}
                   >
                     r{r.revisionNumber}
                   </span>
                   <div className="min-w-0 flex-1 basis-[180px]">
-                    <div className="text-[12px] text-[var(--color-ink-2)]">
+                    <div className="text-[0.75rem] text-[var(--color-ink-2)]">
                       {formatShortDate(r.uploadedAt)} · {formatBytes(r.sizeBytes)}
                     </div>
                     {r.originalFilename ? (
-                      <div className="mt-0.5 truncate text-[11px] text-[var(--color-ink-2)]">
+                      <div className="mt-0.5 truncate text-[0.6875rem] text-[var(--color-ink-2)]">
                         {r.originalFilename}
                       </div>
                     ) : null}
@@ -223,7 +223,7 @@ function DetailBody({
                   {isCurrent ? <Badge tone="accent">current</Badge> : null}
                   <a
                     href={libraryRevisionDownloadUrl(itemId, r.id as LibraryRevisionId)}
-                    className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-[var(--radius-sm)] px-2 py-1 text-[11px] text-[var(--color-ink-2)] hover:bg-[var(--color-bg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
+                    className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-[var(--radius-sm)] px-2 py-1 text-[0.6875rem] text-[var(--color-ink-2)] hover:bg-[var(--color-bg)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
                     aria-label={`Download revision ${r.revisionNumber}`}
                   >
                     <Download size={11} aria-hidden /> Download
@@ -238,17 +238,17 @@ function DetailBody({
       <section aria-labelledby="stewards-heading">
         <h3
           id="stewards-heading"
-          className="mb-2 font-medium text-[10px] text-[var(--color-ink-2)] uppercase tracking-wide"
+          className="mb-2 font-medium text-[0.625rem] text-[var(--color-ink-2)] uppercase tracking-wide"
         >
           Stewards
         </h3>
-        <div className="flex flex-wrap items-center gap-2 text-[12px] text-[var(--color-ink-2)]">
+        <div className="flex flex-wrap items-center gap-2 text-[0.75rem] text-[var(--color-ink-2)]">
           <StewardChip kind="uploader" />
           {detail.stewards.map((s) => (
             <StewardChip key={s.id} kind="explicit" userId={s.userId} />
           ))}
           {detail.stewards.length === 0 ? (
-            <span className="text-[11px] text-[var(--color-ink-2)] italic">
+            <span className="text-[0.6875rem] text-[var(--color-ink-2)] italic">
               The uploader is the only Steward.
             </span>
           ) : null}
@@ -258,12 +258,12 @@ function DetailBody({
       <section aria-labelledby="usedin-heading">
         <h3
           id="usedin-heading"
-          className="mb-2 font-medium text-[10px] text-[var(--color-ink-2)] uppercase tracking-wide"
+          className="mb-2 font-medium text-[0.625rem] text-[var(--color-ink-2)] uppercase tracking-wide"
         >
           Used in
         </h3>
         {usedIn.length === 0 ? (
-          <p className="text-[12px] text-[var(--color-ink-2)]">Not yet used.</p>
+          <p className="text-[0.75rem] text-[var(--color-ink-2)]">Not yet used.</p>
         ) : (
           // Listing the activities by title is the friendly counterpart
           // to the FK-RESTRICT error a steward would otherwise see at
@@ -271,7 +271,7 @@ function DetailBody({
           // hard-delete a referenced item" rule legible before the
           // mutation, not after.
           <>
-            <p className="mb-1.5 text-[12px] text-[var(--color-ink-2)]">
+            <p className="mb-1.5 text-[0.75rem] text-[var(--color-ink-2)]">
               {`Used in ${usedIn.length} ${usedIn.length === 1 ? "activity" : "activities"} — retiring is allowed; hard-deleting is blocked while any reference remains.`}
             </p>
             {/*
@@ -285,7 +285,7 @@ function DetailBody({
              * polish owned by M19. Until then, plain `<li>` text is
              * honest.
              */}
-            <ul className="space-y-1 rounded-[var(--radius-sm)] border border-[var(--color-rule)] px-3 py-2 text-[12px] text-[var(--color-ink)]">
+            <ul className="space-y-1 rounded-[var(--radius-sm)] border border-[var(--color-rule)] px-3 py-2 text-[0.75rem] text-[var(--color-ink)]">
               {usedIn.map((entry) => (
                 <li key={entry.id} className="truncate">
                   {entry.title}
@@ -324,16 +324,16 @@ function StewardChip(props: StewardChipProps) {
       )}
     >
       {props.kind === "uploader" ? (
-        <span className="font-medium text-[11px] text-[var(--color-accent)] uppercase tracking-wide">
+        <span className="font-medium text-[0.6875rem] text-[var(--color-accent)] uppercase tracking-wide">
           Uploader
         </span>
       ) : (
         <>
-          <span className="font-medium text-[10px] text-[var(--color-ink-2)] uppercase tracking-wide">
+          <span className="font-medium text-[0.625rem] text-[var(--color-ink-2)] uppercase tracking-wide">
             Steward
           </span>
           <span
-            className="rounded bg-[var(--color-surface-2)] px-1 py-0.5 font-mono text-[10px] text-[var(--color-ink-2)]"
+            className="rounded bg-[var(--color-surface-2)] px-1 py-0.5 font-mono text-[0.625rem] text-[var(--color-ink-2)]"
             title="User identifier — display names land in a follow-up milestone."
           >
             {props.userId}

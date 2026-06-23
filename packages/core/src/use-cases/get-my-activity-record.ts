@@ -25,10 +25,27 @@ export async function getMyActivityRecord(
 ): Promise<MyActivityRecordView> {
   const ctx = await loadOwnRecordContext(input.actor, input.activityId, deps);
   const record = await deps.records.byParticipantAndActivity(input.activityId, input.actor);
-  const parts = record ? await deps.records.listPartProgress(record.id) : [];
+  if (!record) {
+    return {
+      canParticipate: ctx.participation.ok,
+      completionState: "in_progress",
+      visibilityOverride: null,
+      parts: [],
+      partHistoryCount: 0,
+      partsWithHistory: [],
+    };
+  }
+  const [parts, partHistoryCount, partsWithHistory] = await Promise.all([
+    deps.records.listPartProgress(record.id),
+    deps.records.countPartHistory(record.id),
+    deps.records.partsWithHistory(record.id),
+  ]);
   return {
     canParticipate: ctx.participation.ok,
-    visibilityOverride: record?.visibilityOverride ?? null,
+    completionState: record.completionState,
+    visibilityOverride: record.visibilityOverride,
     parts: parts.map((p) => ({ partId: p.partId, state: p.state })),
+    partHistoryCount,
+    partsWithHistory,
   };
 }

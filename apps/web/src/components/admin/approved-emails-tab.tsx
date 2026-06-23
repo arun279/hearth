@@ -105,7 +105,7 @@ export function ApprovedEmailsTab() {
   return (
     <div className="space-y-5">
       <section className="space-y-3 rounded-[var(--radius-md)] border border-[var(--color-rule)] bg-[var(--color-surface)] p-3.5">
-        <div className="font-medium text-[11px] text-[var(--color-ink-2)] uppercase tracking-wide">
+        <div className="font-medium text-[0.6875rem] text-[var(--color-ink-2)] uppercase tracking-wide">
           Add an email
         </div>
         <form className="space-y-3" noValidate onSubmit={onAdd}>
@@ -149,7 +149,7 @@ export function ApprovedEmailsTab() {
         <details className="rounded-[var(--radius-md)] border border-[var(--color-rule)] bg-[var(--color-bg)] p-3">
           <summary
             id={bulkSummaryId}
-            className="cursor-pointer font-medium text-[12px] text-[var(--color-ink-2)]"
+            className="cursor-pointer font-medium text-[0.75rem] text-[var(--color-ink-2)]"
           >
             Paste a list (one email per line)
           </summary>
@@ -180,7 +180,7 @@ export function ApprovedEmailsTab() {
             </div>
           </form>
           {bulkRows.length > 0 ? (
-            <ul className="mt-3 space-y-1 text-[12px]">
+            <ul className="mt-3 space-y-1 text-[0.75rem]">
               {bulkRows.map((r) => (
                 <li
                   key={r.email + r.message}
@@ -215,10 +215,10 @@ export function ApprovedEmailsTab() {
           {entries.map((row) => (
             <li key={row.email} className="flex items-center gap-3 px-3 py-2.5">
               <div className="min-w-0 flex-1">
-                <div className="truncate font-mono text-[13px] text-[var(--color-ink)]">
+                <div className="truncate font-mono text-[0.8125rem] text-[var(--color-ink)]">
                   {row.email}
                 </div>
-                <div className="truncate text-[11px] text-[var(--color-ink-2)]">
+                <div className="truncate text-[0.6875rem] text-[var(--color-ink-2)]">
                   added {formatShortDate(row.addedAt)}
                   {row.note ? ` · ${row.note}` : null}
                 </div>

@@ -60,7 +60,7 @@ export function OperatorsTab({ currentUserId }: Props) {
     <div className="space-y-6">
       <section className="space-y-4">
         <div className="flex items-center justify-between gap-3">
-          <p className="text-[12px] text-[var(--color-ink-2)]">
+          <p className="text-[0.75rem] text-[var(--color-ink-2)]">
             Operators manage instance-level settings, Approved Emails, and each other.
           </p>
           <Button size="sm" variant="secondary" onClick={() => setGrantOpen(true)}>
@@ -97,8 +97,8 @@ export function OperatorsTab({ currentUserId }: Props) {
                 <li key={op.userId} className="flex items-center gap-3 px-3 py-2.5">
                   <Avatar name={label} src={op.image} size={28} />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-[13px] text-[var(--color-ink)]">{label}</div>
-                    <div className="truncate text-[11px] text-[var(--color-ink-2)]">
+                    <div className="truncate text-[0.8125rem] text-[var(--color-ink)]">{label}</div>
+                    <div className="truncate text-[0.6875rem] text-[var(--color-ink-2)]">
                       {op.email && op.name ? `${op.email} · ` : null}
                       granted {formatShortDate(op.grantedAt)}
                     </div>
@@ -121,7 +121,7 @@ export function OperatorsTab({ currentUserId }: Props) {
 
       {revoked.length > 0 ? (
         <section className="space-y-2">
-          <div className="flex items-center gap-2 font-medium text-[11px] text-[var(--color-ink-2)] uppercase tracking-wide">
+          <div className="flex items-center gap-2 font-medium text-[0.6875rem] text-[var(--color-ink-2)] uppercase tracking-wide">
             Revoked — audit trail
           </div>
           <ul
@@ -137,8 +137,10 @@ export function OperatorsTab({ currentUserId }: Props) {
                 >
                   <Avatar name={label} src={op.image} size={24} />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-[13px] line-through decoration-1">{label}</div>
-                    <div className="truncate text-[11px] text-[var(--color-ink-2)]">
+                    <div className="truncate text-[0.8125rem] line-through decoration-1">
+                      {label}
+                    </div>
+                    <div className="truncate text-[0.6875rem] text-[var(--color-ink-2)]">
                       revoked {op.revokedAt ? formatShortDate(op.revokedAt) : ""}
                       {op.revokedBy ? ` · by ${op.revokedBy}` : null}
                     </div>
@@ -243,7 +245,7 @@ function GrantOperatorDialog({ open, onClose, onGrant }: GrantDialogProps) {
       }
     >
       <form id="grant-operator-form" className="space-y-4" noValidate onSubmit={onSubmit}>
-        <p className="text-[12px] text-[var(--color-ink-2)]">
+        <p className="text-[0.75rem] text-[var(--color-ink-2)]">
           The person must already have signed in. Add their email to Approved Emails first if they
           haven't.
         </p>

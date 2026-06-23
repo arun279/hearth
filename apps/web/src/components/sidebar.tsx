@@ -9,10 +9,10 @@ type Props = {
 };
 
 const SECTION_LABEL_CLASSES =
-  "px-1 pt-3 pb-1 font-medium text-[10px] text-[var(--color-ink-2)] uppercase tracking-wide";
+  "px-1 pt-3 pb-1 font-medium text-[0.625rem] text-[var(--color-ink-2)] uppercase tracking-wide";
 
 const NAV_ITEM_CLASSES = cn(
-  "flex items-center gap-2 rounded-[var(--radius-sm)] px-2 py-1.5 text-[13px]",
+  "flex items-center gap-2 rounded-[var(--radius-sm)] px-2 py-1.5 text-[0.8125rem]",
   "transition-colors hover:bg-[var(--color-surface-2)] focus-visible:outline-none",
   "focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg)]",
 );
@@ -63,10 +63,12 @@ export function Sidebar({ me }: Props) {
             "focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg)]",
           )}
         >
-          <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--color-ink)] font-bold text-[11px] text-[var(--color-bg)]">
+          <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--color-ink)] font-bold text-[0.6875rem] text-[var(--color-bg)]">
             H
           </div>
-          <div className="font-semibold font-serif text-[15px] text-[var(--color-ink)]">Hearth</div>
+          <div className="font-semibold font-serif text-[0.9375rem] text-[var(--color-ink)]">
+            Hearth
+          </div>
         </Link>
         <div className="ml-auto">
           <ThemeToggle />
@@ -76,14 +78,14 @@ export function Sidebar({ me }: Props) {
       {me ? (
         <div className="rounded-[var(--radius-md)] border border-[var(--color-rule)] bg-[var(--color-bg)] px-2 py-2">
           <div className="flex items-center gap-1.5">
-            <div className="font-medium text-[10px] text-[var(--color-ink-2)] uppercase tracking-wide">
+            <div className="font-medium text-[0.625rem] text-[var(--color-ink-2)] uppercase tracking-wide">
               Hearth Instance
             </div>
             <Badge tone="warn" className="ml-auto">
               private
             </Badge>
           </div>
-          <div className="mt-0.5 truncate text-[12px] text-[var(--color-ink)]">
+          <div className="mt-0.5 truncate text-[0.75rem] text-[var(--color-ink)]">
             {me.instance.name}
           </div>
         </div>
@@ -135,10 +137,10 @@ export function Sidebar({ me }: Props) {
         <div className="flex items-center gap-2 border-[var(--color-rule)] border-t px-2 pt-2.5 pb-1">
           <Avatar name={name} src={me?.user?.image ?? null} size={28} />
           <div className="min-w-0 flex-1">
-            <div className="truncate font-medium text-[12px] text-[var(--color-ink)]">
+            <div className="truncate font-medium text-[0.75rem] text-[var(--color-ink)]">
               {me?.user?.name ?? "Member"}
             </div>
-            <div className="truncate text-[11px] text-[var(--color-ink-2)]">{roleLabel}</div>
+            <div className="truncate text-[0.6875rem] text-[var(--color-ink-2)]">{roleLabel}</div>
           </div>
         </div>
       ) : null}

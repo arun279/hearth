@@ -29,6 +29,7 @@ export class DomainError extends Error {
  * every code in this tuple has an entry in `policyDenialMessages`.
  */
 export const POLICY_DENIAL_CODES = [
+  "activity_window_closed",
   "already_revoked",
   "cannot_revoke_self",
   "email_not_approved_yet",
@@ -46,9 +47,12 @@ export const POLICY_DENIAL_CODES = [
   "not_in_audience",
   "not_instance_operator",
   "not_library_steward",
+  "not_record_owner",
   "not_self",
   "not_track_authority",
   "not_track_enrollee",
+  "parts_incomplete",
+  "prereq_not_met",
   "track_archived",
   "track_paused",
   "would_orphan_admin",

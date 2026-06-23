@@ -5,7 +5,7 @@ import type {
   StudyGroup,
   TrackEnrollment,
 } from "@hearth/domain";
-import { Avatar, Badge, Button, Callout, EmptyState } from "@hearth/ui";
+import { Avatar, Badge, Button, Callout, EmptyState, PageContainer } from "@hearth/ui";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { Plus, Settings } from "lucide-react";
 import { useState } from "react";
@@ -171,10 +171,10 @@ function GroupHomeBody({
   );
 
   return (
-    <div className="mx-auto max-w-3xl px-5 py-8 md:px-8">
+    <PageContainer>
       <nav
         aria-label="Breadcrumb"
-        className="flex items-center gap-2 text-[12px] text-[var(--color-ink-2)]"
+        className="flex items-center gap-2 text-[0.75rem] text-[var(--color-ink-2)]"
       >
         <Link to="/" search={{}} className="hover:text-[var(--color-ink-2)]">
           Your groups
@@ -186,27 +186,24 @@ function GroupHomeBody({
       <header className="mt-3 space-y-3">
         <div className="flex flex-col items-start gap-2 md:flex-row md:items-start md:gap-3">
           <div className="min-w-0 flex-1">
-            <h1 className="font-serif text-[28px] text-[var(--color-ink)] leading-tight">
+            <h1 className="font-serif text-[1.75rem] text-[var(--color-ink)] leading-tight">
               {g.name}
             </h1>
             {g.description ? (
-              <p className="mt-1 text-[13px] text-[var(--color-ink-2)]">{g.description}</p>
+              <p className="mt-1 text-[0.8125rem] text-[var(--color-ink-2)]">{g.description}</p>
             ) : null}
           </div>
-          <div className="flex shrink-0 items-center gap-1.5">
+          <div className="flex shrink-0 flex-wrap items-center gap-1.5">
             {archived ? <Badge tone="warn">archived</Badge> : <Badge tone="good">active</Badge>}
             <Badge>{g.admissionPolicy.replace("_", " ")}</Badge>
+            {caps.canArchive || caps.canUnarchive || caps.canUpdateMetadata ? (
+              <Button variant="secondary" size="sm" onClick={onOpenSettings}>
+                <Settings size={12} strokeWidth={1.75} aria-hidden="true" />
+                Group settings
+              </Button>
+            ) : null}
           </div>
         </div>
-
-        {caps.canArchive || caps.canUnarchive || caps.canUpdateMetadata ? (
-          <div>
-            <Button variant="secondary" size="sm" onClick={onOpenSettings}>
-              <Settings size={12} strokeWidth={1.75} aria-hidden="true" />
-              Group settings
-            </Button>
-          </div>
-        ) : null}
       </header>
 
       {archived ? (
@@ -219,7 +216,7 @@ function GroupHomeBody({
         <div className="flex items-center gap-3">
           <h2
             id="tracks-heading"
-            className="font-medium text-[11px] text-[var(--color-ink-2)] uppercase tracking-wide"
+            className="font-medium text-[0.6875rem] text-[var(--color-ink-2)] uppercase tracking-wide"
           >
             Learning Tracks · {counts.trackCount}
           </h2>
@@ -261,14 +258,14 @@ function GroupHomeBody({
         <div className="flex items-center gap-3">
           <h2
             id="people-heading"
-            className="font-medium text-[11px] text-[var(--color-ink-2)] uppercase tracking-wide"
+            className="font-medium text-[0.6875rem] text-[var(--color-ink-2)] uppercase tracking-wide"
           >
             People · {counts.memberCount}
           </h2>
           <Link
             to="/g/$groupId/people"
             params={{ groupId: g.id }}
-            className="ml-auto text-[12px] text-[var(--color-accent)] hover:underline"
+            className="ml-auto text-[0.75rem] text-[var(--color-accent)] hover:underline"
           >
             Open People →
           </Link>
@@ -282,12 +279,12 @@ function GroupHomeBody({
               <Avatar name={meUser.name ?? meUser.email} src={meUser.image ?? null} size={32} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="truncate font-medium text-[13px] text-[var(--color-ink)]">
+                  <span className="truncate font-medium text-[0.8125rem] text-[var(--color-ink)]">
                     {meUser.name ?? meUser.email}
                   </span>
                   <Badge tone="accent">you</Badge>
                 </div>
-                <div className="mt-0.5 truncate text-[11px] text-[var(--color-ink-2)]">
+                <div className="mt-0.5 truncate text-[0.6875rem] text-[var(--color-ink-2)]">
                   {myMembership.role === "admin" ? "Group Admin" : "Member"}
                 </div>
               </div>
@@ -305,7 +302,7 @@ function GroupHomeBody({
         <div className="flex items-baseline justify-between">
           <h2
             id="library-heading"
-            className="font-medium text-[11px] text-[var(--color-ink-2)] uppercase tracking-wide"
+            className="font-medium text-[0.6875rem] text-[var(--color-ink-2)] uppercase tracking-wide"
           >
             Library · {counts.libraryItemCount}
           </h2>
@@ -313,7 +310,7 @@ function GroupHomeBody({
             to="/g/$groupId/library"
             params={{ groupId: g.id }}
             search={{}}
-            className="text-[12px] text-[var(--color-accent)] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--color-bg)]"
+            className="text-[0.75rem] text-[var(--color-accent)] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--color-bg)]"
           >
             Open Library →
           </Link>
@@ -327,20 +324,20 @@ function GroupHomeBody({
                 to="/g/$groupId/library"
                 params={{ groupId: g.id }}
                 search={{ upload: "open" }}
-                className="text-[13px] text-[var(--color-accent)] underline-offset-2 hover:underline"
+                className="text-[0.8125rem] text-[var(--color-accent)] underline-offset-2 hover:underline"
               >
                 Upload an item
               </Link>
             }
           />
         ) : (
-          <p className="text-[12px] text-[var(--color-ink-2)]">
+          <p className="text-[0.75rem] text-[var(--color-ink-2)]">
             {counts.libraryItemCount === 1 ? "1 item" : `${counts.libraryItemCount} items`} — view,
             download, or upload a revision from the Library page.
           </p>
         )}
       </section>
-    </div>
+    </PageContainer>
   );
 }
 
@@ -367,19 +364,19 @@ function TrackRow({
       >
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <span className="truncate font-medium text-[13px] text-[var(--color-ink)]">
+            <span className="truncate font-medium text-[0.8125rem] text-[var(--color-ink)]">
               {track.name}
             </span>
             <Badge tone={TRACK_STATUS_TONE[track.status]}>{track.status}</Badge>
             {isEnrolled ? <Badge tone="accent">enrolled</Badge> : null}
           </div>
           {track.description ? (
-            <div className="mt-0.5 line-clamp-1 text-[12px] text-[var(--color-ink-2)]">
+            <div className="mt-0.5 line-clamp-1 text-[0.75rem] text-[var(--color-ink-2)]">
               {track.description}
             </div>
           ) : null}
         </div>
-        <span aria-hidden="true" className="text-[12px] text-[var(--color-ink-2)]">
+        <span aria-hidden="true" className="text-[0.75rem] text-[var(--color-ink-2)]">
           →
         </span>
       </Link>

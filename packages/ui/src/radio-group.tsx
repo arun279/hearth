@@ -53,7 +53,7 @@ export function RadioGroup<T extends string>({
         className={cn(
           legendHidden
             ? "sr-only"
-            : "mb-1 block font-medium text-[11px] text-[var(--color-ink-2)] uppercase tracking-wide",
+            : "mb-1 block font-medium text-[0.6875rem] text-[var(--color-ink-2)] uppercase tracking-wide",
         )}
       >
         {legend}
@@ -70,7 +70,7 @@ export function RadioGroup<T extends string>({
           <label
             key={opt.value}
             className={cn(
-              "flex cursor-pointer items-start gap-2.5 rounded-[var(--radius-md)] border px-3 py-2 text-[13px]",
+              "flex cursor-pointer items-start gap-2.5 rounded-[var(--radius-md)] border px-3 py-2 text-[0.8125rem]",
               // A result tone wins over selected/default so the graded outcome
               // is unambiguous on the option itself.
               toneClass ??
@@ -92,7 +92,9 @@ export function RadioGroup<T extends string>({
             <span className="flex min-w-0 flex-col gap-0.5">
               <span className="text-[var(--color-ink)]">{opt.label}</span>
               {opt.description ? (
-                <span className="text-[11px] text-[var(--color-ink-2)]">{opt.description}</span>
+                <span className="text-[0.6875rem] text-[var(--color-ink-2)]">
+                  {opt.description}
+                </span>
               ) : null}
             </span>
             {opt.adornment ? (

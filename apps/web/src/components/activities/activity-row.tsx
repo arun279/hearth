@@ -50,15 +50,17 @@ export function ActivityRow({ activity, onOpen, onEdit }: Props) {
         aria-label={`Open activity: ${activity.title}`}
       >
         <div className="flex min-w-0 items-center gap-2">
-          <h3 className="truncate font-medium text-[14px] text-[var(--color-ink)]">
+          <h3 className="truncate font-medium text-[0.875rem] text-[var(--color-ink)]">
             {activity.title}
           </h3>
           {activity.audienceKind === "subset" ? <Badge tone="warn">narrowed</Badge> : null}
         </div>
         {activity.description ? (
-          <p className="truncate text-[12px] text-[var(--color-ink-2)]">{activity.description}</p>
+          <p className="truncate text-[0.75rem] text-[var(--color-ink-2)]">
+            {activity.description}
+          </p>
         ) : null}
-        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-[var(--color-ink-3)]">
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[0.6875rem] text-[var(--color-ink-3)]">
           <PartKindStrip kinds={activity.partKindSequence as readonly ActivityPartKind[]} />
           <span aria-hidden="true">·</span>
           <span>{partsLabel}</span>
@@ -114,7 +116,9 @@ function PartKindStrip({ kinds }: { readonly kinds: readonly ActivityPartKind[] 
         />
       ))}
       {kinds.length > 6 ? (
-        <span className="font-mono text-[10px] text-[var(--color-ink-3)]">+{kinds.length - 6}</span>
+        <span className="font-mono text-[0.625rem] text-[var(--color-ink-3)]">
+          +{kinds.length - 6}
+        </span>
       ) : null}
     </div>
   );

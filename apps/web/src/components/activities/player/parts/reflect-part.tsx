@@ -66,7 +66,7 @@ export function wordCountLabel(
 
 function Prompt({ prompt }: { readonly prompt: string }) {
   return (
-    <p className="whitespace-pre-wrap text-[15px] text-[var(--color-ink)] leading-relaxed [font-family:var(--font-serif)]">
+    <p className="whitespace-pre-wrap text-[0.9375rem] text-[var(--color-ink)] leading-relaxed [font-family:var(--font-serif)]">
       {prompt}
     </p>
   );
@@ -86,11 +86,11 @@ export function ReflectPart({
       <div className="flex flex-col gap-3">
         <Prompt prompt={part.prompt} />
         {initialText ? (
-          <p className="whitespace-pre-wrap rounded-[var(--radius-md)] border border-[var(--color-rule)] bg-[var(--color-surface-2)] px-3 py-2.5 text-[13px] text-[var(--color-ink)] leading-relaxed">
+          <p className="whitespace-pre-wrap rounded-[var(--radius-md)] border border-[var(--color-rule)] bg-[var(--color-surface-2)] px-3 py-2.5 text-[0.8125rem] text-[var(--color-ink)] leading-relaxed">
             {initialText}
           </p>
         ) : (
-          <p className="text-[13px] text-[var(--color-ink-2)]">
+          <p className="text-[0.8125rem] text-[var(--color-ink-2)]">
             Only enrolled participants can write a reflection here.
           </p>
         )}
@@ -251,7 +251,7 @@ function ReflectEditor({
         <div className="flex items-center gap-3">
           <span
             className={cn(
-              "inline-flex items-center gap-1 text-[11px]",
+              "inline-flex items-center gap-1 text-[0.6875rem]",
               count.met ? "text-[var(--color-good)]" : "text-[var(--color-ink-2)]",
             )}
           >

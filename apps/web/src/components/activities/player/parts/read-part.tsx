@@ -81,7 +81,7 @@ export default function ReadPart({ activityId, part, readUrl, mimeType }: Props)
 
   if (mimeType === null || !mimeType.startsWith("application/pdf")) {
     return (
-      <div className="flex flex-col gap-3 rounded-[var(--radius-md)] border border-[var(--color-rule)] bg-[var(--color-surface)] px-4 py-5 text-[13px] text-[var(--color-ink-2)]">
+      <div className="flex flex-col gap-3 rounded-[var(--radius-md)] border border-[var(--color-rule)] bg-[var(--color-surface)] px-4 py-5 text-[0.8125rem] text-[var(--color-ink-2)]">
         <p>This reading material isn't a PDF — open it in a new tab to read.</p>
         <a
           href={readUrl}
@@ -102,8 +102,8 @@ function MissingResourceNotice() {
   return (
     <div className="flex flex-col items-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-warn-border)] bg-[var(--color-warn-soft)] px-5 py-6 text-center text-[var(--color-warn)]">
       <FileWarning size={18} strokeWidth={1.5} aria-hidden="true" />
-      <p className="font-medium text-[13px]">Reading material isn't available right now.</p>
-      <p className="text-[12px]">
+      <p className="font-medium text-[0.8125rem]">Reading material isn't available right now.</p>
+      <p className="text-[0.75rem]">
         The activity references a library item with no resolved revision. Ask a facilitator to
         repair the reference.
       </p>

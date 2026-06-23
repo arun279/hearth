@@ -1,6 +1,6 @@
 import type { ActivityPart } from "@hearth/domain";
 import { cn, PartIcon } from "@hearth/ui";
-import { Check } from "lucide-react";
+import { Check, History } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { partTitle } from "./_lib/part-title.ts";
 
@@ -10,13 +10,18 @@ type Props = {
   readonly activePartId: string;
   readonly completedPartIds: ReadonlySet<string>;
   readonly onSelectPart: (partId: string) => void;
+  /** Part ids with at least one prior attempt — render the history chip. */
+  readonly partsWithHistory: ReadonlySet<string>;
+  readonly onOpenHistory: (partId: string) => void;
 };
 
 /**
- * Mobile-only horizontal scroller of Part pills. Sticky-top so the
- * active Part stays visible as the body scrolls; the pill row is
- * always at hand. Matches the prototype mobile-dark layout where the
- * Parts strip sits just below the title and above the body.
+ * Horizontal scroller of Part pills shown below `lg` (the FlowSidebar rail
+ * takes over at ≥1024px). Sticky-top so the active Part stays visible as the
+ * body scrolls; the pill row is always at hand. Matches the prototype
+ * mobile-dark layout where the Parts strip sits just below the title and above
+ * the body. Below `lg` also covers the 768–1023px tablet band, where a 240px
+ * rail would starve the capped content column.
  *
  * On overflow the row scrolls horizontally; when the active id changes
  * (from a footer Next / Previous tap, or a deep-link), the active
@@ -34,6 +39,8 @@ export function PartTabBar({
   activePartId,
   completedPartIds,
   onSelectPart,
+  partsWithHistory,
+  onOpenHistory,
 }: Props) {
   const partById = new Map(parts.map((p) => [p.id, p]));
   const listRef = useRef<HTMLOListElement | null>(null);
@@ -50,7 +57,7 @@ export function PartTabBar({
   return (
     <nav
       aria-label="Activity Parts"
-      className="sticky top-0 z-10 flex shrink-0 overflow-x-auto border-[var(--color-rule)] border-b bg-[var(--color-surface)] md:hidden"
+      className="sticky top-0 z-10 flex shrink-0 overflow-x-auto border-[var(--color-rule)] border-b bg-[var(--color-surface)] lg:hidden"
     >
       <ol ref={listRef} className="flex w-max gap-1 px-3 py-2">
         {orderedPartIds.map((partId, index) => {
@@ -58,14 +65,16 @@ export function PartTabBar({
           if (!part) return null;
           const isActive = partId === activePartId;
           const isComplete = completedPartIds.has(partId);
+          const hasHistory = partsWithHistory.has(partId);
+          const label = partTitle(part, index);
           return (
-            <li key={partId}>
+            <li key={partId} className="flex items-center gap-0.5">
               <button
                 type="button"
                 onClick={() => onSelectPart(partId)}
                 data-active-pill={isActive || undefined}
                 className={cn(
-                  "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-[12px] transition-colors",
+                  "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-[0.75rem] transition-colors",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]",
                   isActive
                     ? "border-[var(--color-accent-border)] bg-[var(--color-accent-soft)] text-[var(--color-accent)]"
@@ -86,10 +95,20 @@ export function PartTabBar({
                   <PartIcon kind={part.kind} size={11} />
                 )}
                 <span>
-                  {partTitle(part, index)}
+                  {label}
                   {isComplete ? <span className="sr-only"> (completed)</span> : null}
                 </span>
               </button>
+              {hasHistory ? (
+                <button
+                  type="button"
+                  onClick={() => onOpenHistory(partId)}
+                  aria-label={`View prior attempts for ${label}`}
+                  className="inline-flex size-9 shrink-0 items-center justify-center rounded-full text-[var(--color-ink-3)] transition-colors hover:bg-[var(--color-surface-2)] hover:text-[var(--color-ink-2)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
+                >
+                  <History size={13} strokeWidth={1.75} aria-hidden="true" />
+                </button>
+              ) : null}
             </li>
           );
         })}

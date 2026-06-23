@@ -41,7 +41,7 @@ function InviteLanding() {
   if (preview.isError || !preview.data) {
     return (
       <Centered title="Invitation not found" instanceName={null}>
-        <p className="text-[13px] text-[var(--color-ink-2)]">
+        <p className="text-[0.8125rem] text-[var(--color-ink-2)]">
           This invitation link is no longer valid. It may have been revoked, expired, or never
           existed.
         </p>
@@ -49,7 +49,7 @@ function InviteLanding() {
           <Link
             to="/"
             search={{}}
-            className="text-[13px] text-[var(--color-accent)] underline-offset-2 hover:underline"
+            className="text-[0.8125rem] text-[var(--color-accent)] underline-offset-2 hover:underline"
           >
             Go to Hearth
           </Link>
@@ -66,7 +66,7 @@ function InviteLanding() {
     // search param the auth layer attaches if Approved Email blocks them.
     return (
       <Centered title="Sign in to continue" instanceName={inv.instanceName}>
-        <p className="text-[13px] text-[var(--color-ink-2)]">
+        <p className="text-[0.8125rem] text-[var(--color-ink-2)]">
           You've been invited to join <strong>{inv.groupName}</strong>
           {inv.targetEmail ? (
             <>
@@ -80,7 +80,7 @@ function InviteLanding() {
           <a
             href={`/api/auth/sign-in/social?provider=google&callbackURL=${encodeURIComponent(`/invite/${token}`)}`}
             data-external-nav
-            className="inline-flex items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-rule)] bg-[var(--color-surface)] px-3 py-2 font-medium text-[13px] text-[var(--color-ink)] hover:bg-[var(--color-surface-2)]"
+            className="inline-flex items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-rule)] bg-[var(--color-surface)] px-3 py-2 font-medium text-[0.8125rem] text-[var(--color-ink)] hover:bg-[var(--color-surface-2)]"
           >
             Sign in with Google
           </a>
@@ -92,7 +92,7 @@ function InviteLanding() {
   if (inv.status === "consumed") {
     return (
       <Centered title="This invitation has already been used" instanceName={inv.instanceName}>
-        <p className="text-[13px] text-[var(--color-ink-2)]">
+        <p className="text-[0.8125rem] text-[var(--color-ink-2)]">
           Each invitation is single-use. Ask the Group Admin for a new link if you still need access
           to {inv.groupName}.
         </p>
@@ -100,7 +100,7 @@ function InviteLanding() {
           <Link
             to="/"
             search={{}}
-            className="text-[13px] text-[var(--color-accent)] underline-offset-2 hover:underline"
+            className="text-[0.8125rem] text-[var(--color-accent)] underline-offset-2 hover:underline"
           >
             Go to your groups
           </Link>
@@ -112,7 +112,7 @@ function InviteLanding() {
   if (inv.status === "revoked") {
     return (
       <Centered title="This invitation was revoked" instanceName={inv.instanceName}>
-        <p className="text-[13px] text-[var(--color-ink-2)]">
+        <p className="text-[0.8125rem] text-[var(--color-ink-2)]">
           The Group Admin pulled this invitation. If you think that's a mistake, ask them to send a
           new one.
         </p>
@@ -120,7 +120,7 @@ function InviteLanding() {
           <Link
             to="/"
             search={{}}
-            className="text-[13px] text-[var(--color-accent)] underline-offset-2 hover:underline"
+            className="text-[0.8125rem] text-[var(--color-accent)] underline-offset-2 hover:underline"
           >
             Go to your groups
           </Link>
@@ -132,14 +132,14 @@ function InviteLanding() {
   if (inv.status === "expired") {
     return (
       <Centered title="This invitation has expired" instanceName={inv.instanceName}>
-        <p className="text-[13px] text-[var(--color-ink-2)]">
+        <p className="text-[0.8125rem] text-[var(--color-ink-2)]">
           Invitations are valid for 14 days. Ask the Group Admin for a fresh link.
         </p>
         <p className="mt-4">
           <Link
             to="/"
             search={{}}
-            className="text-[13px] text-[var(--color-accent)] underline-offset-2 hover:underline"
+            className="text-[0.8125rem] text-[var(--color-accent)] underline-offset-2 hover:underline"
           >
             Go to your groups
           </Link>
@@ -158,7 +158,7 @@ function InviteLanding() {
   if (emailMismatch) {
     return (
       <Centered title="Wrong account?" instanceName={inv.instanceName}>
-        <p className="text-[13px] text-[var(--color-ink-2)]">
+        <p className="text-[0.8125rem] text-[var(--color-ink-2)]">
           This invitation was issued to <strong>{inv.targetEmail}</strong>, but you're signed in as{" "}
           <strong>{meUser.email}</strong>. Sign out and back in with the right Google account, or
           ask the Group Admin to re-issue the invitation.
@@ -167,14 +167,14 @@ function InviteLanding() {
           <a
             href="/api/auth/sign-out"
             data-external-nav
-            className="inline-flex items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-rule)] bg-[var(--color-surface)] px-3 py-1.5 font-medium text-[13px] text-[var(--color-ink)] hover:bg-[var(--color-surface-2)]"
+            className="inline-flex items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-rule)] bg-[var(--color-surface)] px-3 py-1.5 font-medium text-[0.8125rem] text-[var(--color-ink)] hover:bg-[var(--color-surface-2)]"
           >
             Sign out
           </a>
           <Link
             to="/"
             search={{}}
-            className="text-[13px] text-[var(--color-accent)] underline-offset-2 hover:underline"
+            className="text-[0.8125rem] text-[var(--color-accent)] underline-offset-2 hover:underline"
           >
             Go to your groups
           </Link>
@@ -198,7 +198,7 @@ function InviteLanding() {
 
   return (
     <Centered title={`Join ${inv.groupName}?`} instanceName={inv.instanceName}>
-      <p className="text-[13px] text-[var(--color-ink-2)]">
+      <p className="text-[0.8125rem] text-[var(--color-ink-2)]">
         You'll become a member of <strong>{inv.groupName}</strong> on this Hearth Instance.
       </p>
       {inv.status === "pending_approval" ? (
@@ -252,14 +252,16 @@ function Centered({
           aria-label="Hearth — home"
           className="flex items-center gap-2 rounded-[var(--radius-sm)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg)]"
         >
-          <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--color-ink)] font-bold text-[11px] text-[var(--color-bg)]">
+          <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--color-ink)] font-bold text-[0.6875rem] text-[var(--color-bg)]">
             H
           </div>
-          <div className="font-semibold font-serif text-[15px] text-[var(--color-ink)]">Hearth</div>
+          <div className="font-semibold font-serif text-[0.9375rem] text-[var(--color-ink)]">
+            Hearth
+          </div>
         </Link>
         {instanceName ? (
-          <div className="ml-2 rounded-[var(--radius-sm)] border border-[var(--color-rule)] bg-[var(--color-surface)] px-2 py-0.5 text-[11px] text-[var(--color-ink-2)]">
-            <span className="font-medium text-[10px] text-[var(--color-ink-2)] uppercase tracking-wide">
+          <div className="ml-2 rounded-[var(--radius-sm)] border border-[var(--color-rule)] bg-[var(--color-surface)] px-2 py-0.5 text-[0.6875rem] text-[var(--color-ink-2)]">
+            <span className="font-medium text-[0.625rem] text-[var(--color-ink-2)] uppercase tracking-wide">
               Hearth Instance ·{" "}
             </span>
             {instanceName}
@@ -269,7 +271,7 @@ function Centered({
       <main className="flex flex-1 items-center justify-center px-6">
         <div className="w-full max-w-md text-center">
           {title ? (
-            <h1 className="font-serif text-[22px] text-[var(--color-ink)]">{title}</h1>
+            <h1 className="font-serif text-[1.375rem] text-[var(--color-ink)]">{title}</h1>
           ) : null}
           <div className="mt-2">{children}</div>
         </div>

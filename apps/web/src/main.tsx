@@ -34,10 +34,10 @@ function RootErrorFallback({ error }: FallbackProps) {
     <div className="flex min-h-screen items-center justify-center px-6">
       <div className="max-w-md text-center">
         <div className="font-serif text-2xl text-[var(--color-ink)]">Something went wrong</div>
-        <p className="mt-2 text-[13px] text-[var(--color-ink-2)]">
+        <p className="mt-2 text-[0.8125rem] text-[var(--color-ink-2)]">
           Hearth hit an unexpected error. Reloading usually recovers.
         </p>
-        <pre className="mt-4 overflow-auto rounded-[var(--radius-md)] bg-[var(--color-surface-2)] p-3 text-left text-[12px] text-[var(--color-ink-2)]">
+        <pre className="mt-4 overflow-auto rounded-[var(--radius-md)] bg-[var(--color-surface-2)] p-3 text-left text-[0.75rem] text-[var(--color-ink-2)]">
           {message}
         </pre>
       </div>

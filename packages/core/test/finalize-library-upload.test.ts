@@ -1,4 +1,8 @@
 import type {
+  ActivityRecord,
+  ActivityRecordId,
+  LearningActivity,
+  LearningActivityId,
   LibraryItem,
   LibraryItemId,
   LibraryRevision,
@@ -13,9 +17,11 @@ import {
   ACTOR_ID,
   ARCHIVED_GROUP,
   GROUP_ID,
+  makeActivities,
   makeGroups,
   makeLibrary,
   makePolicy,
+  makeRecords,
   makeStorage,
   makeUploads,
   makeUsers,
@@ -81,6 +87,8 @@ function defaultDeps() {
       membership: vi.fn(async () => membership({ role: "participant" })),
     }),
     policy: makePolicy(),
+    activities: makeActivities(),
+    records: makeRecords(),
   };
 }
 
@@ -150,6 +158,72 @@ describe("finalizeLibraryUpload", () => {
     expect(result.item.id).toBe(itemId);
     expect(addRevision).toHaveBeenCalledWith(expect.objectContaining({ libraryItemId: itemId }));
     expect(deletePending).toHaveBeenCalledWith("u_1");
+  });
+
+  it("reopens activities using the item when a new revision is published", async () => {
+    const oldRevisionId = "lr_old" as LibraryRevisionId;
+    const existingItem: LibraryItem = { ...newItem, currentRevisionId: oldRevisionId };
+    const libraryBackedActivity: LearningActivity = {
+      id: "act_1" as LearningActivityId,
+      parts: [{ kind: "read_library_item", id: "p_read", libraryItemId: itemId }],
+      libraryRefs: [
+        {
+          id: "ref_1",
+          activityId: "act_1" as LearningActivityId,
+          libraryItemId: itemId,
+          pinnedRevisionId: null,
+        },
+      ],
+    } as unknown as LearningActivity;
+    const record: ActivityRecord = {
+      id: "ar_1" as ActivityRecordId,
+      activityId: "act_1" as LearningActivityId,
+      participantId: ACTOR_ID,
+      completionState: "in_progress",
+      completedAt: null,
+      visibilityOverride: null,
+      createdAt: TEST_NOW,
+      updatedAt: TEST_NOW,
+    };
+    const activities = makeActivities({
+      activitiesUsingLibraryItem: vi.fn(async () => [{ id: libraryBackedActivity.id, title: "A" }]),
+      byId: vi.fn(async () => libraryBackedActivity),
+    });
+    const records = makeRecords({
+      listByActivity: vi.fn(async () => ({ records: [record], nextCursor: null })),
+    });
+    await finalizeLibraryUpload(
+      {
+        actor: ACTOR_ID,
+        groupId: GROUP_ID,
+        uploadId: "u_1",
+        title: "ignored",
+        description: null,
+        tags: [],
+        now: TEST_NOW,
+      },
+      {
+        ...defaultDeps(),
+        library: makeLibrary({
+          byId: vi.fn(async () => existingItem),
+          addRevision: vi.fn(),
+          detail: vi.fn(async () => newDetail),
+        }),
+        storage: makeStorage({
+          headObject: vi.fn(async () => ({ size: 1000, uploadedAt: TEST_NOW })),
+        }),
+        uploads: makeUploads({ getPending: vi.fn(async () => pendingRow) }),
+        activities,
+        records,
+      },
+    );
+    expect(activities.activitiesUsingLibraryItem).toHaveBeenCalledWith(itemId);
+    expect(records.reopenAgainstRevision).toHaveBeenCalledWith({
+      recordId: "ar_1",
+      newRevisionId: revisionId,
+      affectedPartIds: ["p_read"],
+      reason: "revision_bump",
+    });
   });
 
   it("returns 404 when the pending row is missing", async () => {
@@ -253,6 +327,8 @@ describe("finalizeLibraryUpload", () => {
           library: makeLibrary({ byId: vi.fn(async () => null) }),
           storage: makeStorage(),
           uploads: makeUploads({ getPending: vi.fn(async () => pendingRow) }),
+          activities: makeActivities(),
+          records: makeRecords(),
         },
       ),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });

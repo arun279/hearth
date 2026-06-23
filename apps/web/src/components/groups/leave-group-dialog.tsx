@@ -90,7 +90,7 @@ export function LeaveGroupDialog({
       >
         {({ id }) => (
           <div id={id} className="space-y-1.5">
-            <label className="flex items-start gap-2 text-[13px] text-[var(--color-ink-2)]">
+            <label className="flex items-start gap-2 text-[0.8125rem] text-[var(--color-ink-2)]">
               <input
                 type="radio"
                 name="attribution"
@@ -104,7 +104,7 @@ export function LeaveGroupDialog({
                 attached to past participation (default).
               </span>
             </label>
-            <label className="flex items-start gap-2 text-[13px] text-[var(--color-ink-2)]">
+            <label className="flex items-start gap-2 text-[0.8125rem] text-[var(--color-ink-2)]">
               <input
                 type="radio"
                 name="attribution"
@@ -131,7 +131,7 @@ export function LeaveGroupDialog({
             type="text"
             value={confirmText}
             onChange={(e) => setConfirmText(e.target.value)}
-            className="w-full rounded-[var(--radius-sm)] border border-[var(--color-rule)] bg-[var(--color-bg)] px-2 py-1.5 text-[13px] text-[var(--color-ink)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
+            className="w-full rounded-[var(--radius-sm)] border border-[var(--color-rule)] bg-[var(--color-bg)] px-2 py-1.5 text-[0.8125rem] text-[var(--color-ink)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
           />
         )}
       </Field>

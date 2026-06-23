@@ -74,7 +74,7 @@ export function Drawer({
         <header className="flex h-12 shrink-0 items-center justify-between border-[var(--color-rule)] border-b px-2.5">
           <div
             id={labelId}
-            className="min-w-0 flex-1 truncate text-[12px] text-[var(--color-ink-2)] uppercase tracking-wide"
+            className="min-w-0 flex-1 truncate text-[0.75rem] text-[var(--color-ink-2)] uppercase tracking-wide"
           >
             {header ?? label}
           </div>

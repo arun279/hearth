@@ -39,6 +39,8 @@ function renderBar(activePartId: string, completed: ReadonlySet<string> = new Se
       activePartId={activePartId}
       completedPartIds={completed}
       onSelectPart={vi.fn()}
+      partsWithHistory={new Set()}
+      onOpenHistory={vi.fn()}
     />,
   );
 }
@@ -57,6 +59,8 @@ describe("PartTabBar active-pill scroll effect", () => {
         activePartId="p3"
         completedPartIds={new Set()}
         onSelectPart={vi.fn()}
+        partsWithHistory={new Set()}
+        onOpenHistory={vi.fn()}
       />,
     );
 
@@ -85,6 +89,8 @@ describe("PartTabBar active-pill scroll effect", () => {
         activePartId="p2"
         completedPartIds={new Set(["p1"])}
         onSelectPart={vi.fn()}
+        partsWithHistory={new Set()}
+        onOpenHistory={vi.fn()}
       />,
     );
 

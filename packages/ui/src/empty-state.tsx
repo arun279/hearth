@@ -18,7 +18,7 @@ export function EmptyState({ title, description, action, className, ...props }: 
     >
       <div className="font-serif text-[var(--color-ink)] text-lg">{title}</div>
       {description ? (
-        <div className="max-w-md text-[13px] text-[var(--color-ink-2)]">{description}</div>
+        <div className="max-w-md text-[0.8125rem] text-[var(--color-ink-2)]">{description}</div>
       ) : null}
       {action ? <div className="mt-1">{action}</div> : null}
     </div>

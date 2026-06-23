@@ -16,6 +16,16 @@ export const VISIBILITY_PREFERENCES = ["default", "track_only", "private"] as co
 
 export type VisibilityPreference = (typeof VISIBILITY_PREFERENCES)[number];
 
+/**
+ * The observable scope a given viewer resolves to for an Activity Record:
+ * the participant's full working state, a redacted summary, or nothing.
+ * The *resolution* of a stored `VisibilityPreference` into one of these for
+ * a specific viewer is M12's concern; M11 declares the union so the
+ * `canViewActivityRecord` signature is M12-stable (M11 returns `"full"`
+ * only, for the participant's own read).
+ */
+export type VisibilityScope = "full" | "summary" | "hidden";
+
 export const visibilityPreferenceSchema = z.enum(VISIBILITY_PREFERENCES);
 
 /**

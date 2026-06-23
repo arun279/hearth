@@ -18,8 +18,8 @@ const base =
   "focus-visible:ring-offset-[var(--color-bg)] disabled:opacity-50 disabled:pointer-events-none";
 
 const sizes: Record<ButtonSize, string> = {
-  sm: "h-7 px-2.5 text-[12px]",
-  md: "h-8 px-3 text-[13px]",
+  sm: "h-7 px-2.5 text-[0.75rem]",
+  md: "h-8 px-3 text-[0.8125rem]",
 };
 
 const variants: Record<ButtonVariant, string> = {

@@ -1,5 +1,5 @@
 import type { LibraryItemId } from "@hearth/domain";
-import { Button, Callout, cn, EmptyState, Input, Skeleton } from "@hearth/ui";
+import { Button, Callout, cn, EmptyState, Input, PageContainer, Skeleton } from "@hearth/ui";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { Plus, Search, X } from "lucide-react";
 import { useState } from "react";
@@ -103,15 +103,15 @@ function LibraryPage() {
 
         return (
           <>
-            <div className="mx-auto max-w-3xl px-5 py-8 md:px-8">
+            <PageContainer>
               <GroupSubpageBreadcrumb groupId={g.id} groupName={g.name} currentLabel="Library" />
 
               <header className="mt-3 flex flex-col items-start gap-2 md:flex-row md:items-center md:gap-3">
                 <div className="min-w-0 flex-1">
-                  <h1 className="font-serif text-[28px] text-[var(--color-ink)] leading-tight">
+                  <h1 className="font-serif text-[1.75rem] text-[var(--color-ink)] leading-tight">
                     Library
                   </h1>
-                  <p className="mt-1 text-[13px] text-[var(--color-ink-2)]">
+                  <p className="mt-1 text-[0.8125rem] text-[var(--color-ink-2)]">
                     Shared materials for {g.name}. Activities reference items here so a steward can
                     update one source and every track stays in sync.
                   </p>
@@ -173,7 +173,7 @@ function LibraryPage() {
                   {isSubMinLength ? (
                     <p
                       id="library-search-hint"
-                      className="mt-1.5 text-[12px] text-[var(--color-ink-2)]"
+                      className="mt-1.5 text-[0.75rem] text-[var(--color-ink-2)]"
                     >
                       Keep typing — search starts at {SEARCH_MIN_LENGTH} characters.
                     </p>
@@ -267,7 +267,7 @@ function LibraryPage() {
                   )}
                 </div>
               </section>
-            </div>
+            </PageContainer>
 
             <UploadDialog open={uploadOpen} onClose={closeUpload} groupId={params.groupId} />
 

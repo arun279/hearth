@@ -1,5 +1,5 @@
 import type { GroupMembership } from "@hearth/domain";
-import { Button, Callout, EmptyState, Skeleton } from "@hearth/ui";
+import { Button, Callout, EmptyState, PageContainer, Skeleton } from "@hearth/ui";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { LogOut, Settings } from "lucide-react";
 import { useState } from "react";
@@ -80,11 +80,11 @@ function PeoplePage() {
 
         return (
           <>
-            <div className="mx-auto max-w-3xl px-5 py-8 md:px-8">
+            <PageContainer>
               <GroupSubpageBreadcrumb groupId={g.id} groupName={g.name} currentLabel="People" />
 
               <header className="mt-3 flex flex-col items-start gap-2 md:flex-row md:items-center md:gap-3">
-                <h1 className="font-serif text-[28px] text-[var(--color-ink)] leading-tight">
+                <h1 className="font-serif text-[1.75rem] text-[var(--color-ink)] leading-tight">
                   People
                 </h1>
                 <div className="ml-auto flex shrink-0 items-center gap-1.5">
@@ -115,7 +115,7 @@ function PeoplePage() {
                 <section className="mt-6" aria-labelledby="profile-heading">
                   <h2
                     id="profile-heading"
-                    className="font-medium text-[11px] text-[var(--color-ink-2)] uppercase tracking-wide"
+                    className="font-medium text-[0.6875rem] text-[var(--color-ink-2)] uppercase tracking-wide"
                   >
                     Your profile in this group
                   </h2>
@@ -135,7 +135,7 @@ function PeoplePage() {
               <section className="mt-6 space-y-2" aria-labelledby="members-heading">
                 <h2
                   id="members-heading"
-                  className="font-medium text-[11px] text-[var(--color-ink-2)] uppercase tracking-wide"
+                  className="font-medium text-[0.6875rem] text-[var(--color-ink-2)] uppercase tracking-wide"
                 >
                   Members · {members.data?.entries.length ?? 0}
                 </h2>
@@ -180,7 +180,7 @@ function PeoplePage() {
               {myEntry && !archived ? (
                 <div className="mt-8 rounded-[var(--radius-md)] border border-[var(--color-rule)] border-dashed bg-[var(--color-surface-2)] p-3">
                   <div className="flex items-center gap-3">
-                    <div className="min-w-0 flex-1 text-[12px] text-[var(--color-ink-2)]">
+                    <div className="min-w-0 flex-1 text-[0.75rem] text-[var(--color-ink-2)]">
                       Leaving the group ends your access. Past activity records stay attributed
                       unless you anonymize.
                     </div>
@@ -195,7 +195,7 @@ function PeoplePage() {
                   </div>
                 </div>
               ) : null}
-            </div>
+            </PageContainer>
 
             <GroupMembersDialog
               open={membersDialogOpen}

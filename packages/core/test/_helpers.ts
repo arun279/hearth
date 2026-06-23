@@ -267,11 +267,21 @@ export function makeRecords(
 ): ActivityRecordRepository {
   return {
     upsert: vi.fn(),
+    byId: vi.fn(async () => null),
     byParticipantAndActivity: vi.fn(async () => null),
+    listByActivity: vi.fn(async () => ({ records: [], nextCursor: null })),
+    setCompletion: vi.fn(),
     setVisibilityOverride: vi.fn(),
     getPartProgress: vi.fn(async () => null),
     listPartProgress: vi.fn(async () => []),
     savePartProgress: vi.fn(),
+    setPartCompletion: vi.fn(),
+    appendPartHistory: vi.fn(),
+    listPartHistory: vi.fn(async () => []),
+    countPartHistory: vi.fn(async () => 0),
+    partsWithHistory: vi.fn(async () => []),
+    reopenAgainstRevision: vi.fn(),
+    flushEvidenceSignals: vi.fn(),
     ...overrides,
   } as ActivityRecordRepository;
 }

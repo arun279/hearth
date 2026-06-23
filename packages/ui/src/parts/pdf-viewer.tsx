@@ -138,7 +138,7 @@ export function PdfViewer({ file, label, className, onPageChange }: PdfViewerPro
       <div
         className={cn(
           "flex flex-wrap items-center justify-between gap-2 border-[var(--color-rule)] border-b px-3 py-2",
-          "text-[12px] text-[var(--color-ink-2)]",
+          "text-[0.75rem] text-[var(--color-ink-2)]",
         )}
       >
         <div className="flex items-center gap-1">
@@ -149,7 +149,7 @@ export function PdfViewer({ file, label, className, onPageChange }: PdfViewerPro
           >
             <ChevronLeft size={16} strokeWidth={1.5} />
           </IconButton>
-          <span className="font-mono text-[11px] tabular-nums">
+          <span className="font-mono text-[0.6875rem] tabular-nums">
             {numPages === null ? "—" : `${pageNumber} / ${numPages}`}
           </span>
           <IconButton
@@ -164,7 +164,9 @@ export function PdfViewer({ file, label, className, onPageChange }: PdfViewerPro
           <IconButton label="Zoom out" onClick={zoomOut} disabled={scale <= MIN_SCALE}>
             <Minus size={14} strokeWidth={1.5} />
           </IconButton>
-          <span className="font-mono text-[11px] tabular-nums">{Math.round(scale * 100)}%</span>
+          <span className="font-mono text-[0.6875rem] tabular-nums">
+            {Math.round(scale * 100)}%
+          </span>
           <IconButton label="Zoom in" onClick={zoomIn} disabled={scale >= MAX_SCALE}>
             <Plus size={14} strokeWidth={1.5} />
           </IconButton>
@@ -175,8 +177,8 @@ export function PdfViewer({ file, label, className, onPageChange }: PdfViewerPro
         {error ? (
           <div className="flex flex-col items-center gap-2 text-center text-[var(--color-ink-2)]">
             <FileWarning size={20} strokeWidth={1.5} aria-hidden="true" />
-            <p className="text-[13px]">Couldn't load this PDF.</p>
-            <p className="text-[11px]">{error.message}</p>
+            <p className="text-[0.8125rem]">Couldn't load this PDF.</p>
+            <p className="text-[0.6875rem]">{error.message}</p>
           </div>
         ) : (
           <Document
@@ -185,7 +187,7 @@ export function PdfViewer({ file, label, className, onPageChange }: PdfViewerPro
             onLoadError={onLoadError}
             options={options}
             loading={
-              <div className="flex items-center gap-2 text-[12px] text-[var(--color-ink-2)]">
+              <div className="flex items-center gap-2 text-[0.75rem] text-[var(--color-ink-2)]">
                 <Loader2 size={14} className="animate-spin" aria-hidden="true" />
                 Loading PDF…
               </div>

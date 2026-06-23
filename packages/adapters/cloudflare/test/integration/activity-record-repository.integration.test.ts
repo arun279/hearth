@@ -5,6 +5,7 @@ import type {
   ActivityRecordId,
   LearningActivityDraft,
   LearningActivityId,
+  LibraryRevisionId,
   UserId,
 } from "@hearth/domain";
 import { and, eq } from "drizzle-orm";
@@ -18,7 +19,7 @@ import { createStudyGroupRepository } from "../../src/study-group-repository.ts"
 import { createSystemFlagRepository } from "../../src/system-flag-repository.ts";
 
 /**
- * Real-D1 coverage for the M10 ActivityRecord adapter. This is the
+ * Real-D1 coverage for the M11 ActivityRecord adapter. This is the
  * empirical check that composite-UNIQUE-index `onConflict` behaves on the
  * deployed SQLite shape: `upsert` idempotency rides the
  * UNIQUE(activity_id, participant_id) DO NOTHING, and `savePartProgress`
@@ -277,5 +278,366 @@ describe("activity-record adapter (real D1)", () => {
     await expect(
       repos.records.byParticipantAndActivity(activityId, participant),
     ).rejects.toMatchObject({ code: "INVARIANT_VIOLATION", reason: "envelope_invalid" });
+  });
+
+  it("setCompletion writes the rollup + completedAt and 404s an unknown record", async () => {
+    const repos = buildRepos();
+    const { participant, activityId } = await setup(repos, "complete");
+    const record = await repos.records.upsert({ activityId, participantId: participant });
+    const at = new Date();
+
+    await repos.records.setCompletion({ id: record.id, state: "completed", at });
+    const done = await repos.records.byParticipantAndActivity(activityId, participant);
+    expect(done?.completionState).toBe("completed");
+    expect(done?.completedAt?.getTime()).toBe(at.getTime());
+
+    await expect(
+      repos.records.setCompletion({
+        id: "ar_missing" as ActivityRecordId,
+        state: "completed",
+        at,
+      }),
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("setPartCompletion patches ONLY completed on an existing envelope (text preserved)", async () => {
+    const repos = buildRepos();
+    const { participant, activityId } = await setup(repos, "setpc");
+    const record = await repos.records.upsert({ activityId, participantId: participant });
+    const p1 = "p1" as ActivityPartId;
+    await repos.records.savePartProgress({
+      activityRecordId: record.id,
+      partId: p1,
+      state: { kind: "write_reflection", completed: false, text: "my prose" },
+    });
+
+    await repos.records.setPartCompletion({
+      activityRecordId: record.id,
+      partId: p1,
+      completed: true,
+      initialState: { kind: "write_reflection", completed: false, text: "" },
+    });
+
+    const progress = await repos.records.getPartProgress({
+      activityRecordId: record.id,
+      partId: p1,
+    });
+    expect(progress?.state).toEqual({
+      kind: "write_reflection",
+      completed: true,
+      text: "my prose",
+    });
+  });
+
+  it("setPartCompletion creates the row at initialState when none exists", async () => {
+    const repos = buildRepos();
+    const { participant, activityId } = await setup(repos, "setpcnew");
+    const record = await repos.records.upsert({ activityId, participantId: participant });
+    const p2 = "p2" as ActivityPartId;
+
+    await repos.records.setPartCompletion({
+      activityRecordId: record.id,
+      partId: p2,
+      completed: true,
+      initialState: { kind: "quiz", completed: false, answers: [] },
+    });
+
+    const progress = await repos.records.getPartProgress({
+      activityRecordId: record.id,
+      partId: p2,
+    });
+    expect(progress?.state).toEqual({ kind: "quiz", completed: true, answers: [] });
+  });
+
+  it("setPartCompletion advances the parent updatedAt atomically with the flag — patch and insert branches", async () => {
+    const repos = buildRepos();
+    const { participant, activityId } = await setup(repos, "setpctouch");
+    const record = await repos.records.upsert({ activityId, participantId: participant });
+
+    const parentUpdatedAt = async () =>
+      (
+        await repos.records.byParticipantAndActivity(activityId, participant)
+      )?.updatedAt.getTime() ?? 0;
+    const childUpdatedAt = async (partId: ActivityPartId) =>
+      (
+        await repos.db
+          .select()
+          .from(schema.partProgress)
+          .where(
+            and(
+              eq(schema.partProgress.activityRecordId, record.id),
+              eq(schema.partProgress.partId, partId),
+            ),
+          )
+      )[0]?.updatedAt.getTime() ?? -1;
+
+    // Insert branch: no progress row yet, so setPartCompletion creates one.
+    const pInsert = "p_insert" as ActivityPartId;
+    await repos.records.setPartCompletion({
+      activityRecordId: record.id,
+      partId: pInsert,
+      completed: true,
+      initialState: { kind: "write_reflection", completed: false, text: "" },
+    });
+    expect(await parentUpdatedAt()).toBe(await childUpdatedAt(pInsert));
+
+    // Patch branch: a row already exists from an autosave, so the flip patches it.
+    const pPatch = "p_patch" as ActivityPartId;
+    await repos.records.savePartProgress({
+      activityRecordId: record.id,
+      partId: pPatch,
+      state: { kind: "write_reflection", completed: false, text: "draft" },
+    });
+    await repos.records.setPartCompletion({
+      activityRecordId: record.id,
+      partId: pPatch,
+      completed: true,
+      initialState: { kind: "write_reflection", completed: false, text: "" },
+    });
+    expect(await parentUpdatedAt()).toBe(await childUpdatedAt(pPatch));
+  });
+
+  it("setPartCompletion + concurrent autosave: final row carries both latest text AND toggled completed", async () => {
+    const repos = buildRepos();
+    const { participant, activityId } = await setup(repos, "clobber");
+    const record = await repos.records.upsert({ activityId, participantId: participant });
+    const p1 = "p1" as ActivityPartId;
+    await repos.records.savePartProgress({
+      activityRecordId: record.id,
+      partId: p1,
+      state: { kind: "write_reflection", completed: false, text: "first" },
+    });
+
+    // The autosave (full-envelope write of the new text) and the targeted
+    // completion patch race. Because setPartCompletion patches only
+    // $.data.completed onto whatever is currently persisted (not a
+    // read-modify-write of the whole envelope), the autosave's text and the
+    // completion flag both survive regardless of ordering.
+    await Promise.all([
+      repos.records.savePartProgress({
+        activityRecordId: record.id,
+        partId: p1,
+        state: { kind: "write_reflection", completed: false, text: "second" },
+      }),
+      repos.records.setPartCompletion({
+        activityRecordId: record.id,
+        partId: p1,
+        completed: true,
+        initialState: { kind: "write_reflection", completed: false, text: "" },
+      }),
+    ]);
+
+    const progress = await repos.records.getPartProgress({
+      activityRecordId: record.id,
+      partId: p1,
+    });
+    expect(progress?.state).toMatchObject({ kind: "write_reflection", completed: true });
+    expect((progress?.state as { text: string }).text).toBe("second");
+  });
+
+  it("appendPartHistory + listPartHistory round-trip reason + revisionIdAtTime", async () => {
+    const repos = buildRepos();
+    const { participant, activityId } = await setup(repos, "history");
+    const record = await repos.records.upsert({ activityId, participantId: participant });
+    const p1 = "p1" as ActivityPartId;
+
+    await repos.records.appendPartHistory({
+      activityRecordId: record.id,
+      partId: p1,
+      snapshot: { kind: "write_reflection", completed: true, text: "v1" },
+      reason: "retry",
+    });
+    await repos.records.appendPartHistory({
+      activityRecordId: record.id,
+      partId: p1,
+      snapshot: { kind: "write_reflection", completed: false, text: "v2" },
+      reason: "revision_bump",
+      revisionIdAtTime: "lr_x" as LibraryRevisionId,
+    });
+
+    const history = await repos.records.listPartHistory(record.id);
+    expect(history).toHaveLength(2);
+    const byReason = new Map(history.map((h) => [h.reason, h]));
+    expect(byReason.get("retry")?.revisionIdAtTime).toBeNull();
+    expect(byReason.get("revision_bump")?.revisionIdAtTime).toBe("lr_x");
+    expect(byReason.get("retry")?.snapshot).toEqual({
+      kind: "write_reflection",
+      completed: true,
+      text: "v1",
+    });
+
+    expect(await repos.records.countPartHistory(record.id)).toBe(2);
+    const filtered = await repos.records.listPartHistory(record.id, { partId: p1 });
+    expect(filtered).toHaveLength(2);
+  });
+
+  it("reopenAgainstRevision archives 50 Parts in one pass, resets state, advances updatedAt, idempotent on re-run", async () => {
+    const repos = buildRepos();
+    const { participant, activityId } = await setup(repos, "reopen50");
+    const record = await repos.records.upsert({ activityId, participantId: participant });
+    const newRev = "lr_v2" as LibraryRevisionId;
+
+    const partIds: ActivityPartId[] = [];
+    for (let i = 0; i < 50; i++) {
+      const partId = `bp_${i}` as ActivityPartId;
+      partIds.push(partId);
+      await repos.records.savePartProgress({
+        activityRecordId: record.id,
+        partId,
+        state: { kind: "read_library_item", completed: true, scrollPosition: i },
+      });
+    }
+    const before = await repos.records.byParticipantAndActivity(activityId, participant);
+
+    await repos.records.reopenAgainstRevision({
+      recordId: record.id,
+      newRevisionId: newRev,
+      affectedPartIds: partIds,
+      reason: "revision_bump",
+    });
+
+    const history = await repos.records.listPartHistory(record.id);
+    expect(history).toHaveLength(50);
+    expect(history.every((h) => h.reason === "revision_bump")).toBe(true);
+    expect(history.every((h) => h.revisionIdAtTime === newRev)).toBe(true);
+    expect(history.every((h) => (h.snapshot as { completed: boolean }).completed === true)).toBe(
+      true,
+    );
+
+    const progress = await repos.records.listPartProgress(record.id);
+    expect(progress).toHaveLength(50);
+    expect(
+      progress.every((p) => p.state.kind === "read_library_item" && p.state.completed === false),
+    ).toBe(true);
+    expect(
+      progress.every((p) => !("scrollPosition" in p.state) || p.state.scrollPosition === undefined),
+    ).toBe(true);
+
+    const after = await repos.records.byParticipantAndActivity(activityId, participant);
+    expect(after?.updatedAt.getTime()).toBeGreaterThanOrEqual(before?.updatedAt.getTime() ?? 0);
+
+    // Second invocation with the same newRevisionId is a no-op (idempotent).
+    await repos.records.reopenAgainstRevision({
+      recordId: record.id,
+      newRevisionId: newRev,
+      affectedPartIds: partIds,
+      reason: "revision_bump",
+    });
+    expect(await repos.records.countPartHistory(record.id)).toBe(50);
+  });
+
+  it("reopenAgainstRevision with facilitator_reset (null revision) is never deduped", async () => {
+    const repos = buildRepos();
+    const { participant, activityId } = await setup(repos, "facreset");
+    const record = await repos.records.upsert({ activityId, participantId: participant });
+    const p1 = "p1" as ActivityPartId;
+    await repos.records.savePartProgress({
+      activityRecordId: record.id,
+      partId: p1,
+      state: { kind: "write_reflection", completed: true, text: "work" },
+    });
+
+    await repos.records.reopenAgainstRevision({
+      recordId: record.id,
+      newRevisionId: null,
+      affectedPartIds: [p1],
+      reason: "facilitator_reset",
+    });
+    // Re-save then reset again — a second reset always archives, never deduped.
+    await repos.records.savePartProgress({
+      activityRecordId: record.id,
+      partId: p1,
+      state: { kind: "write_reflection", completed: true, text: "work2" },
+    });
+    await repos.records.reopenAgainstRevision({
+      recordId: record.id,
+      newRevisionId: null,
+      affectedPartIds: [p1],
+      reason: "facilitator_reset",
+    });
+
+    const history = await repos.records.listPartHistory(record.id);
+    expect(history).toHaveLength(2);
+    expect(history.every((h) => h.reason === "facilitator_reset")).toBe(true);
+    expect(history.every((h) => h.revisionIdAtTime === null)).toBe(true);
+    const reset = await repos.records.getPartProgress({ activityRecordId: record.id, partId: p1 });
+    expect(reset?.state).toEqual({ kind: "write_reflection", completed: false, text: "" });
+  });
+
+  it("partsWithHistory projects each Part with history exactly once", async () => {
+    const repos = buildRepos();
+    const { participant, activityId } = await setup(repos, "partswith");
+    const record = await repos.records.upsert({ activityId, participantId: participant });
+    const p1 = "p1" as ActivityPartId;
+    const p2 = "p2" as ActivityPartId;
+
+    // p1 accrues two history rows (two resets); p2 accrues one; p3 has none.
+    for (const text of ["a", "b"]) {
+      await repos.records.savePartProgress({
+        activityRecordId: record.id,
+        partId: p1,
+        state: { kind: "write_reflection", completed: true, text },
+      });
+      await repos.records.reopenAgainstRevision({
+        recordId: record.id,
+        newRevisionId: null,
+        affectedPartIds: [p1],
+        reason: "facilitator_reset",
+      });
+    }
+    await repos.records.savePartProgress({
+      activityRecordId: record.id,
+      partId: p2,
+      state: { kind: "write_reflection", completed: true, text: "c" },
+    });
+    await repos.records.reopenAgainstRevision({
+      recordId: record.id,
+      newRevisionId: null,
+      affectedPartIds: [p2],
+      reason: "facilitator_reset",
+    });
+
+    expect(await repos.records.countPartHistory(record.id)).toBe(3);
+    const parts = await repos.records.partsWithHistory(record.id);
+    expect([...parts].sort()).toEqual([p1, p2]);
+  });
+
+  it("listByActivity paginates by id keyset", async () => {
+    const repos = buildRepos();
+    const { activityId } = await setup(repos, "page");
+    for (let i = 0; i < 3; i++) {
+      const u = await seedUser(repos.db, `u_page_${i}`, `page_${i}@x.com`);
+      await repos.records.upsert({ activityId, participantId: u });
+    }
+
+    const first = await repos.records.listByActivity(activityId, { limit: 2 });
+    expect(first.records).toHaveLength(2);
+    expect(first.nextCursor).not.toBeNull();
+    const second = await repos.records.listByActivity(activityId, {
+      limit: 2,
+      cursor: first.nextCursor ?? undefined,
+    });
+    expect(second.records).toHaveLength(1);
+    expect(second.nextCursor).toBeNull();
+    const ids = [...first.records, ...second.records].map((r) => r.id);
+    expect(new Set(ids).size).toBe(3);
+  });
+
+  it("flushEvidenceSignals gates on the killswitch but writes no D1 row in M11", async () => {
+    const repos = buildRepos();
+    const { participant, activityId } = await setup(repos, "evidence");
+
+    await repos.records.flushEvidenceSignals([
+      {
+        activityId,
+        participantId: participant,
+        partId: "p1" as ActivityPartId,
+        signalType: "word_count",
+        value: 12,
+      },
+    ]);
+
+    const rows = await repos.db.select().from(schema.evidenceSignals);
+    expect(rows).toHaveLength(0);
   });
 });
