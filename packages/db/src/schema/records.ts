@@ -57,6 +57,12 @@ export const partHistory = sqliteTable(
     stateJson: text("state_json").notNull(),
     recordedAt: integer("recorded_at", { mode: "timestamp_ms" }).notNull(),
   },
+  // The (activity_record_id, part_id) index backs countPartHistory and the
+  // SELECT DISTINCT part_id projection, but NOT the recency reads
+  // (listPartHistory / reopenAgainstRevision ORDER BY recorded_at DESC) — there
+  // is no recorded_at column on it, so that sort is unindexed. Correct and cheap
+  // at v1 history depths; if recency reads ever become a rows-read hotspot, add a
+  // covering (activity_record_id, part_id, recorded_at DESC) index.
   (t) => [index("part_history_record_part_idx").on(t.activityRecordId, t.partId)],
 );
 

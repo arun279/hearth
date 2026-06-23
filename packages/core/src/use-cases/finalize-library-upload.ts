@@ -231,8 +231,11 @@ export async function finalizeLibraryUpload(
     // This fan-out runs synchronously inside the finalize request and its D1
     // subrequest cost scales with affected activities × participant records, so
     // it can approach the per-request subrequest ceiling on a heavily-used item.
-    // The reassess trigger + the off-request-consumer plan are tracked in
-    // docs/tripwires.md § Activity records.
+    // If that ceiling is reached, drain the fan-out off-request: enqueue the
+    // affected activity ids to a Scheduler consumer that drains them. The restart
+    // is idempotent per (record, newRevisionId), so moving it off-request keeps
+    // semantics; make addRevision + deletePending the atomic unit and treat the
+    // fan-out as separately retryable.
     const usingActivities = await deps.activities.activitiesUsingLibraryItem(itemId);
     for (const { id: activityId } of usingActivities) {
       await revisionBumpRestart(
