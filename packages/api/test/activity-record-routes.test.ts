@@ -109,6 +109,7 @@ const actor: User = {
   deactivatedAt: null,
   deletedAt: null,
   attributionPreference: "preserve_name",
+  visibilityPreference: "default",
   createdAt: now,
   updatedAt: now,
 };
@@ -661,13 +662,66 @@ describe("GET /api/v1/records/:id", () => {
     expect(body.partsWithHistory).toEqual(["p_quiz"]);
   });
 
-  it("404 (not 403) for a non-owner — no enumeration oracle", async () => {
-    const base = viewablePorts({ records: { byId: vi.fn(async () => record) } });
-    const ports: Partial<Ports> = { ...base, users: asOtherViewer(base.users) };
+  it("returns the full view to a co-enrolled track peer under default visibility", async () => {
+    const peer = { ...actor, id: otherId, name: "Peer" };
+    const base = viewablePorts({
+      records: { byId: vi.fn(async () => record), listPartProgress: vi.fn(async () => []) },
+    });
+    const ports: Partial<Ports> = {
+      ...base,
+      users: {
+        ...base.users,
+        byId: vi.fn(async (id: UserId) => (id === otherId ? peer : actor)),
+      } as Partial<Ports>["users"],
+    };
     const app = harness({ userId: otherId, ports });
     const res = await app.request(`/api/v1/records/${record.id}`);
-    expect(res.status).toBe(404);
-    expect(res.headers.get("content-type")).toContain("application/problem+json");
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { scope: string }).scope).toBe("full");
+  });
+
+  it("redacts to a summary (no working state) for a co-enrolled peer under a private override", async () => {
+    const peer = { ...actor, id: otherId };
+    const privateRecord: ActivityRecord = { ...record, visibilityOverride: "private" };
+    const base = viewablePorts({ records: { byId: vi.fn(async () => privateRecord) } });
+    const ports: Partial<Ports> = {
+      ...base,
+      users: {
+        ...base.users,
+        byId: vi.fn(async (id: UserId) => (id === otherId ? peer : actor)),
+      } as Partial<Ports>["users"],
+    };
+    const app = harness({ userId: otherId, ports });
+    const res = await app.request(`/api/v1/records/${record.id}`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { scope: string; parts?: unknown };
+    expect(body.scope).toBe("summary");
+    expect(body.parts).toBeUndefined();
+  });
+
+  it("404 (hidden) for a non-member viewer, byte-identical to a missing record", async () => {
+    const base = viewablePorts({ records: { byId: vi.fn(async () => record) } });
+    const hiddenApp = harness({
+      userId: otherId,
+      ports: {
+        ...base,
+        users: asOtherViewer(base.users),
+        groups: {
+          byId: vi.fn(async () => group),
+          membership: vi.fn(async () => null),
+        } as unknown as StudyGroupRepository,
+      },
+    });
+    const hidden = await hiddenApp.request(`/api/v1/records/${record.id}`);
+    expect(hidden.status).toBe(404);
+    expect(hidden.headers.get("content-type")).toContain("application/problem+json");
+
+    const missingApp = harness({
+      userId: actorId,
+      ports: viewablePorts({ records: { byId: vi.fn(async () => null) } }),
+    });
+    const missing = await missingApp.request(`/api/v1/records/${record.id}`);
+    expect(await hidden.json()).toEqual(await missing.json());
   });
 
   it("404 for a record that does not exist", async () => {
@@ -710,12 +764,39 @@ describe("GET /api/v1/records/:id/history", () => {
     expect(historyBody).toHaveLength(viewBody.partHistoryCount);
   });
 
-  it("404 (not 403) for a non-owner", async () => {
+  it("404 for a non-member viewer (hidden)", async () => {
     const base = viewablePorts({ records: { byId: vi.fn(async () => record) } });
-    const ports: Partial<Ports> = { ...base, users: asOtherViewer(base.users) };
+    const ports: Partial<Ports> = {
+      ...base,
+      users: asOtherViewer(base.users),
+      groups: {
+        byId: vi.fn(async () => group),
+        membership: vi.fn(async () => null),
+      } as unknown as StudyGroupRepository,
+    };
     const app = harness({ userId: otherId, ports });
     const res = await app.request(`/api/v1/records/${record.id}/history`);
     expect(res.status).toBe(404);
+  });
+
+  it("404s history for a summary-scope peer without leaking it (redacted-sibling guard)", async () => {
+    const peer = { ...actor, id: otherId };
+    const privateRecord: ActivityRecord = { ...record, visibilityOverride: "private" };
+    const listPartHistory = vi.fn(async () => []);
+    const base = viewablePorts({
+      records: { byId: vi.fn(async () => privateRecord), listPartHistory },
+    });
+    const ports: Partial<Ports> = {
+      ...base,
+      users: {
+        ...base.users,
+        byId: vi.fn(async (id: UserId) => (id === otherId ? peer : actor)),
+      } as Partial<Ports>["users"],
+    };
+    const app = harness({ userId: otherId, ports });
+    const res = await app.request(`/api/v1/records/${record.id}/history`);
+    expect(res.status).toBe(404);
+    expect(listPartHistory).not.toHaveBeenCalled();
   });
 });
 

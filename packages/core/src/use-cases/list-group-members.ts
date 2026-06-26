@@ -7,6 +7,7 @@ import type {
   UserRepository,
 } from "@hearth/ports";
 import { loadViewableGroup } from "./_lib/load-viewable-group.ts";
+import { memberDisplayName } from "./_lib/member-display-name.ts";
 
 export type ListGroupMembersInput = {
   readonly actor: UserId;
@@ -79,8 +80,7 @@ export async function listGroupMembers(
 
   const rows: GroupMemberRow[] = entries.map((target, idx) => {
     const u = users[idx] ?? null;
-    const displayName =
-      target.profile.nickname ?? u?.name ?? u?.email ?? target.displayNameSnapshot ?? "Member";
+    const displayName = memberDisplayName(u, target);
     return {
       membership: target,
       displayName,

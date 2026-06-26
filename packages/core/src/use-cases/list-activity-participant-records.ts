@@ -12,6 +12,7 @@ import {
   type LoadViewableActivityDeps,
   loadViewableActivity,
 } from "./_lib/load-viewable-activity.ts";
+import { memberDisplayName } from "./_lib/member-display-name.ts";
 
 export type ListActivityParticipantRecordsInput = {
   readonly actor: UserId;
@@ -84,12 +85,7 @@ export async function listActivityParticipantRecords(
 
   const entries = records.map((r, idx): ActivityParticipantRecordRow => {
     const o = owners[idx];
-    const displayName =
-      o?.membership?.profile.nickname ??
-      o?.user?.name ??
-      o?.user?.email ??
-      o?.membership?.displayNameSnapshot ??
-      "Member";
+    const displayName = memberDisplayName(o?.user ?? null, o?.membership ?? null);
     return {
       recordId: r.id,
       participantId: r.participantId,

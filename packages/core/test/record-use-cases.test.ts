@@ -807,6 +807,19 @@ describe("setRecordVisibilityOverride", () => {
       ),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
+
+  // #228: a Group Admin who is not a track participant cannot set a visibility
+  // override — the write is own-record only and gated by participation, not
+  // group authority, so admin standing grants no override power over anyone.
+  it("rejects a Group Admin who is not enrolled in the track with 403", async () => {
+    const deps = depsOk({ membershipRole: "admin", enrollment: null });
+    await expect(
+      setRecordVisibilityOverride(
+        { actor: ACTOR_ID, activityId: ACTIVITY_ID, preference: "private" },
+        deps,
+      ),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
 });
 
 describe("createActivity — short-answer quiz", () => {

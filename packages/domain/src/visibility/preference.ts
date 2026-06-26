@@ -1,12 +1,13 @@
 import { z } from "zod";
 
 /**
- * A participant's chosen visibility for their Activity Record. Stored as a
- * per-record override on `activity_records.visibilityOverrideJson` (NULL =
- * fall back to the user's default preference). The *resolution* of a
- * preference into an observable scope (`full` / `summary` / `hidden`) for a
- * given viewer is a separate, later concern; this module owns only the
- * canonical stored values and their wire envelope.
+ * A participant's chosen visibility for their work. It lives in two places:
+ * the per-record override on `activity_records.visibility_override_json`
+ * (NULL = fall back to the user's default) and the per-user default on
+ * `users.visibility_preference_json` (NULL = the `default` preference). The
+ * *resolution* of a preference into an observable scope (`full` / `summary`
+ * / `hidden`) for a given viewer is a separate concern (see `resolve.ts`);
+ * this module owns only the canonical stored values and their wire envelope.
  *
  * The wire strings are canonical and load-bearing — the SPA maps them to
  * friendlier labels at the display layer (see `visibility-labels.ts`), but
@@ -29,15 +30,16 @@ export type VisibilityScope = "full" | "summary" | "hidden";
 export const visibilityPreferenceSchema = z.enum(VISIBILITY_PREFERENCES);
 
 /**
- * Versioned envelope persisted in `activity_records.visibilityOverrideJson`.
- * Same `{ v, data }` convention as every other JSON column so a future
- * shape change bumps `v` and adds a read-time shim. The writer (the
- * override use case) and any future reader both parse through this one
- * schema so the two can never drift.
+ * Versioned envelope wrapping a stored {@link VisibilityPreference}. The same
+ * `{ v, data }` convention as every other JSON column, so a future shape
+ * change bumps `v` and adds a read-time shim. One schema backs both columns
+ * that persist a preference — the per-record `activity_records.visibility_override_json`
+ * and the per-user default `users.visibility_preference_json` — so a writer
+ * and a reader on either column can never drift apart.
  */
-export const visibilityOverrideEnvelopeSchema = z.object({
+export const visibilityPreferenceEnvelopeSchema = z.object({
   v: z.literal(1),
   data: z.object({ preference: visibilityPreferenceSchema }),
 });
 
-export type VisibilityOverrideEnvelope = z.infer<typeof visibilityOverrideEnvelopeSchema>;
+export type VisibilityPreferenceEnvelope = z.infer<typeof visibilityPreferenceEnvelopeSchema>;

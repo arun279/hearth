@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   VISIBILITY_PREFERENCES,
-  visibilityOverrideEnvelopeSchema,
+  visibilityPreferenceEnvelopeSchema,
   visibilityPreferenceSchema,
 } from "../../src/visibility/preference.ts";
 
@@ -19,16 +19,17 @@ describe("visibility preference", () => {
   });
 
   it("parses a well-formed v1 override envelope", () => {
-    const env = visibilityOverrideEnvelopeSchema.parse({ v: 1, data: { preference: "private" } });
+    const env = visibilityPreferenceEnvelopeSchema.parse({ v: 1, data: { preference: "private" } });
     expect(env.data.preference).toBe("private");
   });
 
   it("rejects an envelope with a wrong version or an unknown preference", () => {
     expect(
-      visibilityOverrideEnvelopeSchema.safeParse({ v: 2, data: { preference: "private" } }).success,
+      visibilityPreferenceEnvelopeSchema.safeParse({ v: 2, data: { preference: "private" } })
+        .success,
     ).toBe(false);
     expect(
-      visibilityOverrideEnvelopeSchema.safeParse({ v: 1, data: { preference: "nope" } }).success,
+      visibilityPreferenceEnvelopeSchema.safeParse({ v: 1, data: { preference: "nope" } }).success,
     ).toBe(false);
   });
 });

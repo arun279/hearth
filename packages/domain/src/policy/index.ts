@@ -60,5 +60,4 @@ export {
   canOverrideActivityRecordVisibility,
   canResetParticipantProgress,
   canViewActivityRecord,
-  type ViewActivityRecordResult,
 } from "./record.ts";

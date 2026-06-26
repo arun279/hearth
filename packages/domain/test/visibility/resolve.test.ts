@@ -29,6 +29,7 @@ function makeViewer(id: UserId = VIEWER_ID): User {
     deactivatedAt: null,
     deletedAt: null,
     attributionPreference: "preserve_name",
+    visibilityPreference: "default",
     createdAt: now,
     updatedAt: now,
   };

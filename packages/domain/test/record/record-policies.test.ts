@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ActivityAccessState } from "../../src/activity/types.ts";
-import type { ActivityRecordId, LearningActivityId, UserId } from "../../src/ids.ts";
+import type { GroupMembership } from "../../src/group.ts";
+import type { ActivityRecordId, LearningActivityId, StudyGroupId, UserId } from "../../src/ids.ts";
 import {
   canMarkActivityComplete,
   canMarkPartComplete,
@@ -24,6 +25,7 @@ function user(id: UserId): User {
     deactivatedAt: null,
     deletedAt: null,
     attributionPreference: "preserve_name",
+    visibilityPreference: "default",
     createdAt: now,
     updatedAt: now,
   };
@@ -140,14 +142,49 @@ describe("canOverrideActivityRecordVisibility", () => {
 });
 
 describe("canViewActivityRecord", () => {
-  it("allows the participant at full scope", () => {
-    expect(canViewActivityRecord(owner, record)).toEqual({ ok: true, scope: "full" });
+  const groupId = "g_1" as StudyGroupId;
+  const membership = (over: Partial<GroupMembership> = {}): GroupMembership => ({
+    groupId,
+    userId: otherId,
+    role: "participant",
+    joinedAt: now,
+    removedAt: null,
+    removedBy: null,
+    attributionOnLeave: null,
+    displayNameSnapshot: null,
+    profile: { nickname: null, avatarUrl: null, bio: null, updatedAt: null },
+    ...over,
   });
 
-  it("denies (not_record_owner) a non-participant in M11", () => {
-    expect(canViewActivityRecord(other, record)).toMatchObject({
+  it("allows the participant regardless of membership", () => {
+    expect(canViewActivityRecord(owner, record, null, groupId).ok).toBe(true);
+  });
+
+  it("allows a current group member who is not the participant", () => {
+    expect(canViewActivityRecord(other, record, membership(), groupId).ok).toBe(true);
+  });
+
+  it("denies (not_record_owner) a non-participant with no membership", () => {
+    expect(canViewActivityRecord(other, record, null, groupId)).toMatchObject({
       ok: false,
       reason: { code: "not_record_owner" },
     });
+  });
+
+  it("denies a removed member (membership no longer current)", () => {
+    expect(canViewActivityRecord(other, record, membership({ removedAt: now }), groupId).ok).toBe(
+      false,
+    );
+  });
+
+  it("denies a membership row for a different group (defensive id match)", () => {
+    expect(
+      canViewActivityRecord(
+        other,
+        record,
+        membership({ groupId: "g_other" as StudyGroupId }),
+        groupId,
+      ).ok,
+    ).toBe(false);
   });
 });

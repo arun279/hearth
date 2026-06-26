@@ -51,6 +51,7 @@ export const ACTOR: User = {
   deactivatedAt: null,
   deletedAt: null,
   attributionPreference: "preserve_name",
+  visibilityPreference: "default",
   createdAt: TEST_NOW,
   updatedAt: TEST_NOW,
 };

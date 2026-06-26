@@ -5,8 +5,7 @@ import {
   type PartHistory,
   type UserId,
 } from "@hearth/domain";
-import { canViewActivityRecord } from "@hearth/domain/policy/record";
-import type { ActivityRecordRepository, UserRepository } from "@hearth/ports";
+import { type LoadViewableRecordDeps, loadViewableRecord } from "./_lib/load-viewable-record.ts";
 
 export type ListPartHistoryInput = {
   readonly actor: UserId;
@@ -15,33 +14,24 @@ export type ListPartHistoryInput = {
   readonly partId?: ActivityPartId;
 };
 
-export type ListPartHistoryDeps = {
-  readonly users: UserRepository;
-  readonly records: ActivityRecordRepository;
-};
+export type ListPartHistoryDeps = LoadViewableRecordDeps;
 
 /**
  * List the append-only `PartHistory` entries for a record — what the
  * `<PartHistoryDrawer>` renders when opened from a Part with prior attempts.
- * recordId-addressed and gated by the same viewability→404 rule as
- * `view-activity-record` (a view-denied actor gets `NOT_FOUND`, never a 403,
- * so the record id is not an enumeration oracle).
+ * recordId-addressed and gated by the SAME scope resolution as
+ * `view-activity-record`: a view-denied or hidden actor gets `NOT_FOUND`, and
+ * a viewer redacted to `summary` is treated identically (history is full
+ * working state — a `summary` viewer sees no Part values, so it must not leak
+ * their history either). Only a `full`-scope viewer receives the entries.
  */
 export async function listPartHistory(
   input: ListPartHistoryInput,
   deps: ListPartHistoryDeps,
 ): Promise<readonly PartHistory[]> {
-  const actor = await deps.users.byId(input.actor);
-  if (!actor) {
+  const ctx = await loadViewableRecord(input.actor, input.recordId, deps);
+  if (ctx.scope !== "full") {
     throw new DomainError("NOT_FOUND", "Record not found.", "not_found");
   }
-  const record = await deps.records.byId(input.recordId);
-  if (!record) {
-    throw new DomainError("NOT_FOUND", "Record not found.", "not_found");
-  }
-  if (!canViewActivityRecord(actor, record).ok) {
-    throw new DomainError("NOT_FOUND", "Record not found.", "not_found");
-  }
-
-  return deps.records.listPartHistory(record.id, { partId: input.partId });
+  return deps.records.listPartHistory(ctx.record.id, { partId: input.partId });
 }

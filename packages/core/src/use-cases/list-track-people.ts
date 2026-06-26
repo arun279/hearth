@@ -10,6 +10,7 @@ import type {
   UserRepository,
 } from "@hearth/ports";
 import { loadViewableTrack } from "./_lib/load-viewable-track.ts";
+import { memberDisplayName } from "./_lib/member-display-name.ts";
 
 export type ListTrackPeopleInput = {
   readonly actor: UserId;
@@ -107,8 +108,7 @@ export async function listTrackPeople(
   function projectRow(e: TrackEnrollment, idx: number): TrackEnrolleeRow {
     const u = owners[idx]?.user ?? null;
     const m = owners[idx]?.membership ?? null;
-    const displayName =
-      m?.profile.nickname ?? u?.name ?? u?.email ?? m?.displayNameSnapshot ?? "Member";
+    const displayName = memberDisplayName(u, m);
     const avatarUrl = m?.profile.avatarUrl ?? null;
 
     const canRemove =

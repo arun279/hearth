@@ -1,61 +1,73 @@
 import {
-  type ActivityRecordFullView,
   type ActivityRecordId,
   DomainError,
-  projectRecordFull,
+  type FullActivityRecord,
+  projectActivityRecord,
+  type SummaryActivityRecord,
   type UserId,
 } from "@hearth/domain";
-import { canViewActivityRecord } from "@hearth/domain/policy/record";
-import type { ActivityRecordRepository, UserRepository } from "@hearth/ports";
+import { type LoadViewableRecordDeps, loadViewableRecord } from "./_lib/load-viewable-record.ts";
+import { memberDisplayName } from "./_lib/member-display-name.ts";
 
 export type ViewActivityRecordInput = {
   readonly actor: UserId;
   readonly recordId: ActivityRecordId;
 };
 
-export type ViewActivityRecordDeps = {
-  readonly users: UserRepository;
-  readonly records: ActivityRecordRepository;
-};
+export type ViewActivityRecordDeps = LoadViewableRecordDeps;
 
 /**
- * Read a full Activity Record by its id — the recordId-addressed,
- * cross-participant read surface (a facilitator inspecting a participant's
- * work, or a participant reading their own via the record id). Returns the
- * full projection plus the two history rollups (`partHistoryCount`,
- * `partsWithHistory`) so the SPA renders the "N prior attempts preserved"
- * chip and the per-Part history affordance without a follow-up GET.
+ * Read one Activity Record by its id — the recordId-addressed,
+ * cross-participant read surface. The scope the actor resolves drives the
+ * shape returned:
  *
- * Viewability-before-authorization: a view-denied actor gets `NOT_FOUND`
- * (404), NOT `FORBIDDEN` (403), so a non-participant probing a record id
- * cannot distinguish "exists but forbidden" from "does not exist" — the
- * recordId read over a hideable resource is otherwise an enumeration oracle.
- * M11 grants only the participant themselves (`scope = "full"`); M12 widens
- * to track viewers with `summary` / `hidden` without changing this signature.
+ * - `full` — the participant themselves, or a track authority, or a peer the
+ *   participant's preference grants full to: the complete projection plus the
+ *   two history rollups (`partHistoryCount`, `partsWithHistory`) so the SPA
+ *   renders the "N prior attempts preserved" chip and per-Part history
+ *   affordance without a follow-up GET.
+ * - `summary` — a track-peer (or an in-group non-enrollee) the preference
+ *   redacts to existence-and-completion facts only, no working state.
+ *
+ * Composition is handled inside `loadViewableRecord`: the access gate runs
+ * first (deny -> 404), then the visibility resolver (hidden -> 404). A
+ * view-denied or hidden read is therefore byte-identical to a
+ * missing row — the record id is not an enumeration oracle over a hideable
+ * resource.
  */
 export async function viewActivityRecord(
   input: ViewActivityRecordInput,
   deps: ViewActivityRecordDeps,
-): Promise<ActivityRecordFullView> {
-  const actor = await deps.users.byId(input.actor);
-  if (!actor) {
-    throw new DomainError("NOT_FOUND", "Record not found.", "not_found");
-  }
-  const record = await deps.records.byId(input.recordId);
-  if (!record) {
-    throw new DomainError("NOT_FOUND", "Record not found.", "not_found");
-  }
+): Promise<FullActivityRecord | SummaryActivityRecord> {
+  const ctx = await loadViewableRecord(input.actor, input.recordId, deps);
+  const participantDisplayName = memberDisplayName(ctx.participant, ctx.participantMembership);
 
-  const view = canViewActivityRecord(actor, record);
-  if (!view.ok) {
-    throw new DomainError("NOT_FOUND", "Record not found.", "not_found");
+  if (ctx.scope === "summary") {
+    const projected = projectActivityRecord("summary", {
+      record: ctx.record,
+      progress: [],
+      partHistoryCount: 0,
+      partsWithHistory: [],
+      participantDisplayName,
+    });
+    // `summary` never projects to null; the union keeps the projector honest.
+    if (!projected) throw new DomainError("NOT_FOUND", "Record not found.", "not_found");
+    return projected;
   }
 
   const [progress, partHistoryCount, partsWithHistory] = await Promise.all([
-    deps.records.listPartProgress(record.id),
-    deps.records.countPartHistory(record.id),
-    deps.records.partsWithHistory(record.id),
+    deps.records.listPartProgress(ctx.record.id),
+    deps.records.countPartHistory(ctx.record.id),
+    deps.records.partsWithHistory(ctx.record.id),
   ]);
 
-  return projectRecordFull({ record, progress, partHistoryCount, partsWithHistory });
+  const projected = projectActivityRecord("full", {
+    record: ctx.record,
+    progress,
+    partHistoryCount,
+    partsWithHistory,
+    participantDisplayName,
+  });
+  if (!projected) throw new DomainError("NOT_FOUND", "Record not found.", "not_found");
+  return projected;
 }

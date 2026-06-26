@@ -36,7 +36,7 @@ const GROUP_MEMBER_SCOPE = {
  * record's group/track context, and the participant's resolved default
  * preference; this function only branches.
  *
- * Composition is separate from access (ADR 0007): the use case runs the
+ * Composition is separate from access: the use case runs the
  * `canViewActivityRecord` policy gate first (deny -> 404), then this
  * resolver; a `hidden` result also funnels to a byte-identical 404.
  *

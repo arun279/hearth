@@ -16,7 +16,7 @@ import {
   partProgressEnvelopeSchema,
   type UserId,
   type VisibilityPreference,
-  visibilityOverrideEnvelopeSchema,
+  visibilityPreferenceEnvelopeSchema,
 } from "@hearth/domain";
 import { type ActivityRecordRepository, markWrite } from "@hearth/ports";
 import { and, asc, desc, eq, gt, inArray, sql } from "drizzle-orm";
@@ -163,7 +163,7 @@ export function createActivityRecordRepository(
         override === null
           ? null
           : JSON.stringify(
-              visibilityOverrideEnvelopeSchema.parse({ v: 1, data: { preference: override } }),
+              visibilityPreferenceEnvelopeSchema.parse({ v: 1, data: { preference: override } }),
             );
       const updated = await deps.db
         .update(activityRecords)
@@ -448,7 +448,7 @@ function parseVisibilityOverride(
 ): VisibilityPreference | null {
   if (raw === null) return null;
   try {
-    return visibilityOverrideEnvelopeSchema.parse(JSON.parse(raw)).data.preference;
+    return visibilityPreferenceEnvelopeSchema.parse(JSON.parse(raw)).data.preference;
   } catch (err) {
     throw new DomainError(
       "INVARIANT_VIOLATION",

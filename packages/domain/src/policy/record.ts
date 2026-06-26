@@ -1,8 +1,9 @@
 import type { ActivityAccessState } from "../activity/types.ts";
 import { type PolicyResult, policyAllow, policyDeny } from "../errors.ts";
+import type { GroupMembership, StudyGroup } from "../group.ts";
 import type { ActivityRecord } from "../record/types.ts";
 import type { User } from "../user.ts";
-import type { VisibilityScope } from "../visibility/preference.ts";
+import { isCurrentMember } from "./helpers.ts";
 
 /**
  * A window-driven access state that forbids authoring new completion: the
@@ -93,34 +94,27 @@ export function canOverrideActivityRecordVisibility(
 }
 
 /**
- * The result of `canViewActivityRecord`, carrying the resolved visibility
- * scope on allow. M11 returns participant-only allow with `scope = "full"`;
- * M12 layers cross-participant viewers that resolve `"summary"` / `"hidden"`
- * without changing this signature.
- */
-export type ViewActivityRecordResult =
-  | { readonly ok: true; readonly scope: VisibilityScope }
-  | {
-      readonly ok: false;
-      readonly reason: { readonly code: "not_record_owner"; readonly message: string };
-    };
-
-/**
- * May the actor view this record, and at what scope? M11 grants only the
- * participant themselves, always at `full` scope. The route layer surfaces
- * a denial as 404 (viewability-before-authorization) so a non-participant
- * probing a record id cannot distinguish "exists but forbidden" from "does
- * not exist". M12 widens this to track viewers with `summary` / `hidden`.
+ * May the actor view this participant's Activity Record at all? The access
+ * gate only: the participant themselves, or a current member of the
+ * record's group. The *detail* a viewer resolves (`full` / `summary` /
+ * `hidden`) is the visibility resolver's separate concern, layered after
+ * this gate by the use case — a denial here and a `hidden` resolution there
+ * both funnel to a byte-identical 404.
+ *
+ * The route surfaces a denial as 404 (viewability-before-authorization) so a
+ * non-member probing a record id cannot distinguish "exists but forbidden"
+ * from "does not exist". `groupId` is the record's group and
+ * `viewerMembership` is the actor's membership in it (the caller loads
+ * `groups.membership(groupId, actor)`); `isCurrentMember` re-matches the
+ * group id defensively so a wrong-group row can never grant access.
  */
 export function canViewActivityRecord(
   actor: User,
   record: ActivityRecord,
-): ViewActivityRecordResult {
-  if (record.participantId !== actor.id) {
-    return {
-      ok: false,
-      reason: { code: "not_record_owner", message: "Actor cannot view this record." },
-    };
-  }
-  return { ok: true, scope: "full" };
+  viewerMembership: GroupMembership | null,
+  groupId: StudyGroup["id"],
+): PolicyResult {
+  if (record.participantId === actor.id) return policyAllow();
+  if (isCurrentMember(viewerMembership, groupId)) return policyAllow();
+  return policyDeny("not_record_owner", "Actor cannot view this Activity Record.");
 }

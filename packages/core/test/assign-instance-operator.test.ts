@@ -15,6 +15,7 @@ const user = (id: UserId, email: string): User => ({
   deactivatedAt: null,
   deletedAt: null,
   attributionPreference: "preserve_name",
+  visibilityPreference: "default",
   createdAt: now,
   updatedAt: now,
 });
