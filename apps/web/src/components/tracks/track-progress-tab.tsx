@@ -4,7 +4,7 @@ import { type ActivityListItem, useTrackActivities } from "../../hooks/use-activ
 import { useMeContext } from "../../hooks/use-me-context.ts";
 import { useTrackProgress } from "../../hooks/use-tracks.ts";
 import { asUserMessage, errorStatus } from "../../lib/problem.ts";
-import { ProgressDot, type ProgressState } from "./progress-dot.tsx";
+import { ProgressDot, ProgressLegend, type ProgressState } from "./progress-dot.tsx";
 
 type Props = {
   readonly trackId: string;
@@ -113,11 +113,14 @@ export function TrackProgressTab({ trackId, peerProgressVisibility }: Props) {
 
   return (
     <div className="space-y-3">
-      <p className="text-[0.75rem] text-[var(--color-ink-2)]">
-        {peerLimited
-          ? "Only facilitators see everyone's progress on this track. You can see your own below."
-          : "Where everyone is across this track. Each dot is an activity in track order — a green check is complete, a ring is in progress, an outline is not started yet."}
-      </p>
+      <div className="space-y-2">
+        <p className="text-[0.75rem] text-[var(--color-ink-2)]">
+          {peerLimited
+            ? "Only facilitators see everyone's progress on this track. You can see your own below."
+            : "Where everyone is across this track. Each dot is an activity in track order."}
+        </p>
+        <ProgressLegend />
+      </div>
 
       <ul
         aria-label="Track progress by participant"

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "e882543c-a495-4def-8f2d-6f76cb633e96",
+  "id": "c438f1af-7123-4893-b9c7-a7fde9831199",
   "prevId": "a70e9ba1-f5e0-4ef8-8d58-7fc9a78019c2",
   "tables": {
     "accounts": {
@@ -2994,6 +2994,10 @@
         "tracks_status": {
           "name": "tracks_status",
           "value": "\"tracks\".\"status\" IN ('active', 'paused', 'archived')"
+        },
+        "tracks_peer_progress_visibility": {
+          "name": "tracks_peer_progress_visibility",
+          "value": "\"tracks\".\"peer_progress_visibility\" IN ('shared', 'facilitator_only')"
         }
       }
     }

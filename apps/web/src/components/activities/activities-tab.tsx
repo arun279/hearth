@@ -16,6 +16,7 @@ import {
 import { useTrackProgress } from "../../hooks/use-tracks.ts";
 import { asUserMessage } from "../../lib/problem.ts";
 import { ConfirmActionDialog } from "../admin/confirm-action-dialog.tsx";
+import { ProgressLegend } from "../tracks/progress-dot.tsx";
 import { ActivityCompletionChip } from "./activity-completion-chip.tsx";
 import { ActivityRow } from "./activity-row.tsx";
 
@@ -157,25 +158,32 @@ export function ActivitiesTab({ groupId, trackId, canCreate, canViewProgress }: 
           }
         />
       ) : (
-        <div className="overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-rule)]">
-          {items.map((a, i) => (
-            <div
-              key={a.id}
-              className={i < items.length - 1 ? "border-[var(--color-rule)] border-b" : undefined}
-            >
-              <ActivityRow
-                activity={a}
-                onOpen={onOpen}
-                onEdit={canCreate ? setEditId : undefined}
-                completionSlot={
-                  canViewProgress ? (
-                    <ActivityCompletionChip entries={progressByActivity.get(a.id) ?? []} />
-                  ) : undefined
-                }
-              />
-            </div>
-          ))}
-        </div>
+        <>
+          {canViewProgress && progressByActivity.size > 0 ? (
+            // One decode key for the per-row completion dots, shared with the
+            // Progress tab so a peer reads the bare chips at a glance.
+            <ProgressLegend />
+          ) : null}
+          <div className="overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-rule)]">
+            {items.map((a, i) => (
+              <div
+                key={a.id}
+                className={i < items.length - 1 ? "border-[var(--color-rule)] border-b" : undefined}
+              >
+                <ActivityRow
+                  activity={a}
+                  onOpen={onOpen}
+                  onEdit={canCreate ? setEditId : undefined}
+                  completionSlot={
+                    canViewProgress ? (
+                      <ActivityCompletionChip entries={progressByActivity.get(a.id) ?? []} />
+                    ) : undefined
+                  }
+                />
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       {createOpen ? (

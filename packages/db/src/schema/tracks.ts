@@ -25,6 +25,10 @@ export const tracks = sqliteTable(
   (t) => [
     index("tracks_group_status_idx").on(t.groupId, t.status),
     check("tracks_status", sql`${t.status} IN ('active', 'paused', 'archived')`),
+    check(
+      "tracks_peer_progress_visibility",
+      sql`${t.peerProgressVisibility} IN ('shared', 'facilitator_only')`,
+    ),
   ],
 );
 
