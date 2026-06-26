@@ -694,9 +694,18 @@ describe("GET /api/v1/records/:id", () => {
     const app = harness({ userId: otherId, ports });
     const res = await app.request(`/api/v1/records/${record.id}`);
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { scope: string; parts?: unknown };
-    expect(body.scope).toBe("summary");
-    expect(body.parts).toBeUndefined();
+    const body = (await res.json()) as Record<string, unknown>;
+    // Key asymmetry the SPA's discriminated-union switch depends on: a summary
+    // is keyed by `recordId`, never `id`, and carries none of the full view's
+    // working-state keys — asserted at the serialized boundary, not just the
+    // projector, so a route-level regression can't slip a leaked key past it.
+    expect(body["scope"]).toBe("summary");
+    expect(body["recordId"]).toBe(record.id);
+    expect(body["participantId"]).toBe(actorId);
+    expect(body).not.toHaveProperty("id");
+    expect(body).not.toHaveProperty("parts");
+    expect(body).not.toHaveProperty("partHistoryCount");
+    expect(body).not.toHaveProperty("visibilityOverride");
   });
 
   it("404 (hidden) for a non-member viewer, byte-identical to a missing record", async () => {
