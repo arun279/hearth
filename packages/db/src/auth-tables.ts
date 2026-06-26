@@ -28,7 +28,6 @@ export const users = sqliteTable(
     deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
     deletedBy: text("deleted_by").references((): AnySQLiteColumn => users.id),
     attributionPreference: text("attribution_preference").notNull().default("preserve_name"),
-    visibilityPreferenceJson: text("visibility_preference_json"),
   },
   (t) => [
     check(

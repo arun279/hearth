@@ -270,6 +270,7 @@ function TrackPeopleBody({
           name: trackName,
           description: null,
           status: trackStatus,
+          peerProgressVisibility: "shared",
           pausedAt: null,
           archivedAt: null,
           archivedBy: null,

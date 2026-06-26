@@ -109,7 +109,6 @@ const actor: User = {
   deactivatedAt: null,
   deletedAt: null,
   attributionPreference: "preserve_name",
-  visibilityPreference: "default",
   createdAt: now,
   updatedAt: now,
 };
@@ -132,6 +131,7 @@ const track: LearningTrack = {
   name: "T",
   description: null,
   status: "active",
+  peerProgressVisibility: "shared",
   pausedAt: null,
   archivedAt: null,
   archivedBy: null,
@@ -165,7 +165,6 @@ const record: ActivityRecord = {
   participantId: actorId,
   completionState: "in_progress",
   completedAt: null,
-  visibilityOverride: null,
   createdAt: now,
   updatedAt: now,
 };
@@ -245,12 +244,12 @@ function viewablePorts(opts: {
       byId: vi.fn(async () => null),
       byParticipantAndActivity: vi.fn(async () => null),
       listByActivity: vi.fn(async () => ({ records: [], nextCursor: null })),
+      listByTrack: vi.fn(async () => []),
       getPartProgress: vi.fn(async () => null),
       listPartProgress: vi.fn(async () => []),
       savePartProgress: vi.fn(),
       setPartCompletion: vi.fn(),
       setCompletion: vi.fn(),
-      setVisibilityOverride: vi.fn(),
       appendPartHistory: vi.fn(),
       listPartHistory: vi.fn(async () => []),
       countPartHistory: vi.fn(async () => 0),
@@ -262,19 +261,6 @@ function viewablePorts(opts: {
   };
 }
 
-/**
- * Re-point a `users` port so `byId` resolves to a viewer whose id is NOT the
- * record owner — exercises the viewability→404 path on the recordId reads
- * (the harness's default `users.byId` returns `actor` for any id, which would
- * spuriously satisfy the owner check).
- */
-function asOtherViewer(users: Partial<Ports>["users"]): Partial<Ports>["users"] {
-  return {
-    ...users,
-    byId: vi.fn(async () => ({ ...actor, id: otherId })),
-  } as Partial<Ports>["users"];
-}
-
 describe("GET /api/v1/activities/:id/my-record", () => {
   it("returns canParticipate + empty parts for a participant with no record yet", async () => {
     const app = harness({ userId: actorId, ports: viewablePorts({}) });
@@ -282,13 +268,11 @@ describe("GET /api/v1/activities/:id/my-record", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
       canParticipate: boolean;
-      visibilityOverride: string | null;
       parts: readonly unknown[];
       partHistoryCount: number;
       partsWithHistory: readonly string[];
     };
     expect(body.canParticipate).toBe(true);
-    expect(body.visibilityOverride).toBeNull();
     expect(body.parts).toEqual([]);
     expect(body.partHistoryCount).toBe(0);
     expect(body.partsWithHistory).toEqual([]);
@@ -508,44 +492,6 @@ describe("PUT /api/v1/activities/:id/my-record/parts/:partId/completion", () => 
   });
 });
 
-describe("PATCH /api/v1/activities/:id/my-record/visibility-override", () => {
-  it("sets the override", async () => {
-    const ports = viewablePorts({});
-    const app = harness({ userId: actorId, ports });
-    const res = await app.request(`/api/v1/activities/${aid}/my-record/visibility-override`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ preference: "private" }),
-    });
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as { visibilityOverride: string | null };
-    expect(body.visibilityOverride).toBe("private");
-    expect(ports.records?.setVisibilityOverride).toHaveBeenCalledWith("ar_1", "private");
-  });
-
-  it("clears the override with null", async () => {
-    const app = harness({ userId: actorId, ports: viewablePorts({}) });
-    const res = await app.request(`/api/v1/activities/${aid}/my-record/visibility-override`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ preference: null }),
-    });
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as { visibilityOverride: string | null };
-    expect(body.visibilityOverride).toBeNull();
-  });
-
-  it("400 on an invalid preference value", async () => {
-    const app = harness({ userId: actorId, ports: viewablePorts({}) });
-    const res = await app.request(`/api/v1/activities/${aid}/my-record/visibility-override`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ preference: "everyone" }),
-    });
-    expect(res.status).toBe(400);
-  });
-});
-
 describe("GET /api/v1/activities/:id/my-record/parts/:partId/quiz", () => {
   it("re-grades persisted answers without writing", async () => {
     const ports = viewablePorts({
@@ -634,178 +580,6 @@ describe("POST /api/v1/activities/:id/my-record/complete", () => {
       method: "POST",
     });
     expect(res.status).toBe(503);
-  });
-});
-
-describe("GET /api/v1/records/:id", () => {
-  it("returns the full view with partHistoryCount + partsWithHistory", async () => {
-    const countPartHistory = vi.fn(async () => 1);
-    const partsWithHistory = vi.fn(async () => ["p_quiz" as never]);
-    const app = harness({
-      userId: actorId,
-      ports: viewablePorts({
-        records: {
-          byId: vi.fn(async () => record),
-          listPartProgress: vi.fn(async () => []),
-          countPartHistory,
-          partsWithHistory,
-        },
-      }),
-    });
-    const res = await app.request(`/api/v1/records/${record.id}`);
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as {
-      partHistoryCount: number;
-      partsWithHistory: readonly string[];
-    };
-    expect(body.partHistoryCount).toBe(1);
-    expect(body.partsWithHistory).toEqual(["p_quiz"]);
-  });
-
-  it("returns the full view to a co-enrolled track peer under default visibility", async () => {
-    const peer = { ...actor, id: otherId, name: "Peer" };
-    const base = viewablePorts({
-      records: { byId: vi.fn(async () => record), listPartProgress: vi.fn(async () => []) },
-    });
-    const ports: Partial<Ports> = {
-      ...base,
-      users: {
-        ...base.users,
-        byId: vi.fn(async (id: UserId) => (id === otherId ? peer : actor)),
-      } as Partial<Ports>["users"],
-    };
-    const app = harness({ userId: otherId, ports });
-    const res = await app.request(`/api/v1/records/${record.id}`);
-    expect(res.status).toBe(200);
-    expect(((await res.json()) as { scope: string }).scope).toBe("full");
-  });
-
-  it("redacts to a summary (no working state) for a co-enrolled peer under a private override", async () => {
-    const peer = { ...actor, id: otherId };
-    const privateRecord: ActivityRecord = { ...record, visibilityOverride: "private" };
-    const base = viewablePorts({ records: { byId: vi.fn(async () => privateRecord) } });
-    const ports: Partial<Ports> = {
-      ...base,
-      users: {
-        ...base.users,
-        byId: vi.fn(async (id: UserId) => (id === otherId ? peer : actor)),
-      } as Partial<Ports>["users"],
-    };
-    const app = harness({ userId: otherId, ports });
-    const res = await app.request(`/api/v1/records/${record.id}`);
-    expect(res.status).toBe(200);
-    const body = (await res.json()) as Record<string, unknown>;
-    // Key asymmetry the SPA's discriminated-union switch depends on: a summary
-    // is keyed by `recordId`, never `id`, and carries none of the full view's
-    // working-state keys — asserted at the serialized boundary, not just the
-    // projector, so a route-level regression can't slip a leaked key past it.
-    expect(body["scope"]).toBe("summary");
-    expect(body["recordId"]).toBe(record.id);
-    expect(body["participantId"]).toBe(actorId);
-    expect(body).not.toHaveProperty("id");
-    expect(body).not.toHaveProperty("parts");
-    expect(body).not.toHaveProperty("partHistoryCount");
-    expect(body).not.toHaveProperty("visibilityOverride");
-  });
-
-  it("404 (hidden) for a non-member viewer, byte-identical to a missing record", async () => {
-    const base = viewablePorts({ records: { byId: vi.fn(async () => record) } });
-    const hiddenApp = harness({
-      userId: otherId,
-      ports: {
-        ...base,
-        users: asOtherViewer(base.users),
-        groups: {
-          byId: vi.fn(async () => group),
-          membership: vi.fn(async () => null),
-        } as unknown as StudyGroupRepository,
-      },
-    });
-    const hidden = await hiddenApp.request(`/api/v1/records/${record.id}`);
-    expect(hidden.status).toBe(404);
-    expect(hidden.headers.get("content-type")).toContain("application/problem+json");
-
-    const missingApp = harness({
-      userId: actorId,
-      ports: viewablePorts({ records: { byId: vi.fn(async () => null) } }),
-    });
-    const missing = await missingApp.request(`/api/v1/records/${record.id}`);
-    expect(await hidden.json()).toEqual(await missing.json());
-  });
-
-  it("404 for a record that does not exist", async () => {
-    const app = harness({
-      userId: actorId,
-      ports: viewablePorts({ records: { byId: vi.fn(async () => null) } }),
-    });
-    const res = await app.request("/api/v1/records/ar_missing");
-    expect(res.status).toBe(404);
-  });
-});
-
-describe("GET /api/v1/records/:id/history", () => {
-  it("lists history and the count cross-checks the record view", async () => {
-    const partHistory = (id: string) => ({
-      id,
-      activityRecordId: record.id,
-      partId: "p_quiz" as never,
-      snapshot: { kind: "quiz" as const, completed: true, answers: [] },
-      reason: "retry" as const,
-      revisionIdAtTime: null,
-      recordedAt: now,
-    });
-    const ports = viewablePorts({
-      records: {
-        byId: vi.fn(async () => record),
-        listPartProgress: vi.fn(async () => []),
-        countPartHistory: vi.fn(async () => 2),
-        listPartHistory: vi.fn(async () => [partHistory("ph_1"), partHistory("ph_2")]),
-      },
-    });
-    const app = harness({ userId: actorId, ports });
-
-    const view = await app.request(`/api/v1/records/${record.id}`);
-    const viewBody = (await view.json()) as { partHistoryCount: number };
-
-    const history = await app.request(`/api/v1/records/${record.id}/history?partId=p_quiz`);
-    expect(history.status).toBe(200);
-    const historyBody = (await history.json()) as readonly unknown[];
-    expect(historyBody).toHaveLength(viewBody.partHistoryCount);
-  });
-
-  it("404 for a non-member viewer (hidden)", async () => {
-    const base = viewablePorts({ records: { byId: vi.fn(async () => record) } });
-    const ports: Partial<Ports> = {
-      ...base,
-      users: asOtherViewer(base.users),
-      groups: {
-        byId: vi.fn(async () => group),
-        membership: vi.fn(async () => null),
-      } as unknown as StudyGroupRepository,
-    };
-    const app = harness({ userId: otherId, ports });
-    const res = await app.request(`/api/v1/records/${record.id}/history`);
-    expect(res.status).toBe(404);
-  });
-
-  it("404s history for a summary-scope peer without leaking it (redacted-sibling guard)", async () => {
-    const peer = { ...actor, id: otherId };
-    const privateRecord: ActivityRecord = { ...record, visibilityOverride: "private" };
-    const listPartHistory = vi.fn(async () => []);
-    const base = viewablePorts({
-      records: { byId: vi.fn(async () => privateRecord), listPartHistory },
-    });
-    const ports: Partial<Ports> = {
-      ...base,
-      users: {
-        ...base.users,
-        byId: vi.fn(async (id: UserId) => (id === otherId ? peer : actor)),
-      } as Partial<Ports>["users"],
-    };
-    const app = harness({ userId: otherId, ports });
-    const res = await app.request(`/api/v1/records/${record.id}/history`);
-    expect(res.status).toBe(404);
-    expect(listPartHistory).not.toHaveBeenCalled();
   });
 });
 
@@ -1021,14 +795,7 @@ describe("record route param validation (400 paths)", () => {
       `/api/v1/activities/${tooLong}/my-record/parts/p_x/completion`,
       { method: "PUT", headers: { "content-type": "application/json" }, body: "{}" },
     ],
-    [
-      "PATCH visibility-override",
-      `/api/v1/activities/${tooLong}/my-record/visibility-override`,
-      { method: "PATCH", headers: { "content-type": "application/json" }, body: "{}" },
-    ],
     ["POST complete", `/api/v1/activities/${tooLong}/my-record/complete`, { method: "POST" }],
-    ["GET record", `/api/v1/records/${tooLong}`],
-    ["GET record history", `/api/v1/records/${tooLong}/history`],
     [
       "POST reset",
       `/api/v1/activities/${tooLong}/participants/${otherId}/reset`,

@@ -38,6 +38,7 @@ export { canRetireLibraryItem } from "./can-retire-library-item.ts";
 export { canRevokeGroupInvitation } from "./can-revoke-group-invitation.ts";
 export { canRevokeInstanceOperator } from "./can-revoke-instance-operator.ts";
 export { canSeeActivity } from "./can-see-activity.ts";
+export { canSetPeerProgressVisibility } from "./can-set-peer-progress-visibility.ts";
 export { canSetPrerequisites } from "./can-set-prerequisites.ts";
 export { canSetSuggestedSequences } from "./can-set-suggested-sequences.ts";
 export { canUnarchiveGroup } from "./can-unarchive-group.ts";
@@ -57,7 +58,5 @@ export { isLibraryItemSteward } from "./library-stewardship.ts";
 export {
   canMarkActivityComplete,
   canMarkPartComplete,
-  canOverrideActivityRecordVisibility,
   canResetParticipantProgress,
-  canViewActivityRecord,
 } from "./record.ts";

@@ -1,9 +1,7 @@
 import type { ActivityAccessState } from "../activity/types.ts";
 import { type PolicyResult, policyAllow, policyDeny } from "../errors.ts";
-import type { GroupMembership, StudyGroup } from "../group.ts";
 import type { ActivityRecord } from "../record/types.ts";
 import type { User } from "../user.ts";
-import { isCurrentMember } from "./helpers.ts";
 
 /**
  * A window-driven access state that forbids authoring new completion: the
@@ -77,44 +75,4 @@ export function canResetParticipantProgress(isAuthorityOverTrack: boolean): Poli
     );
   }
   return policyAllow();
-}
-
-/**
- * May the actor change the visibility override on their own record? The
- * participant alone owns this choice.
- */
-export function canOverrideActivityRecordVisibility(
-  actor: User,
-  record: ActivityRecord,
-): PolicyResult {
-  if (record.participantId !== actor.id) {
-    return policyDeny("not_record_owner", "Actor does not own this Activity Record.");
-  }
-  return policyAllow();
-}
-
-/**
- * May the actor view this participant's Activity Record at all? The access
- * gate only: the participant themselves, or a current member of the
- * record's group. The *detail* a viewer resolves (`full` / `summary` /
- * `hidden`) is the visibility resolver's separate concern, layered after
- * this gate by the use case — a denial here and a `hidden` resolution there
- * both funnel to a byte-identical 404.
- *
- * The route surfaces a denial as 404 (viewability-before-authorization) so a
- * non-member probing a record id cannot distinguish "exists but forbidden"
- * from "does not exist". `groupId` is the record's group and
- * `viewerMembership` is the actor's membership in it (the caller loads
- * `groups.membership(groupId, actor)`); `isCurrentMember` re-matches the
- * group id defensively so a wrong-group row can never grant access.
- */
-export function canViewActivityRecord(
-  actor: User,
-  record: ActivityRecord,
-  viewerMembership: GroupMembership | null,
-  groupId: StudyGroup["id"],
-): PolicyResult {
-  if (record.participantId === actor.id) return policyAllow();
-  if (isCurrentMember(viewerMembership, groupId)) return policyAllow();
-  return policyDeny("not_record_owner", "Actor cannot view this Activity Record.");
 }

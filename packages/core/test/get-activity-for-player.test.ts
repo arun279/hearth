@@ -38,6 +38,7 @@ const track = {
   name: "T",
   description: null,
   status: "active" as const,
+  peerProgressVisibility: "shared" as const,
   pausedAt: null,
   archivedAt: null,
   archivedBy: null,

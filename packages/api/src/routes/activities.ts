@@ -7,7 +7,6 @@ import {
   gradeQuizAnswers,
   listActivityParticipantRecords,
   listMyPartHistory,
-  listPartHistory,
   listTrackActivities,
   markActivityComplete,
   pinLibraryRevision,
@@ -17,16 +16,13 @@ import {
   setActivityPrerequisites,
   setActivitySuggestedSequences,
   setPartCompleted,
-  setRecordVisibilityOverride,
   submitQuizAnswers,
   unpinLibraryRevision,
   updateActivity,
-  viewActivityRecord,
 } from "@hearth/core";
 import {
   type ActivityAudience,
   type ActivityPartId,
-  type ActivityRecordId,
   activityPartSchema,
   audienceEnvelopeSchema,
   completionRuleEnvelopeSchema,
@@ -44,7 +40,6 @@ import {
   postClosePolicyEnvelopeSchema,
   quizAnswerSchema,
   type UserId,
-  visibilityPreferenceSchema,
   windowEnvelopeSchema,
 } from "@hearth/domain";
 import { zValidator } from "@hono/zod-validator";
@@ -65,7 +60,6 @@ const activityPartParam = z.object({
   activityId: z.string().min(1).max(MAX_ID_LENGTH),
   partId: z.string().min(1).max(MAX_ID_LENGTH),
 });
-const recordIdParam = z.object({ id: z.string().min(1).max(MAX_ID_LENGTH) });
 const participantResetParam = z.object({
   activityId: z.string().min(1).max(MAX_ID_LENGTH),
   participantId: z.string().min(1).max(MAX_ID_LENGTH),
@@ -79,7 +73,6 @@ const quizSubmitBody = z.object({
   answers: z.array(quizAnswerSchema).max(MAX_QUIZ_QUESTIONS),
 });
 const completionBody = z.object({ completed: z.boolean() });
-const visibilityOverrideBody = z.object({ preference: visibilityPreferenceSchema.nullable() });
 
 const titleField = z.string().trim().min(1).max(MAX_TITLE_LENGTH);
 const descriptionField = z.union([z.string().trim().max(MAX_LONG_TEXT_LENGTH), z.null()]);
@@ -620,29 +613,6 @@ export const activitiesRoutes = new Hono<AppBindings>()
     },
   )
 
-  .patch(
-    "/activities/:activityId/my-record/visibility-override",
-    zValidator("param", activityIdParam, (result, c) => {
-      if (!result.success) return problemFromInvalid(c, result.error);
-    }),
-    zValidator("json", visibilityOverrideBody, (result, c) => {
-      if (!result.success) return problemFromInvalid(c, result.error);
-    }),
-    async (c) => {
-      const { activityId } = c.req.valid("param");
-      const { preference } = c.req.valid("json");
-      try {
-        const result = await setRecordVisibilityOverride(
-          { actor: getUserId(c), activityId: activityId as LearningActivityId, preference },
-          depsFor(c),
-        );
-        return c.json(result);
-      } catch (err) {
-        return problemResponse(c, mapUnknown(err));
-      }
-    },
-  )
-
   // Mount-time quiz re-grade: a READ that re-derives the per-question
   // verdict + score from the persisted answers so a refreshed Player can
   // show the grade again without re-submitting. No write — re-grading on
@@ -759,58 +729,6 @@ export const activitiesRoutes = new Hono<AppBindings>()
             actor: getUserId(c),
             activityId: activityId as LearningActivityId,
             participantId: participantId as UserId,
-          },
-          depsFor(c),
-        );
-        return c.json(result);
-      } catch (err) {
-        return problemResponse(c, mapUnknown(err));
-      }
-    },
-  )
-
-  // recordId-addressed cross-participant reads. Viewability runs first and
-  // surfaces a view-denial as 404 (not 403) so a non-participant probing a
-  // record id cannot tell "exists but forbidden" from "does not exist" —
-  // the record id is otherwise an enumeration oracle over a hideable
-  // resource. Scope (`full` | `summary` | `hidden`) is resolved per viewer by
-  // `resolveActivityRecordScope`; `hidden` is a byte-identical 404.
-  .get(
-    "/records/:id",
-    zValidator("param", recordIdParam, (result, c) => {
-      if (!result.success) return problemFromInvalid(c, result.error);
-    }),
-    async (c) => {
-      const { id } = c.req.valid("param");
-      try {
-        const result = await viewActivityRecord(
-          { actor: getUserId(c), recordId: id as ActivityRecordId },
-          depsFor(c),
-        );
-        return c.json(result);
-      } catch (err) {
-        return problemResponse(c, mapUnknown(err));
-      }
-    },
-  )
-
-  .get(
-    "/records/:id/history",
-    zValidator("param", recordIdParam, (result, c) => {
-      if (!result.success) return problemFromInvalid(c, result.error);
-    }),
-    zValidator("query", historyQuery, (result, c) => {
-      if (!result.success) return problemFromInvalid(c, result.error);
-    }),
-    async (c) => {
-      const { id } = c.req.valid("param");
-      const { partId } = c.req.valid("query");
-      try {
-        const result = await listPartHistory(
-          {
-            actor: getUserId(c),
-            recordId: id as ActivityRecordId,
-            ...(partId !== undefined ? { partId: partId as ActivityPartId } : {}),
           },
           depsFor(c),
         );

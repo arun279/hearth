@@ -26,7 +26,7 @@ function render(part: ActivityPart, resolvedRef: ResolvedLibraryRef | null = nul
       activityId="a_test"
       part={part}
       resolvedRef={resolvedRef}
-      record={{ loaded: false, canParticipate: false, visibilityOverride: null, partState: null }}
+      record={{ loaded: false, canParticipate: false, partState: null }}
     />,
   );
 }

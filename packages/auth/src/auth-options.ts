@@ -30,7 +30,6 @@ export const authOptions = {
         defaultValue: "preserve_name",
         input: false,
       },
-      visibilityPreferenceJson: { type: "string", required: false, input: false },
     },
   },
 } satisfies Partial<BetterAuthOptions>;

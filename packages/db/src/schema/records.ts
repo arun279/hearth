@@ -15,7 +15,6 @@ export const activityRecords = sqliteTable(
       .references(() => users.id),
     completionState: text("completion_state").notNull().default("in_progress"),
     completedAt: integer("completed_at", { mode: "timestamp_ms" }),
-    visibilityOverrideJson: text("visibility_override_json"),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
     updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
   },

@@ -23,6 +23,7 @@ const created: LearningTrack = {
   name: "Track",
   description: null,
   status: "active",
+  peerProgressVisibility: "shared",
   pausedAt: null,
   archivedAt: null,
   archivedBy: null,

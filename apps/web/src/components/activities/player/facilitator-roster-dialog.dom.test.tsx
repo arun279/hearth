@@ -42,7 +42,6 @@ const RESET_FULL_VIEW = {
   participantId: "u1",
   completionState: "in_progress",
   completedAt: null,
-  visibilityOverride: null,
   createdAt: "2026-05-01T00:00:00.000Z",
   updatedAt: "2026-06-02T00:00:00.000Z",
   parts: [],

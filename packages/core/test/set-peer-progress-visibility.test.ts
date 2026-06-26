@@ -1,6 +1,6 @@
-import type { LearningTrack, LearningTrackId } from "@hearth/domain";
+import type { LearningTrack, LearningTrackId, PeerProgressVisibility } from "@hearth/domain";
 import { describe, expect, it, vi } from "vitest";
-import { resumeTrack } from "../src/use-cases/resume-track.ts";
+import { setPeerProgressVisibility } from "../src/use-cases/set-peer-progress-visibility.ts";
 import {
   ACTOR,
   ACTOR_ID,
@@ -28,49 +28,32 @@ const activeTrack: LearningTrack = {
   createdAt: TEST_NOW,
   updatedAt: TEST_NOW,
 };
-const pausedTrack: LearningTrack = { ...activeTrack, status: "paused", pausedAt: TEST_NOW };
 const archivedTrack: LearningTrack = { ...activeTrack, status: "archived", archivedAt: TEST_NOW };
 
-describe("resumeTrack", () => {
-  it("flips paused → active via updateStatus({to:'active', expectedFromStatus:'paused'})", async () => {
-    const updateStatus = vi.fn(async () => activeTrack);
-    const result = await resumeTrack(
-      { actor: ACTOR_ID, trackId: TRACK_ID },
+const BOTH: readonly PeerProgressVisibility[] = ["shared", "facilitator_only"];
+
+describe("setPeerProgressVisibility", () => {
+  it.each(BOTH)("admin sets '%s' through to the repository unchanged", async (visibility) => {
+    const saveFn = vi.fn(async () => ({ ...activeTrack, peerProgressVisibility: visibility }));
+    await setPeerProgressVisibility(
+      { actor: ACTOR_ID, trackId: TRACK_ID, visibility },
       {
         users: makeUsers(ACTOR),
         groups: makeGroups({ membership: vi.fn(async () => membership({ role: "admin" })) }),
-        tracks: makeTracks({ byId: vi.fn(async () => pausedTrack), updateStatus }),
+        tracks: makeTracks({
+          byId: vi.fn(async () => activeTrack),
+          savePeerProgressVisibility: saveFn,
+        }),
         policy: makePolicy(),
       },
     );
-    expect(result).toEqual(activeTrack);
-    expect(updateStatus).toHaveBeenCalledWith({
-      id: TRACK_ID,
-      to: "active",
-      expectedFromStatus: "paused",
-      by: ACTOR_ID,
-    });
+    expect(saveFn).toHaveBeenCalledWith(TRACK_ID, visibility, ACTOR_ID);
   });
 
-  it("is a no-op on an already-active track (idempotent retry)", async () => {
-    const updateStatus = vi.fn();
-    const result = await resumeTrack(
-      { actor: ACTOR_ID, trackId: TRACK_ID },
-      {
-        users: makeUsers(ACTOR),
-        groups: makeGroups({ membership: vi.fn(async () => membership({ role: "admin" })) }),
-        tracks: makeTracks({ byId: vi.fn(async () => activeTrack), updateStatus }),
-        policy: makePolicy(),
-      },
-    );
-    expect(result).toEqual(activeTrack);
-    expect(updateStatus).not.toHaveBeenCalled();
-  });
-
-  it("rejects FORBIDDEN/track_archived for an archived track (policy-level deny)", async () => {
+  it("rejects FORBIDDEN/track_archived when the track is archived", async () => {
     await expect(
-      resumeTrack(
-        { actor: ACTOR_ID, trackId: TRACK_ID },
+      setPeerProgressVisibility(
+        { actor: ACTOR_ID, trackId: TRACK_ID, visibility: "facilitator_only" },
         {
           users: makeUsers(ACTOR),
           groups: makeGroups({ membership: vi.fn(async () => membership({ role: "admin" })) }),
@@ -78,22 +61,19 @@ describe("resumeTrack", () => {
           policy: makePolicy(),
         },
       ),
-    ).rejects.toMatchObject({
-      code: "FORBIDDEN",
-      reason: "track_archived",
-    });
+    ).rejects.toMatchObject({ code: "FORBIDDEN", reason: "track_archived" });
   });
 
   it("rejects FORBIDDEN/not_track_authority for a participant non-facilitator", async () => {
     await expect(
-      resumeTrack(
-        { actor: ACTOR_ID, trackId: TRACK_ID },
+      setPeerProgressVisibility(
+        { actor: ACTOR_ID, trackId: TRACK_ID, visibility: "shared" },
         {
           users: makeUsers(ACTOR),
           groups: makeGroups({
             membership: vi.fn(async () => membership({ role: "participant" })),
           }),
-          tracks: makeTracks({ byId: vi.fn(async () => pausedTrack) }),
+          tracks: makeTracks({ byId: vi.fn(async () => activeTrack) }),
           policy: makePolicy(),
         },
       ),
@@ -102,8 +82,8 @@ describe("resumeTrack", () => {
 
   it("rejects NOT_FOUND when the track is missing", async () => {
     await expect(
-      resumeTrack(
-        { actor: ACTOR_ID, trackId: TRACK_ID },
+      setPeerProgressVisibility(
+        { actor: ACTOR_ID, trackId: TRACK_ID, visibility: "shared" },
         {
           users: makeUsers(ACTOR),
           groups: makeGroups({ membership: vi.fn(async () => membership({ role: "admin" })) }),

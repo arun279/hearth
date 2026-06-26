@@ -93,7 +93,6 @@ const opUser: User = {
   deactivatedAt: null,
   deletedAt: null,
   attributionPreference: "preserve_name",
-  visibilityPreference: "default",
   createdAt: now,
   updatedAt: now,
 };

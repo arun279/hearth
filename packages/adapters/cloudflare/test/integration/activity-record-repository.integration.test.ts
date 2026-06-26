@@ -5,6 +5,7 @@ import type {
   ActivityRecordId,
   LearningActivityDraft,
   LearningActivityId,
+  LearningTrackId,
   LibraryRevisionId,
   UserId,
 } from "@hearth/domain";
@@ -109,7 +110,6 @@ describe("activity-record adapter (real D1)", () => {
 
     expect(second.id).toBe(first.id);
     expect(first.completionState).toBe("in_progress");
-    expect(first.visibilityOverride).toBeNull();
 
     const rows = await repos.db
       .select()
@@ -219,29 +219,6 @@ describe("activity-record adapter (real D1)", () => {
     expect(all.map((p) => p.partId).sort()).toEqual(["p1", "p2"]);
   });
 
-  it("setVisibilityOverride writes the envelope and clears on null", async () => {
-    const repos = buildRepos();
-    const { participant, activityId } = await setup(repos, "vis");
-    const record = await repos.records.upsert({ activityId, participantId: participant });
-
-    await repos.records.setVisibilityOverride(record.id, "private");
-    expect(
-      (await repos.records.byParticipantAndActivity(activityId, participant))?.visibilityOverride,
-    ).toBe("private");
-
-    await repos.records.setVisibilityOverride(record.id, null);
-    expect(
-      (await repos.records.byParticipantAndActivity(activityId, participant))?.visibilityOverride,
-    ).toBeNull();
-  });
-
-  it("setVisibilityOverride throws NOT_FOUND for an unknown record", async () => {
-    const repos = buildRepos();
-    await expect(
-      repos.records.setVisibilityOverride("ar_missing" as ActivityRecordId, "track_only"),
-    ).rejects.toMatchObject({ code: "NOT_FOUND" });
-  });
-
   it("getPartProgress surfaces a corrupt stateJson as INVARIANT_VIOLATION", async () => {
     const repos = buildRepos();
     const { participant, activityId } = await setup(repos, "corruptpp");
@@ -264,19 +241,6 @@ describe("activity-record adapter (real D1)", () => {
       );
     await expect(
       repos.records.getPartProgress({ activityRecordId: record.id, partId: p1 }),
-    ).rejects.toMatchObject({ code: "INVARIANT_VIOLATION", reason: "envelope_invalid" });
-  });
-
-  it("byParticipantAndActivity surfaces a corrupt visibilityOverrideJson as INVARIANT_VIOLATION", async () => {
-    const repos = buildRepos();
-    const { participant, activityId } = await setup(repos, "corruptvis");
-    const record = await repos.records.upsert({ activityId, participantId: participant });
-    await repos.db
-      .update(schema.activityRecords)
-      .set({ visibilityOverrideJson: '{"v":1,"data":{"preference":"nope"}}' })
-      .where(eq(schema.activityRecords.id, record.id));
-    await expect(
-      repos.records.byParticipantAndActivity(activityId, participant),
     ).rejects.toMatchObject({ code: "INVARIANT_VIOLATION", reason: "envelope_invalid" });
   });
 
@@ -621,6 +585,25 @@ describe("activity-record adapter (real D1)", () => {
     expect(second.nextCursor).toBeNull();
     const ids = [...first.records, ...second.records].map((r) => r.id);
     expect(new Set(ids).size).toBe(3);
+  });
+
+  it("listByTrack joins through activities to gather every record on the track", async () => {
+    const repos = buildRepos();
+    const { activityId } = await setup(repos, "bytrack");
+    const activityRows = await repos.db
+      .select({ trackId: schema.learningActivities.trackId })
+      .from(schema.learningActivities)
+      .where(eq(schema.learningActivities.id, activityId));
+    const trackId = activityRows[0]?.trackId as LearningTrackId;
+
+    const u1 = await seedUser(repos.db, "u_bt_1", "bt1@x.com");
+    const u2 = await seedUser(repos.db, "u_bt_2", "bt2@x.com");
+    await repos.records.upsert({ activityId, participantId: u1 });
+    await repos.records.upsert({ activityId, participantId: u2 });
+
+    const rows = await repos.records.listByTrack(trackId);
+    expect(rows.map((r) => r.participantId).sort()).toEqual(["u_bt_1", "u_bt_2"]);
+    expect(await repos.records.listByTrack("t_missing" as LearningTrackId)).toEqual([]);
   });
 
   it("flushEvidenceSignals gates on the killswitch but writes no D1 row in M11", async () => {

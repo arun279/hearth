@@ -7,7 +7,6 @@ import type {
   QuizAnswer,
   QuizVerdict,
   UserId,
-  VisibilityPreference,
 } from "@hearth/domain";
 import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api-client.ts";
@@ -21,7 +20,7 @@ function invalidateRecord(qc: QueryClient, activityId: string) {
 
 /**
  * The participant's own record for an activity — `canParticipate`, the
- * visibility override, and each Part's working state. Read-only; the record
+ * completion rollup, and each Part's working state. Read-only; the record
  * row is created lazily on the first write, so this never mutates and works
  * under the killswitch's read-only mode. The Player fetches it alongside the
  * content projection to hydrate the interactive Parts.
@@ -179,23 +178,6 @@ export function useMarkActivityComplete(activityId: string) {
       });
       await assertOk(res);
       return (await res.json()) as { readonly completionState: CompletionState };
-    },
-    onSuccess: () => invalidateRecord(qc, activityId),
-  });
-}
-
-export function useSetRecordVisibility(activityId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (
-      preference: VisibilityPreference | null,
-    ): Promise<{ readonly visibilityOverride: VisibilityPreference | null }> => {
-      const res = await api.activities[":activityId"]["my-record"]["visibility-override"].$patch({
-        param: { activityId },
-        json: { preference },
-      });
-      await assertOk(res);
-      return (await res.json()) as { readonly visibilityOverride: VisibilityPreference | null };
     },
     onSuccess: () => invalidateRecord(qc, activityId),
   });

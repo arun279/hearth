@@ -279,7 +279,6 @@ function PlayerBody({
                   record={{
                     loaded: recordQuery.isSuccess,
                     canParticipate: canAuthor,
-                    visibilityOverride: record?.visibilityOverride ?? null,
                     partState: partStateById.get(activePart.id) ?? null,
                   }}
                 />

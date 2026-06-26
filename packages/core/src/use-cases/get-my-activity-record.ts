@@ -29,7 +29,6 @@ export async function getMyActivityRecord(
     return {
       canParticipate: ctx.participation.ok,
       completionState: "in_progress",
-      visibilityOverride: null,
       parts: [],
       partHistoryCount: 0,
       partsWithHistory: [],
@@ -43,7 +42,6 @@ export async function getMyActivityRecord(
   return {
     canParticipate: ctx.participation.ok,
     completionState: record.completionState,
-    visibilityOverride: record.visibilityOverride,
     parts: parts.map((p) => ({ partId: p.partId, state: p.state })),
     partHistoryCount,
     partsWithHistory,

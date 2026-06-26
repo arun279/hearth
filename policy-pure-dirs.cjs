@@ -31,7 +31,7 @@
  * To add a new SPA-pure directory: append to `DIRS`, run the test, and
  * sync the failing `lefthook.yml` glob to the value the assertion prints.
  */
-const DIRS = ["policy", "visibility", "library", "parts", "record"];
+const DIRS = ["policy", "library", "parts", "record"];
 
 module.exports = {
   DIRS,

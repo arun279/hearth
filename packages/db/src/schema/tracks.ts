@@ -13,6 +13,7 @@ export const tracks = sqliteTable(
     name: text("name").notNull(),
     description: text("description"),
     status: text("status").notNull().default("active"),
+    peerProgressVisibility: text("peer_progress_visibility").notNull().default("shared"),
     trackStructureJson: text("track_structure_json").notNull(),
     contributionPolicyJson: text("contribution_policy_json").notNull(),
     pausedAt: integer("paused_at", { mode: "timestamp_ms" }),

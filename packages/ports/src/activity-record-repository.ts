@@ -4,13 +4,13 @@ import type {
   ActivityRecordId,
   CompletionState,
   LearningActivityId,
+  LearningTrackId,
   LibraryRevisionId,
   PartHistory,
   PartHistoryReason,
   PartProgress,
   PartProgressState,
   UserId,
-  VisibilityPreference,
 } from "@hearth/domain";
 import type { Write } from "./_brand.ts";
 
@@ -32,9 +32,9 @@ export type EvidenceSignalInput = {
 /**
  * Per-(activity, participant) learner state — the full M11 surface. Owns
  * resume (`upsert`), per-Part progress, the append-only `PartHistory` log,
- * the completion rollup, the record-level visibility override, and the
- * transactional `reopenAgainstRevision` restart primitive that moves
- * affected Part progress into history and resets it in one D1 batch.
+ * the completion rollup, and the transactional `reopenAgainstRevision`
+ * restart primitive that moves affected Part progress into history and
+ * resets it in one D1 batch.
  *
  * Mutations are `Write<>`-branded so the killswitch-coverage type gate
  * forces a CASES entry per write; reads are unbranded. Evidence-Signal
@@ -55,12 +55,16 @@ export interface ActivityRecordRepository {
     activityId: LearningActivityId,
     opts?: { cursor?: string; limit?: number },
   ): Promise<{ records: readonly ActivityRecord[]; nextCursor: string | null }>;
+  /**
+   * Every record across all of a track's activities — the read behind the
+   * track-altitude progress roster. One indexed join (`activity_records` ⋈
+   * `learning_activities` on `track_id`); bounded by track size × activity
+   * count, well under the per-request budget at v1 scale.
+   */
+  listByTrack(trackId: LearningTrackId): Promise<readonly ActivityRecord[]>;
 
   setCompletion: Write<
     (args: { id: ActivityRecordId; state: CompletionState; at: Date }) => Promise<void>
-  >;
-  setVisibilityOverride: Write<
-    (id: ActivityRecordId, override: VisibilityPreference | null) => Promise<void>
   >;
 
   // Part progress

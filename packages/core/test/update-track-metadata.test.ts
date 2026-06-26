@@ -21,6 +21,7 @@ const activeTrack: LearningTrack = {
   name: "Old name",
   description: null,
   status: "active",
+  peerProgressVisibility: "shared",
   pausedAt: null,
   archivedAt: null,
   archivedBy: null,

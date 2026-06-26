@@ -12,11 +12,9 @@ import { markWrite } from "@hearth/ports";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { gradeQuizAnswers } from "../src/use-cases/grade-quiz-answers.ts";
 import { listActivityParticipantRecords } from "../src/use-cases/list-activity-participant-records.ts";
-import { listPartHistory } from "../src/use-cases/list-part-history.ts";
 import { markActivityComplete } from "../src/use-cases/mark-activity-complete.ts";
 import { resetParticipantProgress } from "../src/use-cases/reset-participant-progress.ts";
 import { revisionBumpRestart } from "../src/use-cases/revision-bump-restart.ts";
-import { viewActivityRecord } from "../src/use-cases/view-activity-record.ts";
 import {
   ACTIVE_GROUP,
   ACTOR,
@@ -45,6 +43,7 @@ const track = {
   name: "T",
   description: null,
   status: "active" as const,
+  peerProgressVisibility: "shared" as const,
   pausedAt: null,
   archivedAt: null,
   archivedBy: null,
@@ -98,7 +97,6 @@ function record(overrides: Partial<ActivityRecord> = {}): ActivityRecord {
     participantId: ACTOR_ID,
     completionState: "in_progress",
     completedAt: null,
-    visibilityOverride: null,
     createdAt: TEST_NOW,
     updatedAt: TEST_NOW,
     ...overrides,
@@ -237,128 +235,6 @@ describe("gradeQuizAnswers (re-grade on mount, no write)", () => {
       deps,
     );
     expect(result).toBeNull();
-  });
-});
-
-describe("viewActivityRecord (M12 scope resolution)", () => {
-  it("projects the full view with history rollups for the participant", async () => {
-    const records = makeRecords({
-      byId: vi.fn(async () => record()),
-      countPartHistory: vi.fn(async () => 1),
-      partsWithHistory: vi.fn(async () => ["p_reflect" as ActivityPartId]),
-    });
-    const view = await viewActivityRecord(
-      { actor: ACTOR_ID, recordId: RECORD_ID },
-      depsOk({ records }),
-    );
-    expect(view.scope).toBe("full");
-    if (view.scope !== "full") throw new Error("expected full scope");
-    expect(view.id).toBe(RECORD_ID);
-    expect(view.participantDisplayName).toBe("Actor");
-    expect(view.partHistoryCount).toBe(1);
-    expect(view.partsWithHistory).toEqual(["p_reflect"]);
-  });
-
-  it("resolves full for a current Track Facilitator viewing a peer, even under a private override", async () => {
-    const records = makeRecords({
-      byId: vi.fn(async () => record({ participantId: TARGET_ID, visibilityOverride: "private" })),
-    });
-    const view = await viewActivityRecord(
-      { actor: ACTOR_ID, recordId: RECORD_ID },
-      depsOk({ records, enrollment: enrolled("facilitator") }),
-    );
-    expect(view.scope).toBe("full");
-  });
-
-  it("redacts to summary for a co-enrolled track peer under a private override", async () => {
-    const records = makeRecords({
-      byId: vi.fn(async () => record({ participantId: TARGET_ID, visibilityOverride: "private" })),
-      // These full-projection reads must never be issued for a summary scope.
-      listPartProgress: vi.fn(async () => []),
-    });
-    const deps = depsOk({ records, enrollment: enrolled("participant") });
-    const view = await viewActivityRecord({ actor: ACTOR_ID, recordId: RECORD_ID }, deps);
-    expect(view.scope).toBe("summary");
-    if (view.scope !== "summary") throw new Error("expected summary scope");
-    expect(view.recordId).toBe(RECORD_ID);
-    expect(view.participantId).toBe(TARGET_ID);
-    expect(view.participantDisplayName).toBe("Target");
-    // Structural redaction: a summary never carries working state.
-    expect("parts" in view).toBe(false);
-    expect("partHistoryCount" in view).toBe(false);
-    expect("visibilityOverride" in view).toBe(false);
-    expect(records.listPartProgress).not.toHaveBeenCalled();
-  });
-
-  it("404s (hidden) for an in-group non-enrollee under a track_only override", async () => {
-    const records = makeRecords({
-      byId: vi.fn(async () =>
-        record({ participantId: TARGET_ID, visibilityOverride: "track_only" }),
-      ),
-    });
-    await expect(
-      viewActivityRecord(
-        { actor: ACTOR_ID, recordId: RECORD_ID },
-        depsOk({ records, enrollment: null }),
-      ),
-    ).rejects.toMatchObject({ code: "NOT_FOUND" });
-  });
-
-  it("denies a non-member via the access gate BEFORE the visibility resolver runs", async () => {
-    const records = makeRecords({
-      byId: vi.fn(async () => record({ participantId: TARGET_ID })),
-    });
-    const deps = depsOk({ records });
-    deps.groups.membership = vi.fn(async () => null);
-    await expect(
-      viewActivityRecord({ actor: ACTOR_ID, recordId: RECORD_ID }, deps),
-    ).rejects.toMatchObject({ code: "NOT_FOUND" });
-    // The resolver's inputs (viewer enrollment, participant load) are gathered
-    // only AFTER the policy gate passes — a denied gate never reaches them,
-    // proving access runs before visibility.
-    expect(deps.tracks.enrollment).not.toHaveBeenCalled();
-  });
-
-  it("404s a missing record", async () => {
-    const records = makeRecords({ byId: vi.fn(async () => null) });
-    await expect(
-      viewActivityRecord({ actor: ACTOR_ID, recordId: RECORD_ID }, depsOk({ records })),
-    ).rejects.toMatchObject({ code: "NOT_FOUND" });
-  });
-});
-
-describe("listPartHistory (M12 scope resolution)", () => {
-  it("returns the participant's history, optionally filtered by partId", async () => {
-    const records = makeRecords({ byId: vi.fn(async () => record()) });
-    const deps = depsOk({ records });
-    await listPartHistory(
-      { actor: ACTOR_ID, recordId: RECORD_ID, partId: "p_quiz" as ActivityPartId },
-      deps,
-    );
-    expect(records.listPartHistory).toHaveBeenCalledWith(RECORD_ID, { partId: "p_quiz" });
-  });
-
-  it("404s a summary-scope viewer WITHOUT leaking history (the redacted-record sibling guard)", async () => {
-    const records = makeRecords({
-      byId: vi.fn(async () => record({ participantId: TARGET_ID, visibilityOverride: "private" })),
-    });
-    const deps = depsOk({ records, enrollment: enrolled("participant") });
-    await expect(
-      listPartHistory({ actor: ACTOR_ID, recordId: RECORD_ID }, deps),
-    ).rejects.toMatchObject({ code: "NOT_FOUND" });
-    expect(records.listPartHistory).not.toHaveBeenCalled();
-  });
-
-  it("404s a non-member before reading history", async () => {
-    const records = makeRecords({
-      byId: vi.fn(async () => record({ participantId: TARGET_ID })),
-    });
-    const deps = depsOk({ records });
-    deps.groups.membership = vi.fn(async () => null);
-    await expect(
-      listPartHistory({ actor: ACTOR_ID, recordId: RECORD_ID }, deps),
-    ).rejects.toMatchObject({ code: "NOT_FOUND" });
-    expect(records.listPartHistory).not.toHaveBeenCalled();
   });
 });
 

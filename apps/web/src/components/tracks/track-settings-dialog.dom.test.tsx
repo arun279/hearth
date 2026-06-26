@@ -73,6 +73,7 @@ function makeTrack(over: Partial<LearningTrack> = {}): LearningTrack {
     name: "Beginner Spanish",
     description: "A patient pace.",
     status: "active",
+    peerProgressVisibility: "shared",
     pausedAt: null,
     archivedAt: null,
     archivedBy: null,

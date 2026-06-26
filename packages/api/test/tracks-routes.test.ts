@@ -94,7 +94,6 @@ const adminUser: User = {
   deactivatedAt: null,
   deletedAt: null,
   attributionPreference: "preserve_name",
-  visibilityPreference: "default",
   createdAt: now,
   updatedAt: now,
 };
@@ -137,6 +136,7 @@ const baseTrack = (overrides: Partial<LearningTrack> = {}): LearningTrack => ({
   name: "Track 1",
   description: null,
   status: "active",
+  peerProgressVisibility: "shared",
   pausedAt: null,
   archivedAt: null,
   archivedBy: null,
@@ -225,6 +225,7 @@ function makeTracksPort(overrides: Partial<LearningTrackRepository> = {}): Learn
     updateMetadata: vi.fn(async () => baseTrack()),
     saveStructure: vi.fn(async () => baseTrack()),
     saveContributionPolicy: vi.fn(async () => baseTrack()),
+    savePeerProgressVisibility: vi.fn(async () => baseTrack()),
     loadStructure: vi.fn(async () => emptyStructure),
     loadContributionPolicy: vi.fn(async () => directPolicy),
     enrollment: vi.fn(async () => facilitatorEnrollment),
@@ -734,6 +735,97 @@ describe("PUT /api/v1/tracks/:trackId/contribution-policy (saveContributionPolic
       body: JSON.stringify({ v: 1, data: { mode: "yolo" } }),
     });
     expect(res.status).toBe(400);
+  });
+});
+
+describe("PATCH /api/v1/tracks/:trackId/peer-progress-visibility (setPeerProgressVisibility)", () => {
+  it("returns 200 on a valid visibility value", async () => {
+    const savePeerProgressVisibility = vi.fn(async () =>
+      baseTrack({ peerProgressVisibility: "facilitator_only" }),
+    );
+    const app = harness({
+      userId: adminId,
+      ports: {
+        users: makeUsersPort(adminUser),
+        groups: makeGroupsPort(),
+        tracks: makeTracksPort({ savePeerProgressVisibility }),
+        policy: makePolicyPort(),
+      },
+    });
+    const res = await app.request(`/api/v1/tracks/${tid}/peer-progress-visibility`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ visibility: "facilitator_only" }),
+    });
+    expect(res.status).toBe(200);
+    expect(savePeerProgressVisibility).toHaveBeenCalledWith(tid, "facilitator_only", adminId);
+  });
+
+  it("returns 400 on an unknown visibility value", async () => {
+    const app = harness({
+      userId: adminId,
+      ports: {
+        users: makeUsersPort(adminUser),
+        groups: makeGroupsPort(),
+        tracks: makeTracksPort(),
+        policy: makePolicyPort(),
+      },
+    });
+    const res = await app.request(`/api/v1/tracks/${tid}/peer-progress-visibility`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ visibility: "everyone" }),
+    });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("GET /api/v1/tracks/:trackId/progress (listTrackProgress)", () => {
+  it("returns 200 with the coarse roster for a facilitator", async () => {
+    const row = {
+      id: "ar_1",
+      activityId: "act_1",
+      participantId: adminId,
+      completionState: "completed" as const,
+      completedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    };
+    const app = harness({
+      userId: adminId,
+      ports: {
+        users: makeUsersPort(adminUser),
+        groups: makeGroupsPort(),
+        tracks: makeTracksPort(),
+        policy: makePolicyPort(),
+        records: {
+          listByTrack: vi.fn(async () => [row]),
+          countPartHistory: vi.fn(async () => 2),
+        } as unknown as Ports["records"],
+      },
+    });
+    const res = await app.request(`/api/v1/tracks/${tid}/progress`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      entries: ReadonlyArray<{ participantId: string; retryCount: number | null }>;
+    };
+    expect(body.entries).toHaveLength(1);
+    expect(body.entries[0]?.retryCount).toBe(2);
+  });
+
+  it("returns 404 for a non-member", async () => {
+    const app = harness({
+      userId: strangerId,
+      ports: {
+        users: makeUsersPort(strangerUser),
+        groups: makeGroupsPort({ membership: vi.fn(async () => null) }),
+        tracks: makeTracksPort({ enrollment: vi.fn(async () => null) }),
+        policy: makePolicyPort(),
+        records: { listByTrack: vi.fn(async () => []) } as unknown as Ports["records"],
+      },
+    });
+    const res = await app.request(`/api/v1/tracks/${tid}/progress`);
+    expect(res.status).toBe(404);
   });
 });
 

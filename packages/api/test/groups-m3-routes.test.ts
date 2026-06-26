@@ -89,7 +89,6 @@ const adminUser: User = {
   deactivatedAt: null,
   deletedAt: null,
   attributionPreference: "preserve_name",
-  visibilityPreference: "default",
   createdAt: now,
   updatedAt: now,
 };
@@ -194,6 +193,7 @@ function makeTracksPort(): LearningTrackRepository {
     updateMetadata: vi.fn(),
     saveStructure: vi.fn(),
     saveContributionPolicy: vi.fn(),
+    savePeerProgressVisibility: vi.fn(),
     loadStructure: vi.fn(),
     loadContributionPolicy: vi.fn(),
     enroll: vi.fn(),

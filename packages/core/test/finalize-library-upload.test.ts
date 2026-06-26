@@ -181,7 +181,6 @@ describe("finalizeLibraryUpload", () => {
       participantId: ACTOR_ID,
       completionState: "in_progress",
       completedAt: null,
-      visibilityOverride: null,
       createdAt: TEST_NOW,
       updatedAt: TEST_NOW,
     };

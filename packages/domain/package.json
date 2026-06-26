@@ -9,8 +9,6 @@
     "./errors": "./src/errors.ts",
     "./policy": "./src/policy/index.ts",
     "./policy/*": "./src/policy/*.ts",
-    "./visibility": "./src/visibility/index.ts",
-    "./visibility/*": "./src/visibility/*.ts",
     "./activity": "./src/activity/index.ts",
     "./activity/*": "./src/activity/*.ts",
     "./parts": "./src/parts/index.ts",

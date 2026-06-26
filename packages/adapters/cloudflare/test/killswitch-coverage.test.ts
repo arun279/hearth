@@ -424,10 +424,6 @@ describe("killswitch coverage (resilience invariant 2 + 3)", () => {
         }),
     ],
     [
-      "ActivityRecordRepository.setVisibilityOverride",
-      () => records.setVisibilityOverride("ar_test" as ActivityRecordId, "private"),
-    ],
-    [
       "ActivityRecordRepository.appendPartHistory",
       () =>
         records.appendPartHistory({

@@ -7,6 +7,7 @@ import { canEditTrackMetadata } from "../src/policy/can-edit-track-metadata.ts";
 import { canEditTrackStructure } from "../src/policy/can-edit-track-structure.ts";
 import { canPauseTrack } from "../src/policy/can-pause-track.ts";
 import { canResumeTrack } from "../src/policy/can-resume-track.ts";
+import { canSetPeerProgressVisibility } from "../src/policy/can-set-peer-progress-visibility.ts";
 import type { LearningTrack, TrackEnrollment } from "../src/track.ts";
 import type { User } from "../src/user.ts";
 
@@ -23,7 +24,6 @@ const actor: User = {
   deactivatedAt: null,
   deletedAt: null,
   attributionPreference: "preserve_name",
-  visibilityPreference: "default",
   createdAt: now,
   updatedAt: now,
 };
@@ -48,6 +48,7 @@ const activeTrack: LearningTrack = {
   name: "T",
   description: null,
   status: "active",
+  peerProgressVisibility: "shared",
   pausedAt: null,
   archivedAt: null,
   archivedBy: null,
@@ -146,12 +147,14 @@ it("canArchiveTrack allows re-archive on an archived track (idempotent path)", (
   expect(canArchiveTrack(actor, activeGroup, archivedTrack, adminMembership, null).ok).toBe(true);
 });
 
-// canEditTrackMetadata / canEditTrackStructure / canEditContributionPolicy
-// share the authority shape AND additionally deny on an archived track.
+// canEditTrackMetadata / canEditTrackStructure / canEditContributionPolicy /
+// canSetPeerProgressVisibility share the authority shape AND additionally deny
+// on an archived track.
 describe.each([
   { name: "canEditTrackMetadata", fn: canEditTrackMetadata },
   { name: "canEditTrackStructure", fn: canEditTrackStructure },
   { name: "canEditContributionPolicy", fn: canEditContributionPolicy },
+  { name: "canSetPeerProgressVisibility", fn: canSetPeerProgressVisibility },
 ])("$name (edit authority — track must not be archived)", ({ fn }) => {
   it("denies on an archived parent group with group_archived", () => {
     const r = fn(actor, archivedGroup, activeTrack, adminMembership, null);

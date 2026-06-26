@@ -1,13 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { ActivityAccessState } from "../../src/activity/types.ts";
-import type { GroupMembership } from "../../src/group.ts";
-import type { ActivityRecordId, LearningActivityId, StudyGroupId, UserId } from "../../src/ids.ts";
+import type { ActivityRecordId, LearningActivityId, UserId } from "../../src/ids.ts";
 import {
   canMarkActivityComplete,
   canMarkPartComplete,
-  canOverrideActivityRecordVisibility,
   canResetParticipantProgress,
-  canViewActivityRecord,
 } from "../../src/policy/record.ts";
 import type { ActivityRecord } from "../../src/record/types.ts";
 import type { User } from "../../src/user.ts";
@@ -25,7 +22,6 @@ function user(id: UserId): User {
     deactivatedAt: null,
     deletedAt: null,
     attributionPreference: "preserve_name",
-    visibilityPreference: "default",
     createdAt: now,
     updatedAt: now,
   };
@@ -40,7 +36,6 @@ const record: ActivityRecord = {
   participantId: ownerId,
   completionState: "in_progress",
   completedAt: null,
-  visibilityOverride: null,
   createdAt: now,
   updatedAt: now,
 };
@@ -125,66 +120,5 @@ describe("canResetParticipantProgress", () => {
       ok: false,
       reason: { code: "not_track_authority" },
     });
-  });
-});
-
-describe("canOverrideActivityRecordVisibility", () => {
-  it("allows the owner", () => {
-    expect(canOverrideActivityRecordVisibility(owner, record).ok).toBe(true);
-  });
-
-  it("denies (not_record_owner) a non-owner", () => {
-    expect(canOverrideActivityRecordVisibility(other, record)).toMatchObject({
-      ok: false,
-      reason: { code: "not_record_owner" },
-    });
-  });
-});
-
-describe("canViewActivityRecord", () => {
-  const groupId = "g_1" as StudyGroupId;
-  const membership = (over: Partial<GroupMembership> = {}): GroupMembership => ({
-    groupId,
-    userId: otherId,
-    role: "participant",
-    joinedAt: now,
-    removedAt: null,
-    removedBy: null,
-    attributionOnLeave: null,
-    displayNameSnapshot: null,
-    profile: { nickname: null, avatarUrl: null, bio: null, updatedAt: null },
-    ...over,
-  });
-
-  it("allows the participant regardless of membership", () => {
-    expect(canViewActivityRecord(owner, record, null, groupId).ok).toBe(true);
-  });
-
-  it("allows a current group member who is not the participant", () => {
-    expect(canViewActivityRecord(other, record, membership(), groupId).ok).toBe(true);
-  });
-
-  it("denies (not_record_owner) a non-participant with no membership", () => {
-    expect(canViewActivityRecord(other, record, null, groupId)).toMatchObject({
-      ok: false,
-      reason: { code: "not_record_owner" },
-    });
-  });
-
-  it("denies a removed member (membership no longer current)", () => {
-    expect(canViewActivityRecord(other, record, membership({ removedAt: now }), groupId).ok).toBe(
-      false,
-    );
-  });
-
-  it("denies a membership row for a different group (defensive id match)", () => {
-    expect(
-      canViewActivityRecord(
-        other,
-        record,
-        membership({ groupId: "g_other" as StudyGroupId }),
-        groupId,
-      ).ok,
-    ).toBe(false);
   });
 });

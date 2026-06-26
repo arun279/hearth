@@ -3,8 +3,7 @@ import type { ActivityRecord, PartProgress } from "./types.ts";
 
 /**
  * The full read projection of an Activity Record — what a participant sees
- * of their own record, and (post-M12) what a `full`-scope viewer sees of
- * another participant's. Carries the record metadata, every Part's current
+ * of their own record. Carries the record metadata, every Part's current
  * progress, and two history rollups so the SPA renders the "N prior
  * attempts preserved" chip and the per-Part history affordance without a
  * follow-up GET:
@@ -13,9 +12,6 @@ import type { ActivityRecord, PartProgress } from "./types.ts";
  * - `partsWithHistory` — the Part ids that have at least one history row,
  *   so the SPA shows the per-Part drawer trigger only where it would open
  *   to something.
- *
- * M12 layers `summary` / `hidden` shapers alongside this; M11 returns
- * `full` only.
  */
 export type ActivityRecordFullView = {
   readonly id: ActivityRecord["id"];
@@ -23,7 +19,6 @@ export type ActivityRecordFullView = {
   readonly participantId: ActivityRecord["participantId"];
   readonly completionState: ActivityRecord["completionState"];
   readonly completedAt: ActivityRecord["completedAt"];
-  readonly visibilityOverride: ActivityRecord["visibilityOverride"];
   readonly createdAt: ActivityRecord["createdAt"];
   readonly updatedAt: ActivityRecord["updatedAt"];
   readonly parts: ReadonlyArray<{
@@ -56,7 +51,6 @@ export function projectRecordFull(args: {
     participantId: record.participantId,
     completionState: record.completionState,
     completedAt: record.completedAt,
-    visibilityOverride: record.visibilityOverride,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
     parts: progress.map((p) => ({
