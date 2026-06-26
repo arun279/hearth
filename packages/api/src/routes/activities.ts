@@ -773,7 +773,8 @@ export const activitiesRoutes = new Hono<AppBindings>()
   // surfaces a view-denial as 404 (not 403) so a non-participant probing a
   // record id cannot tell "exists but forbidden" from "does not exist" —
   // the record id is otherwise an enumeration oracle over a hideable
-  // resource. M11 grants only the participant themselves (`scope = full`).
+  // resource. Scope (`full` | `summary` | `hidden`) is resolved per viewer by
+  // `resolveActivityRecordScope`; `hidden` is a byte-identical 404.
   .get(
     "/records/:id",
     zValidator("param", recordIdParam, (result, c) => {
