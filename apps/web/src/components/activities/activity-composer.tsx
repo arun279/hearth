@@ -1623,15 +1623,10 @@ function PostCloseRadios({
 }
 
 /**
- * TODO(m12): refresh the prereq + suggested-sequence helper copy once
- * Visibility (M12) ties prereq satisfaction to learner-visible access.
- * The current copy ("block access" / "Pick zero or more activities a
- * learner must complete first") is correct after M11 too — M11 tracks
- * per-Part progress but does not change what the composer copy promises.
- * The richer truth-table ("blocks access until the learner has marked
- * all Parts of the prereq complete") only becomes accurate once M12
- * resolves prereq status into an observable access scope. Re-evaluate
- * when M12 lands.
+ * TODO(m19): tighten the prerequisite + suggested-sequence helper copy. The
+ * current "block access" / "Pick zero or more activities a learner must
+ * complete first" wording is accurate but coarse; spelling out the exact
+ * hard-prereq gate condition is a polish-tier copy pass.
  */
 function CrossActivityFields({
   siblings,

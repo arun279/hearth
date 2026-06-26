@@ -45,9 +45,10 @@ export const SELECTABLE_VISIBILITY_OVERRIDES = ["track_only", "private"] as cons
  * exist — so the label names that concrete scope rather than leaving "Your
  * default" an opaque pointer (recognition over recall).
  *
- * TODO(m12): when per-user default-visibility preferences ship, derive the
- * resolved scope from the user's default rather than hardcoding "Track" here.
- * The `no-stale-milestone-todo` gate auto-flags this the moment M12 lands.
+ * TODO(m18): once the per-user default-visibility preference is readable
+ * (M18 ships its setter and the /me read surface that exposes the stored
+ * default), derive the resolved scope from that default instead of hardcoding
+ * "Track" here.
  */
 export function visibilityTriggerLabel(value: VisibilityPreference | null): string {
   return value !== null
