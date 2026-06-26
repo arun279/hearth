@@ -811,3 +811,27 @@ describe("record route param validation (400 paths)", () => {
     });
   }
 });
+
+// The cross-participant content engine was removed: no non-owner may read
+// another participant's record content. These three routes are the HTTP edge
+// of that guarantee — they must stay unregistered (404) so a re-introduction
+// trips this guard rather than silently reopening a content-read path.
+describe("removed cross-participant content routes stay gone", () => {
+  const cases: ReadonlyArray<readonly [string, string, RequestInit?]> = [
+    ["GET /records/:id", `/api/v1/records/ar_1`],
+    ["GET /records/:id/history", `/api/v1/records/ar_1/history`],
+    [
+      "PATCH /activities/:id/my-record/visibility-override",
+      `/api/v1/activities/${aid}/my-record/visibility-override`,
+      { method: "PATCH", headers: { "content-type": "application/json" }, body: "{}" },
+    ],
+  ];
+
+  for (const [label, path, init] of cases) {
+    it(`404 (not registered) — ${label}`, async () => {
+      const app = harness({ userId: actorId, ports: {} });
+      const res = await app.request(path, init);
+      expect(res.status).toBe(404);
+    });
+  }
+});

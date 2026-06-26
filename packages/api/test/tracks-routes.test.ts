@@ -778,6 +778,37 @@ describe("PATCH /api/v1/tracks/:trackId/peer-progress-visibility (setPeerProgres
     });
     expect(res.status).toBe(400);
   });
+
+  it("returns 403 not_track_authority for a non-authority member", async () => {
+    const app = harness({
+      userId: strangerId,
+      ports: {
+        users: makeUsersPort(strangerUser),
+        groups: makeGroupsPort({
+          membership: vi.fn(async () =>
+            baseMembership({ userId: strangerId, role: "participant" }),
+          ),
+        }),
+        tracks: makeTracksPort({
+          enrollment: vi.fn(
+            async (): Promise<TrackEnrollment> => ({
+              ...facilitatorEnrollment,
+              userId: strangerId,
+              role: "participant",
+            }),
+          ),
+        }),
+        policy: makePolicyPort(),
+      },
+    });
+    const res = await app.request(`/api/v1/tracks/${tid}/peer-progress-visibility`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ visibility: "facilitator_only" }),
+    });
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as { code: string }).code).toBe("not_track_authority");
+  });
 });
 
 describe("GET /api/v1/tracks/:trackId/progress (listTrackProgress)", () => {
