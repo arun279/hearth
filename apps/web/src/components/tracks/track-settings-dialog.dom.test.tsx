@@ -43,6 +43,12 @@ const updatePolicy: MutationStub = {
   isError: false,
   error: null,
 };
+const updatePeerProgress: MutationStub = {
+  mutateAsync: vi.fn(),
+  isPending: false,
+  isError: false,
+  error: null,
+};
 const { toastSuccess, toastError } = vi.hoisted(() => ({
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
@@ -52,6 +58,7 @@ vi.mock("../../hooks/use-tracks.ts", () => ({
   useUpdateTrackMetadata: () => updateMetadata,
   useUpdateTrackStatus: () => updateStatus,
   useUpdateTrackContributionPolicy: () => updatePolicy,
+  useSetPeerProgressVisibility: () => updatePeerProgress,
 }));
 vi.mock("sonner", () => ({ toast: { success: toastSuccess, error: toastError } }));
 
@@ -110,6 +117,7 @@ beforeEach(() => {
   resetStub(updateMetadata);
   resetStub(updateStatus);
   resetStub(updatePolicy);
+  resetStub(updatePeerProgress);
   toastSuccess.mockReset();
   toastError.mockReset();
 });
@@ -238,6 +246,31 @@ describe("TrackSettingsDialog sequential save", () => {
     // Staged selections survive for a retry.
     expect(screen.getByRole("radio", { name: /Paused/ })).toBeChecked();
     expect(screen.getByRole("radio", { name: /Required review/ })).toBeChecked();
+  });
+});
+
+describe("TrackSettingsDialog peer progress visibility", () => {
+  // The contribution-policy "none" mode also reads "Facilitators only", so the
+  // peer-progress radios are addressed by their distinct hint text.
+  const facilitatorsOnlyProgress = () =>
+    screen.getByRole("radio", { name: /Only facilitators see participants/ });
+
+  it("seeds the current setting and fires the mutation on a flip", async () => {
+    updatePeerProgress.mutateAsync.mockResolvedValue(undefined);
+    const onClose = vi.fn();
+    const { user } = renderDialog({ onClose });
+
+    expect(screen.getByRole("radio", { name: /Shared/ })).toBeChecked();
+    expect(saveButton()).toBeDisabled();
+
+    await user.click(facilitatorsOnlyProgress());
+    await waitFor(() => expect(saveButton()).toBeEnabled());
+
+    await user.click(saveButton());
+    await waitFor(() =>
+      expect(updatePeerProgress.mutateAsync).toHaveBeenCalledWith("facilitator_only"),
+    );
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
   });
 });
 
