@@ -53,12 +53,9 @@ async function inviteAndJoin(
   groupId: string,
   email: string,
 ): Promise<void> {
-  const approve = await adminCtx.request.post("/api/v1/instance/approved-emails", {
-    data: { email },
-    headers: { "content-type": "application/json" },
-  });
-  expect(approve.status(), `approve ${email}`).toBe(201);
-
+  // `seedOperator` already auto-seeds the approved-emails row for the minted
+  // user (mirroring the OAuth-callback path), so the invite can be issued
+  // straight away — re-approving would 409.
   const invite = await adminCtx.request.post(`/api/v1/g/${groupId}/invitations`, {
     data: { email },
     headers: { "content-type": "application/json" },
