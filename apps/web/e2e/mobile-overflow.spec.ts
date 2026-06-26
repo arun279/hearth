@@ -236,16 +236,15 @@ test.describe("Mobile (375px) overflow regression guard", () => {
     await context.close();
   });
 
-  // The visibility popover sits low on the reflection Part. On a short
-  // viewport its panel would clip off the bottom edge if it always opened
-  // downward — the Popover primitive's collision-aware vertical flip is what
-  // keeps every option reachable. A 1280×680 desktop-but-short window puts
-  // the trigger far enough down the player to force the flip.
-  test("Activity Player visibility popover keeps every option in view on a short viewport", async ({
+  // The reshape replaced the per-record visibility popover with two new
+  // surfaces: the Track-Settings peer-progress control (a sibling of the
+  // contribution policy) and the Progress roster of coarse completion dots.
+  // Both carry wrapping rows of controls that must hold the 375px width.
+  test("peer-progress control and the Progress roster fit a 375px viewport", async ({
     browser,
   }) => {
     const op = await seedOperator(BOOTSTRAP_USER);
-    const context = await browser.newContext({ viewport: { width: 1280, height: 680 } });
+    const context = await browser.newContext({ viewport: PHONE_VIEWPORT });
     await attachSession(context, op.cookie);
     const page = await context.newPage();
 
@@ -254,6 +253,8 @@ test.describe("Mobile (375px) overflow regression guard", () => {
       trackName: "Beginner Spanish",
     });
 
+    // One activity + a reflection record so the roster + the Activities-tab
+    // completion chip have a row to lay out at 375px.
     const activityRes = await context.request.post(`/api/v1/tracks/${trackId}/activities`, {
       data: {
         trackId,
@@ -261,7 +262,7 @@ test.describe("Mobile (375px) overflow regression guard", () => {
         parts: [
           { kind: "write_reflection", id: "p_reflect", prompt: "What's your favorite phrase?" },
         ],
-        flow: { prereqs: [], displayOrder: ["p_reflect"] },
+        flow: { prereqs: [] },
         audience: { kind: "everyone_enrolled" },
         completionRule: { kind: "manual_mark" },
         libraryRefs: [],
@@ -272,18 +273,24 @@ test.describe("Mobile (375px) overflow regression guard", () => {
     });
     expect(activityRes.status()).toBe(201);
     const { id: activityId } = (await activityRes.json()) as { id: string };
+    const reflRes = await context.request.put(
+      `/api/v1/activities/${activityId}/my-record/parts/p_reflect/reflection`,
+      { data: { text: "Hola." }, headers: { "content-type": "application/json" } },
+    );
+    expect(reflRes.status()).toBe(200);
 
-    await page.goto(`/g/${groupId}/t/${trackId}/a/${activityId}`);
-    await expect(page.getByRole("heading", { name: /Greetings & introductions/i })).toBeVisible();
+    // Track Settings — the peer-progress radio group sits beside the
+    // contribution policy; the whole dialog must fit the phone width.
+    await page.goto(`/g/${groupId}/t/${trackId}`);
+    await page.getByRole("button", { name: /Track settings/i }).click();
+    await expect(page.getByRole("dialog", { name: /Track settings/i })).toBeVisible();
+    await expectNoOverflow(page, "Track settings dialog (peer progress)");
+    await page.keyboard.press("Escape");
 
-    await page.getByRole("button", { name: /Visibility:/i }).click();
-    // The radios carry "<label> <description>" as their accessible name; match
-    // on a unique description fragment. The chooser offers the two concrete
-    // override scopes — "Track only" and "Just me" — while inheriting the
-    // account default is a separate clear action, not a radio.
-    for (const fragment of [/Only this track/i, /Hidden from the group/i]) {
-      await expect(page.getByRole("radio", { name: fragment })).toBeInViewport();
-    }
+    // Progress roster — coarse dots wrap rather than overflow the row.
+    await page.goto(`/g/${groupId}/t/${trackId}?tab=progress`);
+    await expect(page.getByRole("list", { name: /Track progress by participant/i })).toBeVisible();
+    await expectNoOverflow(page, "Track Progress roster");
 
     await context.close();
   });

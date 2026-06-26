@@ -5,7 +5,7 @@ Discoverable hook for any agent writing code in this repo. Keep it under 200 lin
 ## Package graph (respect the arrows)
 
 ```
-apps/web          → packages/ui, packages/domain (policy + visibility + types)
+apps/web          → packages/ui, packages/domain (policy + types)
 apps/worker       → packages/api, packages/auth, packages/adapters/cloudflare, packages/config
 packages/api      → packages/core, packages/ports
 packages/auth     → packages/ports, packages/domain, better-auth  (NEVER drizzle, NEVER adapters)
@@ -15,7 +15,7 @@ packages/domain   → leaf; zod (the one runtime dep, used by `parts/` + `activi
 packages/ports    → packages/domain  (pure interfaces)
 ```
 
-These rules are enforced by `pnpm check:arch` (dependency-cruiser) in CI. Files under `packages/domain/src/policy/**` and `packages/domain/src/visibility/**` must additionally stay free of Node globals, `Date.now()`, `crypto.*`, async, and dynamic imports — they're SPA-importable, so non-pure code would leak into the browser bundle.
+These rules are enforced by `pnpm check:arch` (dependency-cruiser) in CI. Files under the SPA-pure domain dirs (`policy-pure-dirs.cjs` is the source of truth) must additionally stay free of Node globals, `Date.now()`, `crypto.*`, async, and dynamic imports — they're SPA-importable, so non-pure code would leak into the browser bundle.
 
 ## Definition of done on a PR
 

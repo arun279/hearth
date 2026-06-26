@@ -21,7 +21,7 @@ export default defineConfig({
   test: {
     coverage: {
       provider: "v8",
-      include: ["src/policy/**/*.ts", "src/visibility/**/*.ts", "src/errors.ts"],
+      include: ["src/policy/**/*.ts", "src/errors.ts"],
       reporter: ["text-summary", "text"],
       thresholds: {
         perFile: true,

@@ -16,7 +16,7 @@ test.describe("M10 — Activity rendering: interactive Parts", () => {
     resetInstanceState();
   });
 
-  test("facilitator authors a reflection + quiz; participant writes, sets visibility, submits", async ({
+  test("facilitator authors a reflection + quiz; participant writes, submits", async ({
     browser,
   }) => {
     const op = await seedOperator(BOOTSTRAP_USER);
@@ -73,31 +73,11 @@ test.describe("M10 — Activity rendering: interactive Parts", () => {
     await reflection.fill(REFLECTION);
     await expect(page.getByText("Saved", { exact: true })).toBeVisible();
 
-    // --- Visibility: flip the record-level override to "Just me" ---
-    // The selector's radios carry a description, so the accessible name is
-    // "<label> <description>" — match the label as a substring. The radio is
-    // controlled off the server round-trip (it reflects `checked` only after
-    // the mutation refetches), so click it rather than `.check()`, which would
-    // wait on a `:checked` state that lags the click.
-    await page.getByRole("button", { name: /Visibility:/i }).click();
-    await page.getByRole("radio", { name: /Just me/i }).click();
-    await expect(page.getByRole("button", { name: /Visibility:/i })).toContainText("Just me");
-
-    // --- Reload preserves both the draft and the visibility override ---
+    // --- Reload preserves the saved draft (content is owner-only; there is
+    // no participant-facing visibility control in v1) ---
     await page.reload();
     await expect(page.getByText(/Part 1 of 2/i)).toBeVisible();
     await expect(page.getByRole("textbox", { name: /Your reflection/i })).toHaveValue(REFLECTION);
-    await expect(page.getByRole("button", { name: /Visibility:/i })).toContainText("Just me");
-
-    // --- Clear the override: "Use my default" reverts the trigger to the
-    // resolved account default and the cleared state survives a reload. The
-    // clear path (override -> null) is otherwise untested. ---
-    await page.getByRole("button", { name: /Visibility:/i }).click();
-    await page.getByRole("button", { name: /Use my default/i }).click();
-    await expect(page.getByRole("button", { name: /Visibility:/i })).toContainText("Your default");
-    await page.reload();
-    await expect(page.getByText(/Part 1 of 2/i)).toBeVisible();
-    await expect(page.getByRole("button", { name: /Visibility:/i })).toContainText("Your default");
 
     // --- Quiz: navigate to Part 2, answer correctly, submit ---
     const sidebar = page.getByRole("navigation", { name: /Activity Parts/i }).first();
