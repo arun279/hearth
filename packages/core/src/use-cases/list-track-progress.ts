@@ -39,22 +39,12 @@ export type ListTrackProgressResult = {
  *     `retryCount`);
  *   - on a `facilitator_only` track, a peer sees only their own row.
  *
- * STANDING INVARIANT — the roster stays coarse + non-ranked and is never a
- * social feed. Surface only non-ranked completion facts (`completionState` +
- * `completedAt`), at most a non-ordered "N of M completed" headline: no
- * leaderboard, ranking, ordering ("who's ahead"), streaks, or reactions, here
- * or on the per-activity completion chips. Peer awareness must never become
- * peer comparison (the Participation-Mode design lists "social feed" as an
- * explicit Avoid). `retryCount` / part-history is a facilitator-only struggle
- * signal, never peer-exposed, independent of `peerProgressVisibility`. The
- * roster shows only participants who have a record (started at least one
- * activity) — a peer-facing "who hasn't started" column is surveillance, not
- * awareness, so this query joins no enrollment rows. A facilitator-only
- * non-starter view for pacing is a separate, deferred design (not yet built):
- * if it ships it must stay facilitator-scoped and framed as pacing, not
- * chasing. Any ranking/ordering/streak/reaction or non-starter exposure is a
- * design decision to relitigate against the Participation-Mode constraint
- * first, not a routine roster enhancement.
+ * The row payload is coarse completion (`completionState` + `completedAt`);
+ * `retryCount` (the count of preserved prior attempts) is attached only for an
+ * authority viewer, independent of `peerProgressVisibility`. The query reads
+ * Activity Records, so the roster currently lists participants who have started
+ * at least one activity; enrolled participants with no record yet are not
+ * included.
  */
 export async function listTrackProgress(
   input: ListTrackProgressInput,

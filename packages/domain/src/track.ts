@@ -11,7 +11,7 @@ export type ContributionMode = "direct" | "optional_review" | "required_review" 
  * - `facilitator_only` — peers see only their own row; the facilitator still
  *   sees everyone's.
  *
- * Governs only the non-ranked completion facts (`completionState`,
+ * Governs only the completion facts (`completionState`,
  * `completedAt`). It never exposes content (reflection prose, quiz answers,
  * part values — those stay owner-only) and never the facilitator-only retry
  * signal. A track-facilitator owns this choice (see

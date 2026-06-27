@@ -7,9 +7,9 @@ import { ProgressDot, progressStateLabel } from "../tracks/progress-dot.tsx";
 const MAX_CELLS = 8;
 
 /**
- * Per-activity completion chip for the Activities tab — coarse, non-ranked
- * cells (one per participant who has a record for this activity) plus, for a
- * facilitator viewer only, the "N of M completed" count. A peer sees the cells
+ * Per-activity completion chip for the Activities tab — coarse cells (one per
+ * participant who has a record for this activity) plus, for a facilitator
+ * viewer only, the "N of M completed" count. A peer sees the cells
  * but no count: the facilitator-only count is signalled by the server leaving
  * `retryCount` non-null, so the viewer's role is read straight off the payload
  * rather than threaded through caps. Renders nothing when no one has a record
@@ -22,8 +22,7 @@ export function ActivityCompletionChip({
 }) {
   if (entries.length === 0) return null;
 
-  // Alphabetical by display name — a stable order that is explicitly NOT a
-  // ranking by who finished first.
+  // Alphabetical by display name — a stable, deterministic order.
   const rows = [...entries].sort((a, b) =>
     a.participantDisplayName.localeCompare(b.participantDisplayName),
   );

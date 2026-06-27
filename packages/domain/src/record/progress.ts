@@ -3,10 +3,9 @@ import type { ActivityRecord } from "./types.ts";
 /**
  * One participant's coarse completion fact for a single activity, the unit of
  * the track-altitude progress roster. Carries only existence-and-completion —
- * no part values, reflection prose, quiz answers, or ordering — so the roster
- * can never become a ranked feed. `retryCount` is the facilitator-only
- * struggle signal (the count of preserved prior attempts); it is `null` for a
- * peer viewer, who never sees another participant's retry pressure.
+ * no part values, reflection prose, or quiz answers. `retryCount` is the
+ * count of preserved prior attempts, attached only for an authority viewer;
+ * it is `null` for a peer viewer.
  *
  * Same field set as the facilitator roster row (`ActivityParticipantRecordRow`),
  * lifted to track altitude so the same coarse projection backs both the

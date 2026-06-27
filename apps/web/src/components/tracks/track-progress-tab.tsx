@@ -21,14 +21,10 @@ type ParticipantProgress = {
 /**
  * The track-altitude progress roster — "who is where on this track." One row
  * per participant who has started an activity, each carrying a coarse cell per
- * track activity (in the track's activity order, NOT a ranking of people).
- * Rows are alphabetical by display name so the surface can never read as a
- * leaderboard. A facilitator additionally sees each participant's preserved
- * prior-attempt count (the struggle signal); a peer on a `facilitator_only`
- * track sees only their own row.
- *
- * No leaderboard / ranking / streak / reaction and no "who hasn't started"
- * column — the coarse, non-ranked, no-social-feed invariant is owned by
+ * track activity in the track's activity order, rows alphabetical by display
+ * name. A facilitator additionally sees each participant's preserved
+ * prior-attempt count; a peer on a `facilitator_only` track sees only their
+ * own row. The shape of what each viewer receives is owned by
  * `listTrackProgress` in `@hearth/core` (see its doc comment).
  */
 export function TrackProgressTab({ trackId, peerProgressVisibility }: Props) {

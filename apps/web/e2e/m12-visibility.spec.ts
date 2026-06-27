@@ -266,7 +266,7 @@ test.describe("M12 — Private content + configurable coarse progress", () => {
     await page.goto(`/g/${groupId}/t/${trackId}?tab=progress`);
 
     // The roster lists each participant who has a record, with a coarse cell
-    // per activity. The author's cell reads completed; never a ranking.
+    // per activity. The author's cell reads completed.
     const roster = page.getByRole("list", { name: /Track progress by participant/i });
     await expect(roster).toBeVisible();
     await expect(roster.getByText(AUTHOR.name)).toBeVisible();
@@ -276,7 +276,7 @@ test.describe("M12 — Private content + configurable coarse progress", () => {
     ).toBeVisible();
 
     // The Activities tab carries the facilitator-only "N of M completed" count
-    // chip — coarse completion, no leaderboard.
+    // chip — coarse completion.
     await page.goto(`/g/${groupId}/t/${trackId}`);
     await expect(
       page.getByRole("button", { name: /Open activity: Reflection unit/i }),
