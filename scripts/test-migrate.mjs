@@ -123,7 +123,7 @@ writeFileSync(
 // Materialize origin/main's migrations (the exact prod-before-this-PR set) into
 // the throwaway dir via git archive — never the working tree, so a crash can't
 // leave a half-written migrations folder behind.
-run("bash", ["-c", `git archive origin/main ${migrationsRel} | tar -x -C ${workDir}`]);
+run("bash", ["-c", `git archive origin/main ${migrationsRel} | tar -x -C "${workDir}"`]);
 cpSync(join(workDir, migrationsRel), migDir, { recursive: true });
 
 const applyArgs = [
