@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, rmSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig, devices } from "@playwright/test";
@@ -27,10 +27,16 @@ const SPA_DIST_INDEX = path.resolve(REPO_ROOT, "apps/web/dist/index.html");
 //      — but it MUST exist. Turbo caches the build so subsequent runs
 //      are instant if nothing changed.
 //
-//   2. Apply D1 migrations to the e2e persist dir. `wrangler d1
-//      migrations apply` is idempotent (tracks applied rows in `_cf_KV`
-//      and no-ops on re-run), so this works on a fresh clone and on
-//      every subsequent run. Row-level isolation between specs is
+//   2. Reset the e2e persist dir to empty, then apply this branch's full
+//      migration set from scratch. `wrangler d1 migrations apply` only runs
+//      files not already recorded in `d1_migrations`, so it can never
+//      reconcile a dir left carrying a different branch's schema (a migration
+//      this branch lacks, or one it adds atop an object another branch already
+//      created) — that drift produces a false-fail or, worse, a false-pass.
+//      Wiping first makes every run replay the checked-out branch's exact
+//      migrations, identical to a fresh CI runner that has no persist dir at
+//      all. The dir is a sibling of the dev `state` dir, so wiping it never
+//      touches a `pnpm dev` session. Row-level isolation between specs is
 //      handled by `resetInstanceState` in `apps/web/e2e/auth.ts`.
 // `HEARTH_WRANGLER_ENV === "e2e"` is set by the `pnpm e2e` script (see
 // `apps/web/package.json`) — the only context where this build + migrate
@@ -52,6 +58,8 @@ if (process.env["HEARTH_WRANGLER_ENV"] === "e2e" && !process.env["TEST_WORKER_IN
       );
     }
   }
+
+  rmSync(E2E_PERSIST_DIR, { recursive: true, force: true });
 
   const migrate = spawnSync(
     "pnpm",
