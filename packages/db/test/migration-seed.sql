@@ -1,14 +1,11 @@
 -- Representative populated data for the db:test-migrate upgrade gate.
 --
--- Purpose: give the gate's "apply the new migration against POPULATED
--- dependents" step a row on the child side of every foreign-key edge, so a
--- drizzle-kit table-rebuild of an FK-parent table throws the same
--- `FOREIGN KEY constraint failed` the production `--remote` apply would (the
--- emitted `PRAGMA foreign_keys=OFF` is a no-op inside wrangler's per-migration
--- transaction, so `DROP TABLE <parent>` with populated NO ACTION dependents
--- fails). The coverage guard asserts at least one non-null reference per FK
--- edge, so leaving any edge unseeded fails the gate loudly rather than letting
--- the dangerous case slip through empty-of-dependents.
+-- Purpose: put a row on the child side of every foreign-key edge so the gate
+-- exercises an FK-parent table-rebuild against populated NO ACTION dependents
+-- (why that rebuild fails on the prod apply: see scripts/test-migrate.mjs). The
+-- coverage guard asserts at least one non-null reference per FK edge, so leaving
+-- any edge unseeded fails the gate loudly rather than letting the dangerous case
+-- slip through empty-of-dependents.
 --
 -- Rows are inserted parents-before-children (FK-safe), modeled on the ordering
 -- in apps/web/e2e/auth.ts resetInstanceState(). Ids are `mt_*` literals. Every

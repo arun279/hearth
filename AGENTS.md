@@ -150,7 +150,7 @@ Implementation lives at `scripts/lib/auth-session.mjs` (shared module, JSDoc-typ
 | `pnpm audit --audit-level=high`  | —                  | —                                | ✓                               | daily + per-PR                             |
 | TruffleHog secrets scan          | —                  | staged files only                | —                               | daily + per-PR                             |
 
-`pnpm check` runs the superset locally; use it before opening a PR.
+`pnpm check` runs every gate except `pnpm e2e` and `pnpm db:test-migrate` (the two separate pre-push gates above); run all three before opening a PR.
 
 ## Scaffolding-temporary exceptions
 
