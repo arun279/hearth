@@ -54,6 +54,14 @@ try {
 } catch {
   console.warn("db:test-migrate: could not fetch origin/main; using the local ref.");
 }
+// The diff and `git archive` below both require origin/main to resolve. If the
+// fetch failed and no local copy of the ref exists, fail with an actionable
+// message instead of a raw git stack trace from the first use.
+try {
+  run("git", ["rev-parse", "--verify", "--quiet", "origin/main"]);
+} catch {
+  fail("origin/main is unavailable locally; run `git fetch origin main` while online.");
+}
 
 // Tracked-added migrations vs origin/main, unioned with working-tree files not
 // yet `git add`ed — a migration authored but unstaged is invisible to the diff,
