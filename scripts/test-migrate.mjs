@@ -55,17 +55,30 @@ try {
   console.warn("db:test-migrate: could not fetch origin/main; using the local ref.");
 }
 
-const newMigrations = run("git", [
+// Tracked-added migrations vs origin/main, unioned with working-tree files not
+// yet `git add`ed — a migration authored but unstaged is invisible to the diff,
+// so without the `ls-files --others` arm a local pre-push run would green-light
+// the exact file the gate exists to test. Both arms emit repo-root-relative
+// paths, matched identically below and read from the working tree at apply time.
+const trackedAdds = run("git", [
   "diff",
   "--name-only",
   "--diff-filter=A",
   "origin/main",
   "--",
   migrationsRel,
-])
-  .split("\n")
+]);
+const untrackedAdds = run("git", [
+  "ls-files",
+  "--others",
+  "--exclude-standard",
+  "--",
+  migrationsRel,
+]);
+const newMigrations = [...new Set([...trackedAdds.split("\n"), ...untrackedAdds.split("\n")])]
   .map((l) => l.trim())
-  .filter((l) => /\/\d{4}_[^/]*\.sql$/.test(l));
+  .filter((l) => /\/\d{4}_[^/]*\.sql$/.test(l))
+  .sort();
 
 if (newMigrations.length === 0) {
   console.log("db:test-migrate: no new migrations vs origin/main — nothing to test.");
@@ -80,6 +93,8 @@ const migDir = join(workDir, "migrations");
 const persistDir = join(workDir, "persist");
 const configPath = join(workDir, "wrangler.json");
 process.on("exit", () => rmSync(workDir, { recursive: true, force: true }));
+// Ctrl-C / SIGTERM terminate without firing "exit"; re-exit so cleanup runs.
+for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => process.exit(1));
 
 writeFileSync(
   configPath,
@@ -135,6 +150,11 @@ function batch(statements) {
   return d1(["--file", file]).map((r) => r.results);
 }
 
+const listTables = () =>
+  command(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' AND name NOT LIKE '%_fts%' AND name <> 'd1_migrations'",
+  ).map((r) => r.name);
+
 // --- 3. Apply the N-1 schema, then seed populated dependents ---------------
 try {
   migrateApply();
@@ -154,9 +174,7 @@ try {
 //        future unseeded FK edge fails here loudly. Pinned to N-1 timing: a
 //        table created by THIS branch's migration is empty in prod at creation
 //        and is not demanded in the seed (it isn't in the N-1 schema yet).
-const tables = command(
-  "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' AND name NOT LIKE '%_fts%' AND name <> 'd1_migrations'",
-).map((r) => r.name);
+const tables = listTables();
 
 const fkLists = batch(tables.map((t) => `PRAGMA foreign_key_list('${t}')`));
 const edges = [];
@@ -204,9 +222,13 @@ try {
 
 // --- 6. Cascade-wipe guard: no previously-non-empty table dropped to zero ---
 //        Catches a silent ON DELETE CASCADE child-wipe when a rebuilt parent's
-//        rows are implicitly deleted.
-const afterCounts = batch(tables.map((t) => `SELECT COUNT(*) AS n FROM ${t}`));
-const wiped = tables.filter((t, i) => before.get(t) > 0 && afterCounts[i][0].n === 0);
+//        rows are implicitly deleted. Counts only tables the migration left in
+//        place — an explicit DROP TABLE is a visible, intentional removal (not a
+//        silent cascade), and counting a dropped table would crash wrangler.
+const surviving = new Set(listTables());
+const afterTables = tables.filter((t) => surviving.has(t));
+const afterCounts = batch(afterTables.map((t) => `SELECT COUNT(*) AS n FROM ${t}`));
+const wiped = afterTables.filter((t, i) => before.get(t) > 0 && afterCounts[i][0].n === 0);
 if (wiped.length > 0) {
   fail(
     "the new migration emptied previously-populated table(s):\n" +
