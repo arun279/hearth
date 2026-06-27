@@ -8,9 +8,7 @@
 -- slip through empty-of-dependents.
 --
 -- Rows are inserted parents-before-children (FK-safe), modeled on the ordering
--- in apps/web/e2e/auth.ts resetInstanceState(). Ids are `mt_*` literals. Every
--- nullable *_by / *_id self-cleanup column is populated on at least one row so
--- its edge is covered.
+-- in apps/web/e2e/auth.ts resetInstanceState(). Ids are `mt_*` literals.
 
 -- Users (root). u2 carries the users self-reference edges (deactivated_by / deleted_by).
 INSERT INTO users (id, email, email_verified, name, created_at, updated_at, attribution_preference)
