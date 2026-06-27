@@ -26,6 +26,10 @@ type ParticipantProgress = {
  * leaderboard. A facilitator additionally sees each participant's preserved
  * prior-attempt count (the struggle signal); a peer on a `facilitator_only`
  * track sees only their own row.
+ *
+ * No leaderboard / ranking / streak / reaction and no "who hasn't started"
+ * column — the coarse, non-ranked, no-social-feed invariant is owned by
+ * `listTrackProgress` in `@hearth/core` (see its doc comment).
  */
 export function TrackProgressTab({ trackId, peerProgressVisibility }: Props) {
   const me = useMeContext();
