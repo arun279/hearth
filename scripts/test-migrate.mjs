@@ -224,7 +224,7 @@ try {
       "  foreign-key parent throws here because `PRAGMA foreign_keys=OFF` is a no-op inside\n" +
       "  wrangler's per-migration transaction. Re-express the change as an in-place ALTER\n" +
       "  (e.g. ADD COLUMN with a named CHECK), or split it so no rebuild rides populated\n" +
-      `  dependents. See docs/tripwires.md § "Database + ORM".\n\n${err.stdout ?? ""}${err.stderr ?? ""}`,
+      `  dependents.\n\n${err.stdout ?? ""}${err.stderr ?? ""}`,
   );
 }
 
