@@ -118,6 +118,29 @@ This applies every migration in `packages/db/migrations/` to the local D1 (store
 
 You can re-run this command any time — Wrangler tracks applied migrations in its own metadata and only runs what's new.
 
+## 3a. Schema changes
+
+The schema is hand-split under `packages/db/src/schema/` and re-exported through the `packages/db/src/schema.ts` barrel; `drizzle.config.ts` points at that barrel (never a glob — glob + barrel makes drizzle-kit see duplicate tables and fail). Drizzle introspect/pull is banned. To change a table:
+
+1. **Author the schema.** Add or edit `packages/db/src/schema/<aggregate>.ts`, export it from the `schema.ts` barrel, and declare relations in `packages/db/src/relations.ts`.
+2. **Generate + commit the migration.** Run `pnpm db:generate` and commit the new `packages/db/migrations/NNNN_*.sql` plus the updated `meta/` snapshot in the same change as the schema edit. The generated SQL is the durable, portable artifact — plain SQL checked into the repo, not an in-Worker `migrate()`.
+3. **Apply locally.** `pnpm db:migrate:dev` (= `wrangler d1 migrations apply hearth --local`).
+
+**Better Auth additionalField lockstep.** A `users` column that is a Better Auth `additionalField` must be edited in `packages/auth/src/auth-options.ts` **and** `packages/db/src/auth-tables.ts` in the same change, or `pnpm db:check-auth` fails — it regenerates the expected schema via the Better Auth CLI and diffs `auth-tables.ts`.
+
+**Gates that enforce this** (pre-push and/or CI; no carve-outs):
+
+- **DB drift** — re-runs `pnpm db:generate` and fails if `packages/db/migrations/` has any uncommitted delta, so schema and migration can't drift apart; also runs `db:check-auth`.
+- **DB collision** — fails on duplicate 4-digit migration prefixes across branches.
+- **`db:check-auth`** — the Better Auth lockstep guard above.
+- **e2e** — boots a real `wrangler dev` and applies migrations through the real `wrangler d1 migrations apply` path, but against a fresh/empty persist dir.
+- **`db:test-migrate`** — applies any migration the branch adds over `origin/main` against a **seeded** local D1 through the same real `wrangler d1 migrations apply` path, then asserts the apply survives and wipes no populated table. This is the authoritative gate for the populated-data rebuild class below (see caveat).
+- **deploy** — applies `wrangler d1 migrations apply hearth --remote` on push to `main`, before the version upload. Migrations are forward-only, ordered, and immutable once applied remotely.
+
+**Real-wrangler caveat.** `wrangler d1 migrations apply` runs each migration inside one implicit transaction. The in-memory integration harness applies DDL outside a transaction on empty tables, so it can pass a migration the real wrangler path rejects (transaction-wrapping + foreign-key effects). A table-rebuild migration only reproduces that failure when its local D1 holds rows, so a populated apply is required to catch it — `db:test-migrate` does this automatically: it seeds a dependent on every foreign-key edge and applies the new migration through the real wrangler path on pre-push and CI, so there is no manual "remember to seed first" step.
+
+**Rewriting an unmerged migration.** While a migration is still unmerged you may need to reshape it. Wrangler has already recorded the old migration name in the local D1, so after rewriting, reset the local dev D1 and re-apply from scratch (see § 10) — `0000`→`N` apply cleanly. This is routine pre-merge hygiene; the forward-only, immutable rule begins at merge.
+
 ## 4. Start the stack
 
 Two terminals is the fastest loop.

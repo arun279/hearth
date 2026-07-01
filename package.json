@@ -33,6 +33,7 @@
     "dev": "turbo run dev",
     "db:generate": "pnpm --filter @hearth/db db:generate",
     "db:migrate:dev": "pnpm --filter @hearth/db db:migrate:dev",
+    "db:test-migrate": "pnpm --filter @hearth/db db:test-migrate",
     "db:check-auth": "pnpm --filter @hearth/db db:check-auth",
     "approve-email": "node scripts/approve-email.mjs",
     "bootstrap-operator": "node scripts/bootstrap-operator.mjs",
