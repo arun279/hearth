@@ -16,7 +16,6 @@ import { getMyActivityRecord } from "../src/use-cases/get-my-activity-record.ts"
 import { listMyPartHistory } from "../src/use-cases/list-my-part-history.ts";
 import { saveReflectionDraft } from "../src/use-cases/save-reflection-draft.ts";
 import { setPartCompleted } from "../src/use-cases/set-part-completed.ts";
-import { setRecordVisibilityOverride } from "../src/use-cases/set-record-visibility-override.ts";
 import { submitQuizAnswers } from "../src/use-cases/submit-quiz-answers.ts";
 import {
   ACTIVE_GROUP,
@@ -44,6 +43,7 @@ const track = {
   name: "T",
   description: null,
   status: "active" as const,
+  peerProgressVisibility: "shared" as const,
   pausedAt: null,
   archivedAt: null,
   archivedBy: null,
@@ -118,7 +118,6 @@ function record(overrides: Partial<ActivityRecord> = {}): ActivityRecord {
     participantId: ACTOR_ID,
     completionState: "in_progress",
     completedAt: null,
-    visibilityOverride: null,
     createdAt: TEST_NOW,
     updatedAt: TEST_NOW,
     ...overrides,
@@ -166,14 +165,13 @@ describe("getMyActivityRecord", () => {
     expect(view.canParticipate).toBe(true);
     expect(view.completionState).toBe("in_progress");
     expect(view.parts).toEqual([]);
-    expect(view.visibilityOverride).toBeNull();
     expect(view.partHistoryCount).toBe(0);
     expect(view.partsWithHistory).toEqual([]);
     expect(deps.records.upsert).not.toHaveBeenCalled();
     expect(deps.records.countPartHistory).not.toHaveBeenCalled();
   });
 
-  it("hydrates parts + visibility + history rollups from an existing record", async () => {
+  it("hydrates parts + history rollups from an existing record", async () => {
     const progress: PartProgress = {
       id: "pp_1",
       activityRecordId: RECORD_ID,
@@ -183,9 +181,7 @@ describe("getMyActivityRecord", () => {
     };
     const deps = depsOk({
       records: makeRecords({
-        byParticipantAndActivity: vi.fn(async () =>
-          record({ visibilityOverride: "private", completionState: "completed" }),
-        ),
+        byParticipantAndActivity: vi.fn(async () => record({ completionState: "completed" })),
         listPartProgress: vi.fn(async () => [progress]),
         countPartHistory: vi.fn(async () => 2),
         partsWithHistory: vi.fn(async () => ["p_quiz" as ActivityPartId]),
@@ -194,7 +190,6 @@ describe("getMyActivityRecord", () => {
     const view = await getMyActivityRecord({ actor: ACTOR_ID, activityId: ACTIVITY_ID }, deps);
     expect(view.canParticipate).toBe(true);
     expect(view.completionState).toBe("completed");
-    expect(view.visibilityOverride).toBe("private");
     expect(view.parts).toEqual([{ partId: "p_reflect", state: progress.state }]);
     expect(view.partHistoryCount).toBe(2);
     expect(view.partsWithHistory).toEqual(["p_quiz"]);
@@ -754,58 +749,6 @@ describe("setPartCompleted", () => {
         deps,
       ),
     ).rejects.toMatchObject({ code: "CONFLICT", reason: "activity_closed" });
-  });
-});
-
-describe("setRecordVisibilityOverride", () => {
-  it("sets the override and echoes it back", async () => {
-    const records = makeRecords({ upsert: markWrite(vi.fn(async () => record())) });
-    const deps = depsOk({ records });
-    const result = await setRecordVisibilityOverride(
-      { actor: ACTOR_ID, activityId: ACTIVITY_ID, preference: "private" },
-      deps,
-    );
-    expect(result).toEqual({ visibilityOverride: "private" });
-    expect(records.setVisibilityOverride).toHaveBeenCalledWith(RECORD_ID, "private");
-  });
-
-  it("clears the override with null", async () => {
-    const records = makeRecords({ upsert: markWrite(vi.fn(async () => record())) });
-    const deps = depsOk({ records });
-    await setRecordVisibilityOverride(
-      { actor: ACTOR_ID, activityId: ACTIVITY_ID, preference: null },
-      deps,
-    );
-    expect(records.setVisibilityOverride).toHaveBeenCalledWith(RECORD_ID, null);
-  });
-
-  it("is allowed even after the activity has closed (no accessState gate)", async () => {
-    const closedAt = new Date("2026-05-01T00:00:00.000Z").getTime();
-    const records = makeRecords({ upsert: markWrite(vi.fn(async () => record())) });
-    const deps = depsOk({
-      records,
-      activity: makeActivity({
-        window: { opensAt: null, dueAt: null, closesAt: closedAt },
-        postClosePolicy: { kind: "visible_locked" },
-      }),
-      now: new Date("2026-05-02T00:00:00.000Z"),
-    });
-    await expect(
-      setRecordVisibilityOverride(
-        { actor: ACTOR_ID, activityId: ACTIVITY_ID, preference: "track_only" },
-        deps,
-      ),
-    ).resolves.toEqual({ visibilityOverride: "track_only" });
-  });
-
-  it("rejects a non-enrollee with 403", async () => {
-    const deps = depsOk({ enrollment: null });
-    await expect(
-      setRecordVisibilityOverride(
-        { actor: ACTOR_ID, activityId: ACTIVITY_ID, preference: "private" },
-        deps,
-      ),
-    ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 });
 

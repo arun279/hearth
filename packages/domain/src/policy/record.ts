@@ -2,7 +2,6 @@ import type { ActivityAccessState } from "../activity/types.ts";
 import { type PolicyResult, policyAllow, policyDeny } from "../errors.ts";
 import type { ActivityRecord } from "../record/types.ts";
 import type { User } from "../user.ts";
-import type { VisibilityScope } from "../visibility/preference.ts";
 
 /**
  * A window-driven access state that forbids authoring new completion: the
@@ -76,51 +75,4 @@ export function canResetParticipantProgress(isAuthorityOverTrack: boolean): Poli
     );
   }
   return policyAllow();
-}
-
-/**
- * May the actor change the visibility override on their own record? The
- * participant alone owns this choice.
- */
-export function canOverrideActivityRecordVisibility(
-  actor: User,
-  record: ActivityRecord,
-): PolicyResult {
-  if (record.participantId !== actor.id) {
-    return policyDeny("not_record_owner", "Actor does not own this Activity Record.");
-  }
-  return policyAllow();
-}
-
-/**
- * The result of `canViewActivityRecord`, carrying the resolved visibility
- * scope on allow. M11 returns participant-only allow with `scope = "full"`;
- * M12 layers cross-participant viewers that resolve `"summary"` / `"hidden"`
- * without changing this signature.
- */
-export type ViewActivityRecordResult =
-  | { readonly ok: true; readonly scope: VisibilityScope }
-  | {
-      readonly ok: false;
-      readonly reason: { readonly code: "not_record_owner"; readonly message: string };
-    };
-
-/**
- * May the actor view this record, and at what scope? M11 grants only the
- * participant themselves, always at `full` scope. The route layer surfaces
- * a denial as 404 (viewability-before-authorization) so a non-participant
- * probing a record id cannot distinguish "exists but forbidden" from "does
- * not exist". M12 widens this to track viewers with `summary` / `hidden`.
- */
-export function canViewActivityRecord(
-  actor: User,
-  record: ActivityRecord,
-): ViewActivityRecordResult {
-  if (record.participantId !== actor.id) {
-    return {
-      ok: false,
-      reason: { code: "not_record_owner", message: "Actor cannot view this record." },
-    };
-  }
-  return { ok: true, scope: "full" };
 }

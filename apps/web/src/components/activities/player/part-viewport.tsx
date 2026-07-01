@@ -1,9 +1,4 @@
-import type {
-  ActivityPart,
-  PartProgressState,
-  ResolvedLibraryRef,
-  VisibilityPreference,
-} from "@hearth/domain";
+import type { ActivityPart, PartProgressState, ResolvedLibraryRef } from "@hearth/domain";
 import { lazy, Suspense } from "react";
 import { NotYetImplemented } from "./not-yet-implemented.tsx";
 import { EmbedPart } from "./parts/embed-part.tsx";
@@ -31,7 +26,6 @@ const ReadPart = lazy(() => import("./parts/read-part.tsx"));
 type RecordContext = {
   readonly loaded: boolean;
   readonly canParticipate: boolean;
-  readonly visibilityOverride: VisibilityPreference | null;
   readonly partState: PartProgressState | null;
 };
 
@@ -90,7 +84,6 @@ export function PartViewport({ activityId, part, resolvedRef, record }: Props) {
           part={part}
           partState={record.partState}
           canParticipate={record.canParticipate}
-          visibilityOverride={record.visibilityOverride}
         />
       ) : (
         <PartLoading />

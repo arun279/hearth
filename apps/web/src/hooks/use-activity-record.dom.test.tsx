@@ -16,7 +16,6 @@ function seededClient(): QueryClient {
   qc.setQueryData<MyActivityRecordView>(recordKey, {
     canParticipate: true,
     completionState: "in_progress",
-    visibilityOverride: null,
     parts: [],
     partHistoryCount: 0,
     partsWithHistory: [],

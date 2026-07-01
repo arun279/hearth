@@ -1,9 +1,4 @@
-import {
-  countWords,
-  type PartProgressState,
-  type VisibilityPreference,
-  type WriteReflectionPart,
-} from "@hearth/domain";
+import { countWords, type PartProgressState, type WriteReflectionPart } from "@hearth/domain";
 import { cn, SaveIndicator, type SaveStatus, Textarea } from "@hearth/ui";
 import { Check } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -12,14 +7,12 @@ import { useSaveReflection } from "../../../../hooks/use-activity-record.ts";
 import { useDebouncedValue } from "../../../../hooks/use-debounced-value.ts";
 import { api } from "../../../../lib/api-client.ts";
 import { asUserMessage } from "../../../../lib/problem.ts";
-import { VisibilitySelector } from "../visibility-selector.tsx";
 
 type Props = {
   readonly activityId: string;
   readonly part: WriteReflectionPart;
   readonly partState: PartProgressState | null;
   readonly canParticipate: boolean;
-  readonly visibilityOverride: VisibilityPreference | null;
 };
 
 /**
@@ -72,13 +65,7 @@ function Prompt({ prompt }: { readonly prompt: string }) {
   );
 }
 
-export function ReflectPart({
-  activityId,
-  part,
-  partState,
-  canParticipate,
-  visibilityOverride,
-}: Props) {
+export function ReflectPart({ activityId, part, partState, canParticipate }: Props) {
   const initialText = partState?.kind === "write_reflection" ? partState.text : "";
 
   if (!canParticipate) {
@@ -104,26 +91,17 @@ export function ReflectPart({
   // never renders before the record fetch resolves), and the player remounts
   // it via `key={part.id}` on every Part switch (so switching Parts re-seeds
   // from the new Part's state rather than carrying stale text).
-  return (
-    <ReflectEditor
-      activityId={activityId}
-      part={part}
-      initialText={initialText}
-      visibilityOverride={visibilityOverride}
-    />
-  );
+  return <ReflectEditor activityId={activityId} part={part} initialText={initialText} />;
 }
 
 function ReflectEditor({
   activityId,
   part,
   initialText,
-  visibilityOverride,
 }: {
   readonly activityId: string;
   readonly part: WriteReflectionPart;
   readonly initialText: string;
-  readonly visibilityOverride: VisibilityPreference | null;
 }) {
   const [text, setText] = useState(initialText);
   const debounced = useDebouncedValue(text, 800);
@@ -261,7 +239,6 @@ function ReflectEditor({
           </span>
           <SaveIndicator status={status} onRetry={() => persist(text)} />
         </div>
-        <VisibilitySelector activityId={activityId} value={visibilityOverride} />
       </div>
     </div>
   );

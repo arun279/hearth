@@ -33,25 +33,13 @@ vi.mock("../../../../hooks/use-activity-record.ts", async () => {
 const toastError = vi.fn();
 vi.mock("sonner", () => ({ toast: { error: (...args: unknown[]) => toastError(...args) } }));
 
-// The record-level visibility control is its own tested surface; stub it so a
-// reflect-part test asserts only the autosave behaviour.
-vi.mock("../visibility-selector.tsx", () => ({
-  VisibilitySelector: () => null,
-}));
-
 import { ReflectPart } from "./reflect-part.tsx";
 
 const PART: WriteReflectionPart = { kind: "write_reflection", id: "p_reflect", prompt: "Why?" };
 
 function renderEditor() {
   return renderWithProviders(
-    <ReflectPart
-      activityId="a_test"
-      part={PART}
-      partState={null}
-      canParticipate={true}
-      visibilityOverride={null}
-    />,
+    <ReflectPart activityId="a_test" part={PART} partState={null} canParticipate={true} />,
   );
 }
 

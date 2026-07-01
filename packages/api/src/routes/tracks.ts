@@ -5,17 +5,20 @@ import {
   getTrack,
   leaveTrack,
   listTrackPeople,
+  listTrackProgress,
   pauseTrack,
   removeTrackEnrollment,
   removeTrackFacilitator,
   resumeTrack,
   saveContributionPolicy,
   saveTrackStructure,
+  setPeerProgressVisibility,
   updateTrackMetadata,
 } from "@hearth/core";
 import type {
   ContributionPolicyEnvelope,
   LearningTrackId,
+  PeerProgressVisibility,
   TrackStructureEnvelope,
   UserId,
 } from "@hearth/domain";
@@ -60,6 +63,10 @@ const patchBody = z
 
 const statusActionBody = z.object({
   action: z.enum(["pause", "resume", "archive"]),
+});
+
+const peerProgressVisibilityBody = z.object({
+  visibility: z.enum(["shared", "facilitator_only"]),
 });
 
 // Track Structure envelope: discriminated union over `mode`. Sections are
@@ -267,6 +274,41 @@ export const tracksRoutes = new Hono<AppBindings>()
   )
   // jscpd:ignore-end
 
+  // PATCH /tracks/:trackId/peer-progress-visibility — who may see peers'
+  // coarse completion progress. The Track-Settings sibling of the
+  // contribution policy, same authority gate.
+  .patch(
+    "/:trackId/peer-progress-visibility",
+    zValidator("param", trackIdParam, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    zValidator("json", peerProgressVisibilityBody, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    async (c) => {
+      const { trackId } = c.req.valid("param");
+      const { visibility } = c.req.valid("json");
+      try {
+        const track = await setPeerProgressVisibility(
+          {
+            actor: getUserId(c),
+            trackId: trackId as LearningTrackId,
+            visibility: visibility as PeerProgressVisibility,
+          },
+          {
+            users: c.var.ports.users,
+            groups: c.var.ports.groups,
+            tracks: c.var.ports.tracks,
+            policy: c.var.ports.policy,
+          },
+        );
+        return c.json(track);
+      } catch (err) {
+        return problemResponse(c, mapUnknown(err));
+      }
+    },
+  )
+
   // ── Enrollments ───────────────────────────────────────────────────────
 
   // GET /tracks/:trackId/people — sectioned roster for the People tab.
@@ -285,6 +327,35 @@ export const tracksRoutes = new Hono<AppBindings>()
             groups: c.var.ports.groups,
             tracks: c.var.ports.tracks,
             policy: c.var.ports.policy,
+          },
+        );
+        return c.json(result);
+      } catch (err) {
+        return problemResponse(c, mapUnknown(err));
+      }
+    },
+  )
+
+  // GET /tracks/:trackId/progress — the track-altitude progress roster.
+  // Two-factor gated: a non-member 404s, a non-participant non-authority
+  // 403s; what a gated viewer sees is shaped by the track's
+  // peerProgressVisibility setting.
+  .get(
+    "/:trackId/progress",
+    zValidator("param", trackIdParam, (result, c) => {
+      if (!result.success) return problemFromInvalid(c, result.error);
+    }),
+    async (c) => {
+      const { trackId } = c.req.valid("param");
+      try {
+        const result = await listTrackProgress(
+          { actor: getUserId(c), trackId: trackId as LearningTrackId },
+          {
+            users: c.var.ports.users,
+            groups: c.var.ports.groups,
+            tracks: c.var.ports.tracks,
+            policy: c.var.ports.policy,
+            records: c.var.ports.records,
           },
         );
         return c.json(result);

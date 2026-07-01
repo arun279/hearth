@@ -193,6 +193,7 @@ function makeTracksPort(): LearningTrackRepository {
     updateMetadata: vi.fn(),
     saveStructure: vi.fn(),
     saveContributionPolicy: vi.fn(),
+    savePeerProgressVisibility: vi.fn(),
     loadStructure: vi.fn(),
     loadContributionPolicy: vi.fn(),
     enroll: vi.fn(),

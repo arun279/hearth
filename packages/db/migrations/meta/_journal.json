@@ -43,6 +43,13 @@
       "when": 1777424442514,
       "tag": "0007_empty_lionheart",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1782506868476,
+      "tag": "0009_empty_doctor_strange",
+      "breakpoints": true
     }
   ]
 }

@@ -2,6 +2,7 @@ import type {
   ContributionPolicyEnvelope,
   LearningTrack,
   LearningTrackId,
+  PeerProgressVisibility,
   StudyGroupId,
   TrackEnrollment,
   TrackRole,
@@ -108,6 +109,18 @@ export interface LearningTrackRepository {
   saveContributionPolicy(
     id: LearningTrackId,
     envelope: ContributionPolicyEnvelope,
+    by: UserId,
+  ): Promise<LearningTrack>;
+
+  /**
+   * Set who may see peers' coarse completion progress on the track. Same
+   * conditional-UPDATE safety shape as `saveContributionPolicy` — gate first,
+   * guard on `status != 'archived'` so the write cannot land on a now-frozen
+   * row, CONFLICT `track_archived` when it does.
+   */
+  savePeerProgressVisibility(
+    id: LearningTrackId,
+    visibility: PeerProgressVisibility,
     by: UserId,
   ): Promise<LearningTrack>;
 

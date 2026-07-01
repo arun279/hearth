@@ -30,6 +30,7 @@ const track: LearningTrack = {
   name: "T",
   description: null,
   status: "active",
+  peerProgressVisibility: "shared",
   pausedAt: null,
   archivedAt: null,
   archivedBy: null,

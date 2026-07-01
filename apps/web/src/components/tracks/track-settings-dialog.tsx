@@ -3,6 +3,7 @@ import {
   type ContributionMode,
   type ContributionPolicyEnvelope,
   type LearningTrack,
+  type PeerProgressVisibility,
   type TrackStatus,
 } from "@hearth/domain";
 import { Button, Field, Input, Modal, Textarea } from "@hearth/ui";
@@ -13,6 +14,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 import {
   type TrackCaps,
+  useSetPeerProgressVisibility,
   useUpdateTrackContributionPolicy,
   useUpdateTrackMetadata,
   useUpdateTrackStatus,
@@ -74,6 +76,84 @@ const CONTRIBUTION_MODES: readonly ContributionMode[] = [
   "none",
 ];
 
+const PEER_PROGRESS_OPTIONS: ReadonlyArray<{
+  readonly value: PeerProgressVisibility;
+  readonly label: string;
+  readonly hint: string;
+}> = [
+  {
+    value: "shared",
+    label: "Shared",
+    hint: "Everyone enrolled can see who has completed each activity.",
+  },
+  {
+    value: "facilitator_only",
+    label: "Facilitators only",
+    hint: "Only facilitators see participants' progress; each participant still sees their own.",
+  },
+];
+
+/**
+ * Shared radio-card list for the dialog's three single-select settings
+ * (status, contribution policy, peer progress). One markup source so the
+ * fieldsets can't drift — and so a third near-identical block doesn't trip the
+ * duplication gate.
+ */
+function RadioCardGroup<T extends string>({
+  legend,
+  hint,
+  name,
+  options,
+  value,
+  onChange,
+  disabled,
+}: {
+  readonly legend: string;
+  readonly hint?: string;
+  readonly name: string;
+  readonly options: ReadonlyArray<{
+    readonly value: T;
+    readonly label: string;
+    readonly hint: string;
+  }>;
+  readonly value: T;
+  readonly onChange: (value: T) => void;
+  readonly disabled: boolean;
+}) {
+  return (
+    <fieldset className="space-y-2">
+      <legend className="font-medium text-[0.75rem] text-[var(--color-ink)] uppercase tracking-wide">
+        {legend}
+      </legend>
+      {hint ? <p className="text-[0.75rem] text-[var(--color-ink-2)]">{hint}</p> : null}
+      <div className="space-y-1.5">
+        {options.map((option) => (
+          <label
+            key={option.value}
+            className="flex cursor-pointer items-start gap-2 rounded-[var(--radius-sm)] px-1 py-1 hover:bg-[var(--color-surface)]"
+          >
+            <input
+              type="radio"
+              name={name}
+              value={option.value}
+              checked={value === option.value}
+              onChange={() => onChange(option.value)}
+              disabled={disabled}
+              className="mt-1"
+            />
+            <div>
+              <div className="font-medium text-[0.8125rem] text-[var(--color-ink)]">
+                {option.label}
+              </div>
+              <div className="text-[0.75rem] text-[var(--color-ink-2)]">{option.hint}</div>
+            </div>
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
 /**
  * Track-settings modal. Four sections — metadata, status, contribution policy,
  * danger-zone archive — and a single Save button that commits whatever
@@ -99,10 +179,14 @@ export function TrackSettingsDialog({
   const updateMetadata = useUpdateTrackMetadata(groupId, track.id);
   const updateStatus = useUpdateTrackStatus(groupId, track.id);
   const updatePolicy = useUpdateTrackContributionPolicy(groupId, track.id);
+  const updatePeerProgress = useSetPeerProgressVisibility(groupId, track.id);
 
   const [confirmingArchive, setConfirmingArchive] = useState(false);
   const [pendingPolicy, setPendingPolicy] = useState<ContributionMode>(
     contributionPolicy.data.mode,
+  );
+  const [pendingPeerProgress, setPendingPeerProgress] = useState<PeerProgressVisibility>(
+    track.peerProgressVisibility,
   );
   // Staged status — only mutates between "active" and "paused" via the
   // radios; archived is unreachable from this state because the dialog is
@@ -126,10 +210,23 @@ export function TrackSettingsDialog({
       form.reset({ name: track.name, description: track.description ?? "" });
       setPendingPolicy(contributionPolicy.data.mode);
       setPendingStatus(track.status === "archived" ? "active" : track.status);
+      setPendingPeerProgress(track.peerProgressVisibility);
     }
-  }, [open, track.name, track.description, track.status, contributionPolicy.data.mode, form]);
+  }, [
+    open,
+    track.name,
+    track.description,
+    track.status,
+    track.peerProgressVisibility,
+    contributionPolicy.data.mode,
+    form,
+  ]);
 
-  const isBusy = form.formState.isSubmitting || updateStatus.isPending || updatePolicy.isPending;
+  const isBusy =
+    form.formState.isSubmitting ||
+    updateStatus.isPending ||
+    updatePolicy.isPending ||
+    updatePeerProgress.isPending;
 
   const close = () => {
     if (isBusy) return;
@@ -148,8 +245,9 @@ export function TrackSettingsDialog({
   // hit the rate limiter).
   const statusDirty = !archived && pendingStatus !== track.status;
   const policyDirty = !archived && pendingPolicy !== contributionPolicy.data.mode;
+  const peerProgressDirty = !archived && pendingPeerProgress !== track.peerProgressVisibility;
   const formDirty = form.formState.isDirty;
-  const dirty = formDirty || statusDirty || policyDirty;
+  const dirty = formDirty || statusDirty || policyDirty || peerProgressDirty;
 
   const submitDisabled =
     !dirty || form.formState.isSubmitting || nameValue.trim().length === 0 || !caps.canEditMetadata;
@@ -178,6 +276,9 @@ export function TrackSettingsDialog({
       if (policyDirty) {
         await updatePolicy.mutateAsync({ v: 1, data: { mode: pendingPolicy } });
       }
+      if (peerProgressDirty) {
+        await updatePeerProgress.mutateAsync(pendingPeerProgress);
+      }
       toast.success("Track updated.");
       onClose();
     } catch (err) {
@@ -205,7 +306,7 @@ export function TrackSettingsDialog({
         description={
           archived
             ? "This track is archived — read-only. Archive is terminal; there is no unarchive."
-            : "Edit the track's name, status, and how participants contribute new activities."
+            : "Edit the track's name, status, how participants contribute new activities, and who can see progress."
         }
         onClose={close}
         footer={
@@ -258,75 +359,49 @@ export function TrackSettingsDialog({
         {/* jscpd:ignore-end */}
 
         {!archived ? (
-          <fieldset className="space-y-2">
-            <legend className="font-medium text-[0.75rem] text-[var(--color-ink)] uppercase tracking-wide">
-              Status
-            </legend>
-            <div className="space-y-1.5">
-              {STAGEABLE_STATUSES.map((status) => (
-                <label
-                  key={status}
-                  className="flex cursor-pointer items-start gap-2 rounded-[var(--radius-sm)] px-1 py-1 hover:bg-[var(--color-surface)]"
-                >
-                  <input
-                    type="radio"
-                    name="track-status"
-                    value={status}
-                    checked={pendingStatus === status}
-                    onChange={() => setPendingStatus(status)}
-                    disabled={statusDisabled}
-                    className="mt-1"
-                  />
-                  <div>
-                    <div className="font-medium text-[0.8125rem] text-[var(--color-ink)]">
-                      {STATUS_LABEL[status]}
-                    </div>
-                    <div className="text-[0.75rem] text-[var(--color-ink-2)]">
-                      {STATUS_HINT[status]}
-                    </div>
-                  </div>
-                </label>
-              ))}
-            </div>
-          </fieldset>
+          <RadioCardGroup
+            legend="Status"
+            name="track-status"
+            options={STAGEABLE_STATUSES.map((status) => ({
+              value: status,
+              label: STATUS_LABEL[status],
+              hint: STATUS_HINT[status],
+            }))}
+            value={pendingStatus}
+            onChange={setPendingStatus}
+            disabled={statusDisabled}
+          />
         ) : null}
 
         {!archived ? (
-          <fieldset className="space-y-2">
-            <legend className="font-medium text-[0.75rem] text-[var(--color-ink)] uppercase tracking-wide">
-              Contribution policy
-            </legend>
-            <p className="text-[0.75rem] text-[var(--color-ink-2)]">
-              Decides what happens when a non-facilitator publishes an activity.
-            </p>
-            <div className="space-y-1.5">
-              {CONTRIBUTION_MODES.map((mode) => {
-                const copy = CONTRIBUTION_MODE_COPY[mode];
-                return (
-                  <label
-                    key={mode}
-                    className="flex cursor-pointer items-start gap-2 rounded-[var(--radius-sm)] px-1 py-1 hover:bg-[var(--color-surface)]"
-                  >
-                    <input
-                      type="radio"
-                      name="contribution-policy"
-                      value={mode}
-                      checked={pendingPolicy === mode}
-                      onChange={() => setPendingPolicy(mode)}
-                      disabled={policyDisabled}
-                      className="mt-1"
-                    />
-                    <div>
-                      <div className="font-medium text-[0.8125rem] text-[var(--color-ink)]">
-                        {copy.label}
-                      </div>
-                      <div className="text-[0.75rem] text-[var(--color-ink-2)]">{copy.hint}</div>
-                    </div>
-                  </label>
-                );
-              })}
-            </div>
-          </fieldset>
+          <RadioCardGroup
+            legend="Contribution policy"
+            hint="Decides what happens when a non-facilitator publishes an activity."
+            name="contribution-policy"
+            options={CONTRIBUTION_MODES.map((mode) => ({
+              value: mode,
+              label: CONTRIBUTION_MODE_COPY[mode].label,
+              hint: CONTRIBUTION_MODE_COPY[mode].hint,
+            }))}
+            value={pendingPolicy}
+            onChange={setPendingPolicy}
+            disabled={policyDisabled}
+          />
+        ) : null}
+
+        {!archived ? (
+          <RadioCardGroup
+            legend="Peer progress visibility"
+            hint="Controls whether enrollees can see each other's completion progress. Detailed responses always stay private to their author."
+            name="peer-progress-visibility"
+            options={PEER_PROGRESS_OPTIONS}
+            value={pendingPeerProgress}
+            onChange={setPendingPeerProgress}
+            // Same authority as the contribution policy (Group Admin / Track
+            // Facilitator), so it rides the same capability rather than a
+            // second near-identical cap on the wire.
+            disabled={policyDisabled}
+          />
         ) : null}
 
         {!archived && caps.canArchive ? (

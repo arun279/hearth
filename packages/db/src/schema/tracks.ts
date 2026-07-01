@@ -13,6 +13,7 @@ export const tracks = sqliteTable(
     name: text("name").notNull(),
     description: text("description"),
     status: text("status").notNull().default("active"),
+    peerProgressVisibility: text("peer_progress_visibility").notNull().default("shared"),
     trackStructureJson: text("track_structure_json").notNull(),
     contributionPolicyJson: text("contribution_policy_json").notNull(),
     pausedAt: integer("paused_at", { mode: "timestamp_ms" }),
@@ -24,6 +25,10 @@ export const tracks = sqliteTable(
   (t) => [
     index("tracks_group_status_idx").on(t.groupId, t.status),
     check("tracks_status", sql`${t.status} IN ('active', 'paused', 'archived')`),
+    check(
+      "tracks_peer_progress_visibility",
+      sql`${t.peerProgressVisibility} IN ('shared', 'facilitator_only')`,
+    ),
   ],
 );
 

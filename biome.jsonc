@@ -107,7 +107,7 @@
       }
     },
     {
-      "includes": ["packages/domain/src/policy/**/*.ts", "packages/domain/src/visibility/**/*.ts"],
+      "includes": ["packages/domain/src/policy/**/*.ts"],
       "linter": {
         "rules": {
           "style": {

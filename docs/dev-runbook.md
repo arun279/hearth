@@ -339,6 +339,12 @@ pnpm exec wrangler r2 bucket cors put hearth-storage --file r2-cors-prod.json
 
 Both recipes are idempotent — safe to re-run on every deploy. If you have a custom prod domain other than `hearth.wiki`, swap it in `r2-cors-prod.json`.
 
+## 8e. Visibility scope resolution
+
+A cross-participant Activity Record read is projected to `full | summary | hidden` by the pure resolver in `packages/domain/src/visibility/resolve.ts`, where `hidden` collapses to a 404 byte-identical to a missing row so the record id is not an enumeration oracle. The two scope tables (a co-enrollee's scope per preference, and a non-enrollee group member's scope per preference) and the five-step branch order are normative — `packages/domain/test/visibility/resolve.test.ts` is the table-driven source of truth for every `(viewer-context, preference)` cell.
+
+Change the resolution intent in one direction only: settle it in the normative Visibility Scope decision first, then encode the new cell in `resolve.test.ts`, then make `resolve.ts` pass. Editing `resolve.ts` ahead of the test lets the matrix and the code drift silently. The resolver stays SPA-importable (CI rule 9): no `Date.now()` / `new Date()` / `crypto.*`, no async, no dynamic import, no Node globals — `policy-purity.test.ts` fails the build on a leak.
+
 ## 9. Inspecting R2 (avatars and library uploads)
 
 The Worker writes uploads to the R2 binding named `STORAGE` under two prefixes:

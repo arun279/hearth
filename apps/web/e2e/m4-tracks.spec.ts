@@ -53,10 +53,12 @@ test.describe("M4 — Track lifecycle", () => {
     await expect(page.getByText(/^active$/i).first()).toBeVisible();
     await expect(page.getByRole("status").filter({ hasText: /Paused/i })).toBeHidden();
 
-    // Tab bar: four tabs visible, Activities is the default panel and shows
-    // an empty state.
+    // Tab bar: five tabs visible (the creator is a Track Facilitator, so the
+    // Progress tab is offered), Activities is the default panel and shows an
+    // empty state.
     const tabList = page.getByRole("tablist", { name: "Track sections" });
     await expect(tabList.getByRole("tab", { name: /Activities/i })).toBeVisible();
+    await expect(tabList.getByRole("tab", { name: /Progress/i })).toBeVisible();
     await expect(tabList.getByRole("tab", { name: /Sessions/i })).toBeVisible();
     await expect(tabList.getByRole("tab", { name: /Library/i })).toBeVisible();
     await expect(tabList.getByRole("tab", { name: /Pending/i })).toBeVisible();
@@ -71,11 +73,11 @@ test.describe("M4 — Track lifecycle", () => {
     await tabList.getByRole("tab", { name: /Activities/i }).focus();
     expect(await activeTabId()).toBe("track-home-tab-activities");
     await page.keyboard.press("ArrowRight");
-    await expect(tabList.getByRole("tab", { name: /Sessions/i })).toHaveAttribute(
+    await expect(tabList.getByRole("tab", { name: /Progress/i })).toHaveAttribute(
       "aria-selected",
       "true",
     );
-    expect(await activeTabId()).toBe("track-home-tab-sessions");
+    expect(await activeTabId()).toBe("track-home-tab-progress");
     await page.keyboard.press("End");
     await expect(tabList.getByRole("tab", { name: /Pending/i })).toHaveAttribute(
       "aria-selected",

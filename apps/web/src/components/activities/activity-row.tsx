@@ -1,6 +1,7 @@
 import type { ActivityPartKind, ActivityWindow } from "@hearth/domain";
 import { Badge, cn, IconButton, PartIcon } from "@hearth/ui";
 import { ChevronRight, Pencil } from "lucide-react";
+import type { ReactNode } from "react";
 import type { ActivityListItem } from "../../hooks/use-activities.ts";
 import { formatRelative } from "../../lib/format.ts";
 
@@ -14,6 +15,12 @@ type Props = {
    * Activity Player — the surface where the activity is consumed.
    */
   readonly onEdit?: (activityId: string) => void;
+  /**
+   * Coarse completion chip for this activity. Rendered outside the row's
+   * open-button so its per-participant labels don't fold into the button's
+   * accessible name.
+   */
+  readonly completionSlot?: ReactNode;
 };
 
 /**
@@ -26,7 +33,7 @@ type Props = {
  * visually distinct so a facilitator's muscle-memory click on the row
  * doesn't surprise them with the composer instead of the reader.
  */
-export function ActivityRow({ activity, onOpen, onEdit }: Props) {
+export function ActivityRow({ activity, onOpen, onEdit, completionSlot }: Props) {
   const audienceLabel =
     activity.audienceKind === "everyone_enrolled" ? "Everyone enrolled" : "Selected participants";
   const prereqLabel = prereqPhrase(activity.prereqCount);
@@ -40,50 +47,53 @@ export function ActivityRow({ activity, onOpen, onEdit }: Props) {
         "focus-within:bg-[var(--color-surface-2)] hover:bg-[var(--color-surface-2)]",
       )}
     >
-      <button
-        type="button"
-        onClick={() => onOpen(activity.id)}
-        className={cn(
-          "min-w-0 space-y-1.5 text-left",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--color-bg)]",
-        )}
-        aria-label={`Open activity: ${activity.title}`}
-      >
-        <div className="flex min-w-0 items-center gap-2">
-          <h3 className="truncate font-medium text-[0.875rem] text-[var(--color-ink)]">
-            {activity.title}
-          </h3>
-          {activity.audienceKind === "subset" ? <Badge tone="warn">narrowed</Badge> : null}
-        </div>
-        {activity.description ? (
-          <p className="truncate text-[0.75rem] text-[var(--color-ink-2)]">
-            {activity.description}
-          </p>
-        ) : null}
-        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[0.6875rem] text-[var(--color-ink-3)]">
-          <PartKindStrip kinds={activity.partKindSequence as readonly ActivityPartKind[]} />
-          <span aria-hidden="true">·</span>
-          <span>{partsLabel}</span>
-          <span aria-hidden="true">·</span>
-          <span>{audienceLabel}</span>
-          {prereqLabel ? (
-            <>
-              <span aria-hidden="true">·</span>
-              <span>{prereqLabel}</span>
-            </>
+      <div className="min-w-0">
+        <button
+          type="button"
+          onClick={() => onOpen(activity.id)}
+          className={cn(
+            "min-w-0 space-y-1.5 text-left",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--color-bg)]",
+          )}
+          aria-label={`Open activity: ${activity.title}`}
+        >
+          <div className="flex min-w-0 items-center gap-2">
+            <h3 className="truncate font-medium text-[0.875rem] text-[var(--color-ink)]">
+              {activity.title}
+            </h3>
+            {activity.audienceKind === "subset" ? <Badge tone="warn">narrowed</Badge> : null}
+          </div>
+          {activity.description ? (
+            <p className="truncate text-[0.75rem] text-[var(--color-ink-2)]">
+              {activity.description}
+            </p>
           ) : null}
-          {windowLabel ? (
-            <>
-              <span aria-hidden="true">·</span>
-              <span
-                className={windowLabel.tone === "closed" ? "text-[var(--color-warn)]" : undefined}
-              >
-                {windowLabel.text}
-              </span>
-            </>
-          ) : null}
-        </div>
-      </button>
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[0.6875rem] text-[var(--color-ink-3)]">
+            <PartKindStrip kinds={activity.partKindSequence as readonly ActivityPartKind[]} />
+            <span aria-hidden="true">·</span>
+            <span>{partsLabel}</span>
+            <span aria-hidden="true">·</span>
+            <span>{audienceLabel}</span>
+            {prereqLabel ? (
+              <>
+                <span aria-hidden="true">·</span>
+                <span>{prereqLabel}</span>
+              </>
+            ) : null}
+            {windowLabel ? (
+              <>
+                <span aria-hidden="true">·</span>
+                <span
+                  className={windowLabel.tone === "closed" ? "text-[var(--color-warn)]" : undefined}
+                >
+                  {windowLabel.text}
+                </span>
+              </>
+            ) : null}
+          </div>
+        </button>
+        {completionSlot ? <div className="mt-2">{completionSlot}</div> : null}
+      </div>
       {onEdit ? (
         <IconButton label={`Edit activity: ${activity.title}`} onClick={() => onEdit(activity.id)}>
           <Pencil size={13} strokeWidth={1.75} aria-hidden="true" />

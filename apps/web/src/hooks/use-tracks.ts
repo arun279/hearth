@@ -2,8 +2,10 @@ import type {
   ContributionPolicyEnvelope,
   GroupMembership,
   LearningTrack,
+  PeerProgressVisibility,
   StudyGroup,
   TrackEnrollment,
+  TrackProgressRow,
   TrackStructureEnvelope,
 } from "@hearth/domain";
 import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -47,6 +49,7 @@ const trackDetailKey = (trackId: string) => ["tracks", "detail", trackId] as con
 const trackSummaryKey = (groupId: string, trackId: string) =>
   ["tracks", "summary", groupId, trackId] as const;
 const trackPeopleKey = (trackId: string) => ["tracks", "people", trackId] as const;
+const trackProgressKey = (trackId: string) => ["tracks", "progress", trackId] as const;
 
 /**
  * Invalidate every cache entry that could become stale after a mutation
@@ -174,6 +177,49 @@ export function useUpdateTrackContributionPolicy(groupId: string, trackId: strin
       return (await res.json()) as LearningTrack;
     },
     onSuccess: () => invalidateTrack(qc, groupId, trackId),
+  });
+}
+
+export function useSetPeerProgressVisibility(groupId: string, trackId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (visibility: PeerProgressVisibility): Promise<LearningTrack> => {
+      const res = await api.tracks[":trackId"]["peer-progress-visibility"].$patch({
+        param: { trackId },
+        json: { visibility },
+      });
+      await assertOk(res);
+      return (await res.json()) as LearningTrack;
+    },
+    onSuccess: () => {
+      invalidateTrack(qc, groupId, trackId);
+      // Flipping the setting changes which rows a peer may read, so the
+      // roster + per-activity chips must refetch.
+      qc.invalidateQueries({ queryKey: trackProgressKey(trackId) });
+    },
+  });
+}
+
+// ── Progress ───────────────────────────────────────────────────────────
+
+/**
+ * The track-altitude progress roster: every visible participant's coarse
+ * completion fact per activity. The server two-factor gates the read (404 for
+ * a non-member, 403 for an in-group non-participant) and shapes the rows by
+ * the track's `peerProgressVisibility`, so callers must surface `isError` and
+ * split on `errorStatus`. `retryCount` is non-null only for a facilitator
+ * viewer.
+ */
+export function useTrackProgress(trackId: string, enabled: boolean) {
+  return useQuery({
+    queryKey: trackProgressKey(trackId),
+    enabled,
+    queryFn: async (): Promise<readonly TrackProgressRow[]> => {
+      const res = await api.tracks[":trackId"].progress.$get({ param: { trackId } });
+      await assertOk(res);
+      const body = (await res.json()) as { entries: readonly TrackProgressRow[] };
+      return body.entries;
+    },
   });
 }
 

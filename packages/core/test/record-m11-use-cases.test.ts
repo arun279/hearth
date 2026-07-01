@@ -12,11 +12,9 @@ import { markWrite } from "@hearth/ports";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { gradeQuizAnswers } from "../src/use-cases/grade-quiz-answers.ts";
 import { listActivityParticipantRecords } from "../src/use-cases/list-activity-participant-records.ts";
-import { listPartHistory } from "../src/use-cases/list-part-history.ts";
 import { markActivityComplete } from "../src/use-cases/mark-activity-complete.ts";
 import { resetParticipantProgress } from "../src/use-cases/reset-participant-progress.ts";
 import { revisionBumpRestart } from "../src/use-cases/revision-bump-restart.ts";
-import { viewActivityRecord } from "../src/use-cases/view-activity-record.ts";
 import {
   ACTIVE_GROUP,
   ACTOR,
@@ -45,6 +43,7 @@ const track = {
   name: "T",
   description: null,
   status: "active" as const,
+  peerProgressVisibility: "shared" as const,
   pausedAt: null,
   archivedAt: null,
   archivedBy: null,
@@ -98,7 +97,6 @@ function record(overrides: Partial<ActivityRecord> = {}): ActivityRecord {
     participantId: ACTOR_ID,
     completionState: "in_progress",
     completedAt: null,
-    visibilityOverride: null,
     createdAt: TEST_NOW,
     updatedAt: TEST_NOW,
     ...overrides,
@@ -237,62 +235,6 @@ describe("gradeQuizAnswers (re-grade on mount, no write)", () => {
       deps,
     );
     expect(result).toBeNull();
-  });
-});
-
-describe("viewActivityRecord", () => {
-  it("projects the full view with history rollups for the participant", async () => {
-    const records = makeRecords({
-      byId: vi.fn(async () => record()),
-      countPartHistory: vi.fn(async () => 1),
-      partsWithHistory: vi.fn(async () => ["p_reflect" as ActivityPartId]),
-    });
-    const deps = { users: makeUsers(ACTOR), records };
-    const view = await viewActivityRecord({ actor: ACTOR_ID, recordId: RECORD_ID }, deps);
-    expect(view.id).toBe(RECORD_ID);
-    expect(view.partHistoryCount).toBe(1);
-    expect(view.partsWithHistory).toEqual(["p_reflect"]);
-  });
-
-  it("404s (not 403) a non-owner — record id is not an enumeration oracle", async () => {
-    const records = makeRecords({
-      byId: vi.fn(async () => record({ participantId: TARGET_ID })),
-    });
-    const deps = { users: makeUsers(ACTOR), records };
-    await expect(
-      viewActivityRecord({ actor: ACTOR_ID, recordId: RECORD_ID }, deps),
-    ).rejects.toMatchObject({ code: "NOT_FOUND" });
-  });
-
-  it("404s a missing record", async () => {
-    const records = makeRecords({ byId: vi.fn(async () => null) });
-    const deps = { users: makeUsers(ACTOR), records };
-    await expect(
-      viewActivityRecord({ actor: ACTOR_ID, recordId: RECORD_ID }, deps),
-    ).rejects.toMatchObject({ code: "NOT_FOUND" });
-  });
-});
-
-describe("listPartHistory", () => {
-  it("404s a non-owner before reading history", async () => {
-    const records = makeRecords({
-      byId: vi.fn(async () => record({ participantId: TARGET_ID })),
-    });
-    const deps = { users: makeUsers(ACTOR), records };
-    await expect(
-      listPartHistory({ actor: ACTOR_ID, recordId: RECORD_ID }, deps),
-    ).rejects.toMatchObject({ code: "NOT_FOUND" });
-    expect(records.listPartHistory).not.toHaveBeenCalled();
-  });
-
-  it("returns the owner's history, optionally filtered by partId", async () => {
-    const records = makeRecords({ byId: vi.fn(async () => record()) });
-    const deps = { users: makeUsers(ACTOR), records };
-    await listPartHistory(
-      { actor: ACTOR_ID, recordId: RECORD_ID, partId: "p_quiz" as ActivityPartId },
-      deps,
-    );
-    expect(records.listPartHistory).toHaveBeenCalledWith(RECORD_ID, { partId: "p_quiz" });
   });
 });
 

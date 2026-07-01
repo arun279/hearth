@@ -3,10 +3,12 @@ import {
   type ContributionMode,
   type ContributionPolicyEnvelope,
   DEFAULT_CONTRIBUTION_POLICY,
+  DEFAULT_PEER_PROGRESS_VISIBILITY,
   DomainError,
   EMPTY_TRACK_STRUCTURE,
   type LearningTrack,
   type LearningTrackId,
+  type PeerProgressVisibility,
   type StudyGroupId,
   type TrackEnrollment,
   type TrackRole,
@@ -26,6 +28,7 @@ function toTrack(r: typeof tracks.$inferSelect): LearningTrack {
     name: r.name,
     description: r.description,
     status: r.status as TrackStatus,
+    peerProgressVisibility: r.peerProgressVisibility as PeerProgressVisibility,
     pausedAt: r.pausedAt,
     archivedAt: r.archivedAt,
     archivedBy: r.archivedBy === null ? null : (r.archivedBy as UserId),
@@ -163,34 +166,26 @@ function parseContributionPolicyEnvelope(raw: string, trackId: string): Contribu
 }
 
 /**
- * Conditional UPDATE that writes one JSON column on a non-archived track,
- * returning the resulting row. Shared by `saveStructure` and
- * `saveContributionPolicy` because they have identical safety shape:
- * gate first, set the column + `updatedAt`, guard on `status != 'archived'`
- * via `.returning()`, and translate a zero-row result into NOT_FOUND or
- * CONFLICT depending on whether the row exists at all.
- *
- * Generic over the column name so the typed `set({ ... })` call site stays
- * inferable without any drizzle-side dynamic-property gymnastics.
+ * Conditional UPDATE that writes one column on a non-archived track,
+ * returning the resulting row. Shared by `saveStructure`,
+ * `saveContributionPolicy`, and `savePeerProgressVisibility` because they
+ * have identical safety shape: gate first, set the column + `updatedAt`,
+ * guard on `status != 'archived'` via `.returning()`, and translate a
+ * zero-row result into NOT_FOUND or CONFLICT depending on whether the row
+ * exists at all.
  */
-async function saveTrackJsonColumn(
+async function saveTrackColumn(
   deps: Pick<CloudflareAdapterDeps, "db" | "gate">,
   id: LearningTrackId,
   opts: {
-    readonly column: "trackStructureJson" | "contributionPolicyJson";
-    readonly value: string;
+    readonly patch: Partial<typeof tracks.$inferInsert>;
     readonly archivedDetail: string;
   },
 ): Promise<LearningTrack> {
   await deps.gate.assertWritable();
-  const now = new Date();
-  const patch =
-    opts.column === "trackStructureJson"
-      ? { trackStructureJson: opts.value, updatedAt: now }
-      : { contributionPolicyJson: opts.value, updatedAt: now };
   const updated = await deps.db
     .update(tracks)
-    .set(patch)
+    .set({ ...opts.patch, updatedAt: new Date() })
     .where(and(eq(tracks.id, id), ne(tracks.status, "archived")))
     .returning();
   if (updated.length === 0) {
@@ -391,6 +386,7 @@ export function createLearningTrackRepository(
         name,
         description,
         status: "active",
+        peerProgressVisibility: DEFAULT_PEER_PROGRESS_VISIBILITY,
         pausedAt: null,
         archivedAt: null,
         archivedBy: null,
@@ -496,19 +492,24 @@ export function createLearningTrackRepository(
       // Defense in depth: re-parse before persisting so a caller bypassing
       // the use case still cannot persist a malformed envelope.
       const validated = parseStructureEnvelope(JSON.stringify(envelope), id);
-      return saveTrackJsonColumn(deps, id, {
-        column: "trackStructureJson",
-        value: JSON.stringify(validated),
+      return saveTrackColumn(deps, id, {
+        patch: { trackStructureJson: JSON.stringify(validated) },
         archivedDetail: "Archived tracks do not allow structure edits.",
       });
     },
 
     async saveContributionPolicy(id, envelope, _by) {
       const validated = parseContributionPolicyEnvelope(JSON.stringify(envelope), id);
-      return saveTrackJsonColumn(deps, id, {
-        column: "contributionPolicyJson",
-        value: JSON.stringify(validated),
+      return saveTrackColumn(deps, id, {
+        patch: { contributionPolicyJson: JSON.stringify(validated) },
         archivedDetail: "Archived tracks do not allow contribution-policy changes.",
+      });
+    },
+
+    async savePeerProgressVisibility(id, visibility, _by) {
+      return saveTrackColumn(deps, id, {
+        patch: { peerProgressVisibility: visibility },
+        archivedDetail: "Archived tracks do not allow progress-visibility changes.",
       });
     },
 

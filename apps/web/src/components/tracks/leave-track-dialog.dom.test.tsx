@@ -40,6 +40,7 @@ const TRACK: LearningTrack = {
   name: "Beginner Spanish",
   description: null,
   status: "active",
+  peerProgressVisibility: "shared",
   pausedAt: null,
   archivedAt: null,
   archivedBy: null,

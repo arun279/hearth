@@ -62,13 +62,7 @@ describe("<ReflectPart>", () => {
   it("renders an editable textarea for an enrolled participant", () => {
     const html = renderToString(
       <QueryClientProvider client={new QueryClient()}>
-        <ReflectPart
-          activityId="a_test"
-          part={PART}
-          partState={null}
-          canParticipate={true}
-          visibilityOverride={null}
-        />
+        <ReflectPart activityId="a_test" part={PART} partState={null} canParticipate={true} />
       </QueryClientProvider>,
     );
     expect(html).toContain('aria-label="Your reflection"');
@@ -81,13 +75,7 @@ describe("<ReflectPart>", () => {
       text: "mi obra",
     };
     const html = renderToString(
-      <ReflectPart
-        activityId="a_test"
-        part={PART}
-        partState={stored}
-        canParticipate={false}
-        visibilityOverride={null}
-      />,
+      <ReflectPart activityId="a_test" part={PART} partState={stored} canParticipate={false} />,
     );
     expect(html).toContain("mi obra");
     expect(html).not.toContain('aria-label="Your reflection"');

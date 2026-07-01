@@ -18,6 +18,7 @@ import { z } from "zod";
 import { ActivitiesTab } from "../components/activities/activities-tab.tsx";
 import { LeaveTrackDialog } from "../components/tracks/leave-track-dialog.tsx";
 import { TrackPageShell } from "../components/tracks/track-page-shell.tsx";
+import { TrackProgressTab } from "../components/tracks/track-progress-tab.tsx";
 import { TrackSettingsDialog } from "../components/tracks/track-settings-dialog.tsx";
 import { useDocumentTitle } from "../hooks/use-document-title.ts";
 import { useMeContext } from "../hooks/use-me-context.ts";
@@ -32,11 +33,11 @@ import { loadMeContextOrNull } from "../lib/me-context.ts";
 import { asUserMessage } from "../lib/problem.ts";
 
 const searchSchema = z.object({
-  tab: z.enum(["activities", "sessions", "library", "pending"]).optional(),
+  tab: z.enum(["activities", "progress", "sessions", "library", "pending"]).optional(),
   settings: z.enum(["open"]).optional(),
 });
 
-type TrackTab = "activities" | "sessions" | "library" | "pending";
+type TrackTab = "activities" | "progress" | "sessions" | "library" | "pending";
 
 const TAB_PREFIX = "track-home";
 
@@ -168,6 +169,12 @@ function TrackHomeBody({
   const showPendingTab =
     policyMode !== "none" || caps.canEditContributionPolicy || caps.canEditMetadata;
 
+  // The progress roster is gated server-side to participants + authorities; a
+  // non-participant Group Member would 403. Mirror that here so the tab only
+  // appears for viewers it would serve, rather than offering a tab that errors.
+  const canViewProgress =
+    isCurrentEnrollee || caps.canEditContributionPolicy || caps.canEditMetadata;
+
   // Settings affordance lights up when the dialog has at least one
   // *state-changing* action available. `canArchive` is intentionally
   // excluded — archive is idempotent (re-archiving an archived track is a
@@ -182,6 +189,7 @@ function TrackHomeBody({
     readonly count?: number;
   }> = [
     { value: "activities", label: "Activities", count: counts?.activityCount },
+    ...(canViewProgress ? ([{ value: "progress" as const, label: "Progress" }] as const) : []),
     { value: "sessions", label: "Sessions", count: counts?.sessionCount },
     { value: "library", label: "Library", count: counts?.libraryItemCount },
     ...(showPendingTab
@@ -336,6 +344,13 @@ function TrackHomeBody({
               groupId={group.id}
               trackId={track.id}
               canCreate={!groupArchived && !trackArchived && !trackPaused && caps.canEditMetadata}
+              canViewProgress={canViewProgress}
+            />
+          ) : null}
+          {activeTab === "progress" && canViewProgress ? (
+            <TrackProgressTab
+              trackId={track.id}
+              peerProgressVisibility={track.peerProgressVisibility}
             />
           ) : null}
           {activeTab === "sessions" ? <SessionsEmpty /> : null}

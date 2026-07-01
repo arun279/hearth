@@ -532,6 +532,42 @@ describe("learning-track adapter (real D1)", () => {
     });
   });
 
+  describe("savePeerProgressVisibility", () => {
+    it("a fresh track defaults to 'shared'", async () => {
+      const repos = buildRepos();
+      const { track } = await setupTrack(repos, "tc_ppv_def");
+      expect(track.peerProgressVisibility).toBe("shared");
+    });
+
+    it("persists the new value and round-trips via byId", async () => {
+      const repos = buildRepos();
+      const { creator, track } = await setupTrack(repos, "tc_ppv");
+      const updated = await repos.tracksRepo.savePeerProgressVisibility(
+        track.id,
+        "facilitator_only",
+        creator,
+      );
+      expect(updated.peerProgressVisibility).toBe("facilitator_only");
+      expect((await repos.tracksRepo.byId(track.id))?.peerProgressVisibility).toBe(
+        "facilitator_only",
+      );
+    });
+
+    it("throws CONFLICT track_archived when the track is archived", async () => {
+      const repos = buildRepos();
+      const { creator, track } = await setupTrack(repos, "tc_ppva");
+      await repos.tracksRepo.updateStatus({
+        id: track.id,
+        to: "archived",
+        expectedFromStatus: "active",
+        by: creator,
+      });
+      await expect(
+        repos.tracksRepo.savePeerProgressVisibility(track.id, "facilitator_only", creator),
+      ).rejects.toMatchObject({ code: "CONFLICT", reason: "track_archived" });
+    });
+  });
+
   describe("endAllEnrollmentsForUser", () => {
     async function enroll(
       db: Db,

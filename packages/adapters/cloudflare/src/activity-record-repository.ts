@@ -1,4 +1,4 @@
-import { activityRecords, partHistory, partProgress } from "@hearth/db/schema";
+import { activityRecords, learningActivities, partHistory, partProgress } from "@hearth/db/schema";
 import {
   type ActivityPartId,
   type ActivityRecord,
@@ -15,8 +15,6 @@ import {
   partHistoryEnvelopeSchema,
   partProgressEnvelopeSchema,
   type UserId,
-  type VisibilityPreference,
-  visibilityOverrideEnvelopeSchema,
 } from "@hearth/domain";
 import { type ActivityRecordRepository, markWrite } from "@hearth/ports";
 import { and, asc, desc, eq, gt, inArray, sql } from "drizzle-orm";
@@ -97,7 +95,6 @@ export function createActivityRecordRepository(
           participantId,
           completionState: "in_progress",
           completedAt: null,
-          visibilityOverrideJson: null,
           createdAt: now,
           updatedAt: now,
         })
@@ -143,31 +140,22 @@ export function createActivityRecordRepository(
       return { records: page.map(decodeRecord), nextCursor };
     },
 
+    async listByTrack(trackId) {
+      const rows = await deps.db
+        .select({ record: activityRecords })
+        .from(activityRecords)
+        .innerJoin(learningActivities, eq(learningActivities.id, activityRecords.activityId))
+        .where(eq(learningActivities.trackId, trackId))
+        .orderBy(asc(activityRecords.id));
+      return rows.map((r) => decodeRecord(r.record));
+    },
+
     setCompletion: markWrite(async ({ id, state, at }) => {
       await deps.gate.assertWritable();
       const completedAt = state === "completed" ? at : null;
       const updated = await deps.db
         .update(activityRecords)
         .set({ completionState: state, completedAt, updatedAt: at })
-        .where(eq(activityRecords.id, id))
-        .returning({ id: activityRecords.id });
-      if (updated.length === 0) {
-        throw new DomainError("NOT_FOUND", "Activity record not found.", "not_found");
-      }
-    }),
-
-    setVisibilityOverride: markWrite(async (id, override) => {
-      await deps.gate.assertWritable();
-      const now = new Date();
-      const json =
-        override === null
-          ? null
-          : JSON.stringify(
-              visibilityOverrideEnvelopeSchema.parse({ v: 1, data: { preference: override } }),
-            );
-      const updated = await deps.db
-        .update(activityRecords)
-        .set({ visibilityOverrideJson: json, updatedAt: now })
         .where(eq(activityRecords.id, id))
         .returning({ id: activityRecords.id });
       if (updated.length === 0) {
@@ -436,26 +424,9 @@ function decodeRecord(row: typeof activityRecords.$inferSelect): ActivityRecord 
     participantId: row.participantId as UserId,
     completionState: row.completionState as CompletionState,
     completedAt: row.completedAt,
-    visibilityOverride: parseVisibilityOverride(row.visibilityOverrideJson, row.id),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
-}
-
-function parseVisibilityOverride(
-  raw: string | null,
-  recordId: string,
-): VisibilityPreference | null {
-  if (raw === null) return null;
-  try {
-    return visibilityOverrideEnvelopeSchema.parse(JSON.parse(raw)).data.preference;
-  } catch (err) {
-    throw new DomainError(
-      "INVARIANT_VIOLATION",
-      `Activity record ${recordId} has invalid visibilityOverrideJson: ${(err as Error).message}`,
-      "envelope_invalid",
-    );
-  }
 }
 
 function decodePartProgress(row: typeof partProgress.$inferSelect): PartProgress {

@@ -17,7 +17,6 @@ const record: ActivityRecord = {
   participantId: "u_1" as UserId,
   completionState: "completed",
   completedAt: later,
-  visibilityOverride: "track_only",
   createdAt: now,
   updatedAt: later,
 };
@@ -54,7 +53,6 @@ describe("projectRecordFull", () => {
       participantId: "u_1",
       completionState: "completed",
       completedAt: later,
-      visibilityOverride: "track_only",
       createdAt: now,
       updatedAt: later,
       parts: [

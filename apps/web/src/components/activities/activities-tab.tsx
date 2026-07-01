@@ -1,7 +1,8 @@
+import type { TrackProgressRow } from "@hearth/domain";
 import { Button, Callout, EmptyState, Modal, Skeleton } from "@hearth/ui";
 import { useNavigate } from "@tanstack/react-router";
 import { Plus, Trash2 } from "lucide-react";
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   type ActivityComposerPayload,
@@ -12,8 +13,11 @@ import {
   useTrackActivities,
   useUpdateActivity,
 } from "../../hooks/use-activities.ts";
+import { useTrackProgress } from "../../hooks/use-tracks.ts";
 import { asUserMessage } from "../../lib/problem.ts";
 import { ConfirmActionDialog } from "../admin/confirm-action-dialog.tsx";
+import { ProgressLegend } from "../tracks/progress-dot.tsx";
+import { ActivityCompletionChip } from "./activity-completion-chip.tsx";
 import { ActivityRow } from "./activity-row.tsx";
 
 // Lazy-load the composer chunk so participants viewing the Activities
@@ -32,6 +36,13 @@ type Props = {
   readonly groupId: string;
   readonly trackId: string;
   readonly canCreate: boolean;
+  /**
+   * Whether the viewer may read the progress roster (enrolled or an
+   * authority). Gates the auxiliary completion-chip fetch so it only fires
+   * when the server would 200 — a non-participant Group Member never trips a
+   * 403 just by opening this tab.
+   */
+  readonly canViewProgress: boolean;
 };
 
 /**
@@ -47,12 +58,23 @@ type Props = {
  * separate, authority-gated affordance: an explicit pencil button on
  * each row opens the composer dialog without leaving the tab.
  */
-export function ActivitiesTab({ groupId, trackId, canCreate }: Props) {
+export function ActivitiesTab({ groupId, trackId, canCreate, canViewProgress }: Props) {
   const navigate = useNavigate();
   const query = useTrackActivities(trackId, true);
   const items = query.data ?? [];
   const showSkeleton = query.isLoading;
   const showError = query.isError && !query.isLoading;
+
+  const progress = useTrackProgress(trackId, canViewProgress);
+  const progressByActivity = useMemo(() => {
+    const map = new Map<string, TrackProgressRow[]>();
+    for (const row of progress.data ?? []) {
+      const list = map.get(row.activityId);
+      if (list) list.push(row);
+      else map.set(row.activityId, [row]);
+    }
+    return map;
+  }, [progress.data]);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -89,6 +111,20 @@ export function ActivitiesTab({ groupId, trackId, canCreate }: Props) {
         ) : null}
       </div>
 
+      {canViewProgress && progress.isError ? (
+        // Completion chips are an auxiliary enrichment of the activity rows.
+        // A progress-read failure must not collapse the (separately-fetched)
+        // activity list into an error, but it also must not silently read as
+        // "nobody has started" — so surface the failure as a quiet inline
+        // notice with its own retry, distinct from the rows below.
+        <div className="flex items-center justify-between gap-2 text-[0.75rem] text-[var(--color-ink-2)]">
+          <span>Couldn't load completion progress.</span>
+          <Button size="sm" variant="secondary" onClick={() => void progress.refetch()}>
+            Retry
+          </Button>
+        </div>
+      ) : null}
+
       {showError ? (
         // A distinct error branch keeps server failures legible — the
         // operator reads "couldn't reach the server, retry" instead of
@@ -122,20 +158,32 @@ export function ActivitiesTab({ groupId, trackId, canCreate }: Props) {
           }
         />
       ) : (
-        <div className="overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-rule)]">
-          {items.map((a, i) => (
-            <div
-              key={a.id}
-              className={i < items.length - 1 ? "border-[var(--color-rule)] border-b" : undefined}
-            >
-              <ActivityRow
-                activity={a}
-                onOpen={onOpen}
-                onEdit={canCreate ? setEditId : undefined}
-              />
-            </div>
-          ))}
-        </div>
+        <>
+          {canViewProgress && progressByActivity.size > 0 ? (
+            // One decode key for the per-row completion dots, shared with the
+            // Progress tab so a peer reads the bare chips at a glance.
+            <ProgressLegend />
+          ) : null}
+          <div className="overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-rule)]">
+            {items.map((a, i) => (
+              <div
+                key={a.id}
+                className={i < items.length - 1 ? "border-[var(--color-rule)] border-b" : undefined}
+              >
+                <ActivityRow
+                  activity={a}
+                  onOpen={onOpen}
+                  onEdit={canCreate ? setEditId : undefined}
+                  completionSlot={
+                    canViewProgress ? (
+                      <ActivityCompletionChip entries={progressByActivity.get(a.id) ?? []} />
+                    ) : undefined
+                  }
+                />
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       {createOpen ? (

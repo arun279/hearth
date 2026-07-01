@@ -4,9 +4,7 @@ import type { ActivityRecordId, LearningActivityId, UserId } from "../../src/ids
 import {
   canMarkActivityComplete,
   canMarkPartComplete,
-  canOverrideActivityRecordVisibility,
   canResetParticipantProgress,
-  canViewActivityRecord,
 } from "../../src/policy/record.ts";
 import type { ActivityRecord } from "../../src/record/types.ts";
 import type { User } from "../../src/user.ts";
@@ -38,7 +36,6 @@ const record: ActivityRecord = {
   participantId: ownerId,
   completionState: "in_progress",
   completedAt: null,
-  visibilityOverride: null,
   createdAt: now,
   updatedAt: now,
 };
@@ -122,32 +119,6 @@ describe("canResetParticipantProgress", () => {
     expect(canResetParticipantProgress(false)).toMatchObject({
       ok: false,
       reason: { code: "not_track_authority" },
-    });
-  });
-});
-
-describe("canOverrideActivityRecordVisibility", () => {
-  it("allows the owner", () => {
-    expect(canOverrideActivityRecordVisibility(owner, record).ok).toBe(true);
-  });
-
-  it("denies (not_record_owner) a non-owner", () => {
-    expect(canOverrideActivityRecordVisibility(other, record)).toMatchObject({
-      ok: false,
-      reason: { code: "not_record_owner" },
-    });
-  });
-});
-
-describe("canViewActivityRecord", () => {
-  it("allows the participant at full scope", () => {
-    expect(canViewActivityRecord(owner, record)).toEqual({ ok: true, scope: "full" });
-  });
-
-  it("denies (not_record_owner) a non-participant in M11", () => {
-    expect(canViewActivityRecord(other, record)).toMatchObject({
-      ok: false,
-      reason: { code: "not_record_owner" },
     });
   });
 });
