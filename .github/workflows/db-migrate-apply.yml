@@ -1,0 +1,33 @@
+name: DB migration apply
+
+on:
+  pull_request:
+    paths:
+      - "packages/db/migrations/**"
+
+permissions: {}
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Apply new migrations against seeded data
+        run: pnpm db:test-migrate

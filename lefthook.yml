@@ -131,6 +131,12 @@ pre-push:
     # local removal is safe — the gate still enforces server-side.
     test-integration:
       run: pnpm test:integration
+    db-test-migrate:
+      # Applies any migration this push adds against a seeded local D1 through
+      # the real `wrangler d1 migrations apply` path — catches the FK-parent
+      # table-rebuild class that empty-data gates miss. Near-instant no-op when
+      # the push changes no migrations (it diffs against origin/main first).
+      run: pnpm db:test-migrate
     coverage:
       run: pnpm check:coverage
     e2e:

@@ -42,6 +42,8 @@ All of these must pass locally before merge. Most run automatically via `lefthoo
 
 `pnpm e2e` runs the Playwright suite against a locally-spawned worker + Vite dev server. It is intentionally _not_ part of the `pnpm check` aggregate (it boots two long-lived servers and downloads ~150 MB of Chromium on a fresh runner); CI invokes it as a separate workflow gate. First-time setup: `pnpm --filter @hearth/web e2e:install`.
 
+`pnpm db:test-migrate` applies any migration this branch adds over `origin/main` against a **seeded** local D1 through the real `wrangler d1 migrations apply` path, then asserts the apply survives and wipes no populated table. It reproduces the FK-parent table-rebuild failure that only surfaces against populated data on the `--remote` prod apply (every other migration gate runs on empty data). It is a separate gate like `pnpm e2e` (not in the `pnpm check` aggregate): a no-op when the branch changes no migrations, so it is wired to pre-push and to the `packages/db/migrations/**`-filtered CI workflow.
+
 Additional:
 
 - If you touched `packages/db/src/**`, run `pnpm db:generate` and commit the new migration.
@@ -140,13 +142,14 @@ Implementation lives at `scripts/lib/auth-session.mjs` (shared module, JSDoc-typ
 | `pnpm db:check-auth`             | —                  | —                                | ✓                               | ✓                                          |
 | `pnpm test` (node + happy-dom)   | —                  | —                                | changed packages only           | all packages                               |
 | `pnpm test:integration`          | —                  | —                                | ✓                               | ✓                                          |
+| `pnpm db:test-migrate`           | —                  | —                                | ✓ (no-op unless migrations)     | when `packages/db/migrations/**` changes   |
 | `pnpm check:coverage`            | —                  | —                                | ✓                               | ✓                                          |
 | `pnpm check:licenses`            | —                  | —                                | ✓                               | (mirrored by dep-review action)            |
 | Policy-purity test               | —                  | —                                | when SPA-pure dirs change       | (part of `pnpm test`)                      |
 | `pnpm audit --audit-level=high`  | —                  | —                                | ✓                               | daily + per-PR                             |
 | TruffleHog secrets scan          | —                  | staged files only                | —                               | daily + per-PR                             |
 
-`pnpm check` runs the superset locally; use it before opening a PR.
+`pnpm check` runs every gate except `pnpm e2e` and `pnpm db:test-migrate` (the two separate pre-push gates above); run all three before opening a PR.
 
 ## Scaffolding-temporary exceptions
 
